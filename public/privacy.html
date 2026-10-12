@@ -34,9 +34,21 @@
     <li>reads the name, email address and profile photo of the connected Google account (from
     Google Drive), only to show you which account is connected.</li>
   </ul>
-  <p>This data travels directly between your browser and Google. It does not pass through, and is
-  not stored on, any server of ours. The sign-in token Google issues is kept in your browser and
-  expires after about an hour.</p>
+  <p>Your documents and notes travel directly between your browser and Google. They do not pass
+  through, and are not stored on, any server of ours.</p>
+
+  <h2>Staying signed in</h2>
+  <p>So that you sign in once and are not asked for permission again, our sign-in service keeps the
+  long-lived access key Google issues when you allow access (a "refresh token"):</p>
+  <ul>
+    <li>in an encrypted, HttpOnly cookie in your browser, for this device; and</li>
+    <li>encrypted, in a small database (hosted by Supabase in the EU), under an identifier derived
+    from your Google account that cannot be turned back into your email or name.</li>
+  </ul>
+  <p>The key can only be used together with our app's own secret, and only to reach The Reader's
+  folder in your Drive. Signing out ends the session on that device; to withdraw access
+  completely, remove The Reader in your Google account (see below). The stored key is deleted the
+  next time it is found to no longer work.</p>
   <p>The Reader's use and transfer of information received from Google APIs adheres to the
   <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services
   User Data Policy</a>, including the Limited Use requirements. We do not sell this data, use it for
@@ -57,10 +69,11 @@
   <ul>
     <li><strong>A document:</strong> delete it from the shelf. This removes it, with its notes, from
     this device and, when sync is on, from The Reader's folder in your Drive.</li>
-    <li><strong>Stop syncing:</strong> choose <em>Disconnect</em> in the app. Your documents stay on
-    the device and in Drive.</li>
+    <li><strong>Sign out:</strong> choose <em>Sign out</em> in the app. The account's documents are
+    removed from that device and stay in your Drive.</li>
     <li><strong>Revoke access:</strong> remove The Reader at
-    <a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a>.</li>
+    <a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a>. Its
+    stored access key then stops working and is deleted.</li>
     <li><strong>Delete everything in Drive:</strong> in Google Drive, open Settings → Manage apps,
     find The Reader and choose <em>Delete hidden app data</em>.</li>
     <li><strong>Everything on a device:</strong> clear this site's data in your browser settings.</li>
