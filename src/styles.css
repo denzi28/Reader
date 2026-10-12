@@ -243,6 +243,115 @@ button:disabled { cursor: default; }
 }
 .library-foot a { color: var(--muted); }
 
+/* ---------- welcome ---------- */
+.welcome {
+  position: relative;
+  z-index: 1;
+  min-height: 100%;
+  display: grid;
+  place-items: center;
+  padding: max(1.5rem, env(safe-area-inset-top)) 1rem max(1.5rem, env(safe-area-inset-bottom));
+}
+.welcome-card {
+  width: min(440px, 100%);
+  display: grid;
+  justify-items: center;
+  gap: 0.9rem;
+  padding: 2.25rem 1.5rem 1.75rem;
+  border-radius: 22px;
+  background: var(--card);
+  box-shadow: var(--shadow-page);
+  text-align: center;
+  animation: rise 0.6s var(--ease) both;
+}
+.welcome-pages { position: relative; width: 76px; height: 92px; margin-bottom: 0.4rem; }
+.welcome-pages span {
+  position: absolute;
+  inset: 0;
+  border-radius: 3px;
+  background: var(--page);
+  box-shadow: var(--shadow-page);
+  animation: fan 0.9s var(--spring) 0.2s both;
+}
+.welcome-pages span:nth-child(1) { --r: -9deg; --x: -10px; }
+.welcome-pages span:nth-child(2) { --r: 5deg; --x: 8px; }
+.welcome-pages span:nth-child(3) {
+  --r: 0deg; --x: 0px;
+  background:
+    repeating-linear-gradient(to bottom, transparent 0 13px, var(--line) 13px 14px) 12px 22px / calc(100% - 24px) calc(100% - 34px) no-repeat,
+    var(--page);
+}
+@keyframes fan {
+  from { transform: rotate(0) translateX(0); }
+  to { transform: rotate(var(--r)) translateX(var(--x)); }
+}
+.welcome .brand { font-size: clamp(2rem, 8vw, 2.6rem); }
+.welcome-lead { margin: 0; color: var(--muted); line-height: 1.5; }
+.welcome-points {
+  margin: 0.25rem 0 0.6rem;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.45rem;
+  text-align: left;
+  font-size: 0.95rem;
+}
+.welcome-points li { display: flex; gap: 0.55rem; align-items: flex-start; }
+.welcome-points li::before {
+  content: '';
+  flex: none;
+  width: 7px;
+  height: 7px;
+  margin-top: 0.5em;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.welcome-error { margin: 0; font-size: 0.88rem; color: color-mix(in srgb, #b3261e 75%, var(--ink)); }
+.welcome-skip { color: var(--muted); font-size: 0.92rem; }
+.welcome-legal { margin: 0.4rem 0 0; font-size: 0.78rem; color: var(--muted); }
+.welcome-legal a { color: var(--muted); }
+
+/* Google's sign-in button: its logo, its colours, plain label. */
+.google-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.7rem;
+  min-height: 44px;
+  padding: 0 1.1rem 0 0.9rem;
+  border: 1px solid #747775;
+  border-radius: 999px;
+  background: #fff;
+  color: #1f1f1f;
+  font: 500 0.95rem/1 'Roboto', system-ui, sans-serif;
+  white-space: nowrap;
+  transition: background 0.2s, transform 0.2s var(--spring), box-shadow 0.2s;
+}
+.google-btn:hover:not(:disabled) { box-shadow: 0 1px 3px rgba(0,0,0,.2); }
+.google-btn:active:not(:disabled) { transform: scale(0.97); }
+.google-btn:disabled { opacity: 0.6; }
+:root[data-theme='dark'] .google-btn { background: #131314; color: #e3e3e3; border-color: #8e918f; }
+.welcome .google-btn { width: 100%; min-height: 48px; font-size: 1rem; }
+
+.avatar {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--line);
+}
+.avatar-initial {
+  display: grid;
+  place-items: center;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+.sync-chip { padding-left: 0.4rem; }
+.sync-state { display: inline-flex; align-items: center; gap: 0.35rem; }
+
 /* ---------- Google Drive sync ---------- */
 .library-actions { display: flex; align-items: center; gap: 0.5rem; }
 .sync { position: relative; }
@@ -299,8 +408,18 @@ button:disabled { cursor: default; }
   animation: rise 0.25s var(--ease) both;
 }
 .sync-menu p { margin: 0; padding: 0.35rem 0.6rem; }
-.sync-account { font-size: 0.85rem; color: var(--muted); overflow-wrap: anywhere; }
-.sync-account strong { color: var(--ink); font-weight: 600; }
+.sync-account {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0.6rem 0.35rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.sync-account .avatar { width: 36px; height: 36px; }
+.sync-account div { display: grid; }
+.sync-account strong { color: var(--ink); font-weight: 600; font-size: 0.95rem; }
 .sync-note { font-size: 0.8rem; color: var(--muted); }
 .sync-menu button {
   border: 0;

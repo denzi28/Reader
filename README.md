@@ -22,6 +22,8 @@ your device.
 Keyboard: `P` pen, `L` highlighter, `E` eraser (press again to switch off), `Ctrl/Cmd+Z` undo,
 `Ctrl/Cmd+Shift+Z` redo, `+` / `-` zoom, `Esc` back to the library.
 
+- **Sign in with Google**, once, from a welcome screen (or use the app without
+  an account). The session lasts until the user signs out.
 - **Google Drive sync** (when the build has a Google client ID): documents,
   ink and the page you were on follow you between devices. Everything is kept
   in a hidden app folder in the user's own Drive, so there is no server and no
@@ -51,9 +53,25 @@ recommended, non-sensitive scope). To turn it on:
 4. Put the client ID in `VITE_GOOGLE_CLIENT_ID` (see `.env.example`), or set it
    as an environment variable in Vercel and redeploy.
 
-The client ID is public by design (it ships in the page); there is no secret.
-Access tokens last about an hour; when one runs out, the next tap in the app
-renews it.
+The client ID is public by design (it ships in the page).
+
+### Staying signed in (recommended)
+
+On its own, the browser only gets access tokens that last an hour, so the user
+would be asked to reconnect. `api/auth.ts` (a Vercel Function, reached through
+the rewrite in `vercel.json`) runs Google's code flow instead: the user signs
+in once on Google's page, the function keeps the refresh token encrypted in an
+HttpOnly cookie (no database), and hands the app fresh access tokens silently.
+To enable it:
+
+1. In the OAuth client, add **Authorized redirect URIs**, one per address the
+   app runs on, e.g. `https://reader-app-delta.vercel.app/api/auth/callback`.
+2. Set these environment variables in Vercel and redeploy:
+   - `GOOGLE_CLIENT_SECRET`: the OAuth client's secret (keep it private).
+   - `SESSION_SECRET`: 32 random bytes, base64 (`openssl rand -base64 32`).
+     Changing it signs everyone out.
+
+Without them the app falls back to the hour-long popup tokens.
 
 How it is stored, per document (`<id>` is a hash of the PDF):
 

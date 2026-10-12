@@ -11,15 +11,29 @@ import { hasNewer, latestChange } from '../inkLog';
 import * as storage from '../storage';
 import type { DocMeta, InkLog } from '../types';
 import * as drive from './drive';
-import { currentToken, forgetToken, requestToken, syncConfigured } from './google';
+import {
+  type Account,
+  authMode,
+  forgetToken,
+  getAccessToken,
+  initAuth,
+  requestToken,
+  signOutEverywhere,
+  startSignIn,
+  syncConfigured,
+} from './google';
 
 export type SyncState = 'off' | 'idle' | 'syncing' | 'reauth' | 'offline' | 'error';
 
 export interface SyncStatus {
   available: boolean;
+  /** False until we know whether the user is signed in. */
+  ready: boolean;
   connected: boolean;
   state: SyncState;
   email?: string;
+  name?: string;
+  picture?: string;
   lastSyncedAt?: number;
   message?: string;
   /** Goes up whenever sync changed what is on the shelf. */
@@ -37,19 +51,35 @@ interface Group {
   extras: { kind: Kind; file: drive.RemoteFile }[];
 }
 
-const readAccount = () => {
+/** The signed-in account, remembered so the shelf shows it straight away. */
+function readAccount(): Account | null {
   try {
-    return localStorage.getItem(ACCOUNT_KEY);
+    const raw = localStorage.getItem(ACCOUNT_KEY);
+    if (raw === null) return null;
+    try {
+      return JSON.parse(raw) as Account;
+    } catch {
+      return { email: raw || undefined }; // stored by an earlier version
+    }
   } catch {
     return null;
   }
-};
+}
 
+function writeAccount(a: Account | null) {
+  try {
+    if (a) localStorage.setItem(ACCOUNT_KEY, JSON.stringify(a));
+    else localStorage.removeItem(ACCOUNT_KEY);
+  } catch { /* ignore */ }
+}
+
+const saved = syncConfigured ? readAccount() : null;
 let status: SyncStatus = {
   available: syncConfigured,
-  connected: syncConfigured && readAccount() !== null,
-  state: syncConfigured && readAccount() !== null ? 'idle' : 'off',
-  email: readAccount() || undefined,
+  ready: !syncConfigured,
+  connected: saved !== null,
+  state: saved ? 'idle' : 'off',
+  ...saved,
   libraryVersion: 0,
 };
 
@@ -89,9 +119,16 @@ function exclusive<T>(task: () => Promise<T>): Promise<T> {
   return run;
 }
 
+let authRetried = false;
 function fail(err: unknown) {
   if (err instanceof drive.AuthError) {
     forgetToken(false);
+    if (authMode() === 'server' && !authRetried) {
+      // The token was refused early; fetch a fresh one and try again once.
+      authRetried = true;
+      setTimeout(() => void syncAll(), 300);
+      return;
+    }
     needReauth();
   } else if (!navigator.onLine || err instanceof TypeError) {
     setStatus({ state: 'offline', message: 'Offline. Changes will sync when you are back online.' });
@@ -104,6 +141,11 @@ function fail(err: unknown) {
 // the Google window open in response to one). Its window closes by itself.
 let reauthArmed = false;
 function needReauth() {
+  if (authMode() === 'server') {
+    // Access was revoked or the session ended: only signing in again helps.
+    setStatus({ state: 'reauth', message: 'Sign in with Google again to keep syncing.' });
+    return;
+  }
   setStatus({ state: 'reauth', message: 'Tap anywhere to reconnect Google Drive.' });
   if (reauthArmed) return;
   reauthArmed = true;
@@ -118,21 +160,29 @@ function needReauth() {
 }
 
 async function token(): Promise<string | null> {
-  const t = currentToken();
+  const t = await getAccessToken();
   if (!t) needReauth();
   return t;
 }
 
+function synced() {
+  authRetried = false;
+  setStatus({ state: 'idle', lastSyncedAt: Date.now() });
+}
+
 // ---- connecting -------------------------------------------------------
+/** Signs in with Google. In server mode this leaves the page and comes back. */
 export async function connect() {
+  if (authMode() === 'server') {
+    startSignIn(status.email);
+    return;
+  }
   setStatus({ state: 'syncing', message: undefined });
   try {
     const t = await requestToken(status.email);
     const me = await drive.whoAmI(t);
-    try {
-      localStorage.setItem(ACCOUNT_KEY, me.email ?? '');
-    } catch { /* ignore */ }
-    setStatus({ connected: true, email: me.email });
+    writeAccount({ email: me.email, name: me.name });
+    setStatus({ connected: true, email: me.email, name: me.name });
     await syncAll();
   } catch (err) {
     setStatus({
@@ -152,13 +202,20 @@ async function reconnect() {
   }
 }
 
+/** Signs out of Google on this device. Documents stay here and in Drive. */
 export async function disconnect() {
-  forgetToken(true);
-  try {
-    localStorage.removeItem(ACCOUNT_KEY);
-  } catch { /* ignore */ }
+  if (authMode() === 'server') await signOutEverywhere();
+  else forgetToken(true);
+  writeAccount(null);
   await storage.clearSyncRecords();
-  setStatus({ connected: false, state: 'off', email: undefined, message: undefined });
+  setStatus({
+    connected: false,
+    state: 'off',
+    email: undefined,
+    name: undefined,
+    picture: undefined,
+    message: undefined,
+  });
 }
 
 // ---- syncing ----------------------------------------------------------
@@ -285,16 +342,16 @@ function emitInk(id: string) {
 export function syncAll() {
   return exclusive(async () => {
     if (!status.connected) return;
-    const t = await token();
-    if (!t) return;
-    setStatus({ state: 'syncing', message: undefined });
     try {
+      const t = await token();
+      if (!t) return;
+      setStatus({ state: 'syncing', message: undefined });
       const groups = groupFiles(await drive.listFiles(t));
       const locals = new Map((await storage.listAllMeta()).map((m) => [m.id, m]));
       for (const id of new Set([...groups.keys(), ...locals.keys()])) {
         await syncOne(t, id, groups.get(id), locals.get(id));
       }
-      setStatus({ state: 'idle', lastSyncedAt: Date.now() });
+      synced();
     } catch (err) {
       fail(err);
     }
@@ -305,13 +362,13 @@ export function syncAll() {
 export function syncDoc(id: string) {
   return exclusive(async () => {
     if (!status.connected) return;
-    const t = await token();
-    if (!t) return;
-    setStatus({ state: 'syncing', message: undefined });
     try {
+      const t = await token();
+      if (!t) return;
+      setStatus({ state: 'syncing', message: undefined });
       const groups = groupFiles(await drive.listFiles(t, id));
       await syncOne(t, id, groups.get(id), await storage.getMeta(id));
-      setStatus({ state: 'idle', lastSyncedAt: Date.now() });
+      synced();
     } catch (err) {
       fail(err);
     }
@@ -321,10 +378,10 @@ export function syncDoc(id: string) {
 /** Downloads a document that so far exists only in Drive. */
 export function downloadPdf(id: string) {
   return exclusive(async () => {
-    const t = currentToken();
+    const t = await getAccessToken();
     if (!t) {
       needReauth();
-      throw new Error('Reconnect Google Drive to download this document.');
+      throw new Error('Sign in with Google to download this document.');
     }
     const files = await drive.listFiles(t, id);
     const pdf = files.find((f) => f.name === `pdf-${id}.pdf`);
@@ -369,6 +426,21 @@ if (typeof window !== 'undefined' && syncConfigured) {
   window.setInterval(() => {
     if (document.visibilityState === 'visible') syncAllSoon();
   }, 120_000);
-  // Start-up sync, if this device is already connected.
-  setTimeout(syncAllSoon, 500);
+  void initAuth().then(({ mode, account }) => {
+    if (mode === 'server') {
+      // The session cookie is the truth: signed in there means signed in here.
+      writeAccount(account);
+      setStatus({
+        ready: true,
+        connected: account !== null,
+        state: account ? 'idle' : 'off',
+        email: account?.email,
+        name: account?.name,
+        picture: account?.picture,
+      });
+    } else {
+      setStatus({ ready: true });
+    }
+    syncAllSoon(); // start-up sync, if signed in
+  });
 }

@@ -1,6 +1,10 @@
-// Google sign-in for Drive, using Google Identity Services' token model: the
-// browser gets a short-lived access token for the app's hidden Drive folder.
-// There is no refresh token, so a new one is requested when it runs out.
+// Google sign-in for Drive. Two ways, picked at start-up:
+//
+//  - "server": when /api/auth is set up, the user signs in once on Google's
+//    page and stays signed in; fresh access tokens come from /api/auth/token
+//    with no popup (see api/auth.ts).
+//  - "browser": otherwise, Google Identity Services' token model in a popup.
+//    Its tokens last an hour and can only be renewed from a tap.
 
 const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
 const SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
@@ -8,6 +12,67 @@ const TOKEN_KEY = 'reader.drive.token';
 
 /** False when the build has no Google client ID, so sync is hidden. */
 export const syncConfigured = Boolean(CLIENT_ID);
+
+export type AuthMode = 'server' | 'browser';
+export interface Account {
+  email?: string;
+  name?: string;
+  picture?: string;
+}
+
+let mode: AuthMode = 'browser';
+export const authMode = () => mode;
+
+/** Finds out which sign-in is available and, for "server", who is signed in. */
+export async function initAuth(): Promise<{ mode: AuthMode; account: Account | null }> {
+  if (CLIENT_ID) {
+    try {
+      const res = await fetch('/api/auth/status', { credentials: 'same-origin' });
+      if (res.ok) {
+        const body = (await res.json()) as { configured: boolean; user: Account | null };
+        if (body.configured) {
+          mode = 'server';
+          return { mode, account: body.user };
+        }
+      }
+    } catch { /* offline, or no server: fall back to the popup */ }
+  }
+  mode = 'browser';
+  return { mode, account: null };
+}
+
+/** Server mode: go to Google's sign-in page; it comes back to the app. */
+export function startSignIn(hint?: string) {
+  location.assign(`/api/auth/start${hint ? `?hint=${encodeURIComponent(hint)}` : ''}`);
+}
+
+export async function signOutEverywhere() {
+  writeToken(null);
+  await fetch('/api/auth/logout', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'X-Reader': '1' },
+  }).catch(() => undefined);
+}
+
+/**
+ * A usable access token, or null when the user has to sign in (again).
+ * In server mode an expired token is replaced silently.
+ */
+export async function getAccessToken(): Promise<string | null> {
+  const t = currentToken();
+  if (t || mode === 'browser') return t;
+  const res = await fetch('/api/auth/token', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'X-Reader': '1' },
+  });
+  if (res.status === 401) return null;
+  if (!res.ok) throw new Error('Google is not responding. Sync will try again.');
+  const body = (await res.json()) as { access_token: string; expires_in: number };
+  writeToken({ access: body.access_token, expiresAt: Date.now() + body.expires_in * 1000 });
+  return body.access_token;
+}
 
 interface TokenResponse {
   access_token?: string;
