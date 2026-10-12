@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { connect, disconnect, getStatus, syncAll, type SyncStatus } from '../lib/sync/engine';
-import { preloadGoogle } from '../lib/sync/google';
+import { authMode, preloadGoogle } from '../lib/sync/google';
 import { useSyncStatus } from '../lib/sync/useSync';
 import { AlertIcon, CloudIcon, SyncIcon } from './icons';
 
@@ -39,15 +39,33 @@ export function GoogleG() {
 
 export function GoogleButton({ label = 'Sign in with Google', onError }: { label?: string; onError?: (m: string) => void }) {
   const status = useSyncStatus();
+  const [opening, setOpening] = useState(false);
   useEffect(preloadGoogle, []);
+  // Coming back with the browser's Back button restores the page as it was.
+  useEffect(() => {
+    const reset = (e: PageTransitionEvent) => e.persisted && setOpening(false);
+    window.addEventListener('pageshow', reset);
+    return () => window.removeEventListener('pageshow', reset);
+  }, []);
   return (
     <button
-      className="google-btn"
-      disabled={status.state === 'syncing' && !status.connected}
-      onClick={() => connect().catch((err: unknown) => onError?.(err instanceof Error ? err.message : String(err)))}
+      className={`google-btn${opening ? ' opening' : ''}`}
+      disabled={opening || (status.state === 'syncing' && !status.connected)}
+      onClick={() => {
+        setOpening(true);
+        connect()
+          .then(() => {
+            // Server sign-in leaves the page; the popup kind is done here.
+            if (authMode() === 'browser') setOpening(false);
+          })
+          .catch((err: unknown) => {
+            setOpening(false);
+            onError?.(err instanceof Error ? err.message : String(err));
+          });
+      }}
     >
-      <GoogleG />
-      <span>{label}</span>
+      {opening ? <span className="btn-spinner" aria-hidden="true" /> : <GoogleG />}
+      <span>{opening ? 'Opening Google…' : label}</span>
     </button>
   );
 }

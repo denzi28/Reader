@@ -272,27 +272,103 @@ button:disabled { cursor: default; }
   text-align: center;
   animation: rise 0.6s var(--ease) both;
 }
-.welcome-pages { position: relative; width: 76px; height: 92px; margin-bottom: 0.4rem; }
-.welcome-pages span {
+.welcome { overflow: hidden; }
+.welcome-card { position: relative; z-index: 1; }
+
+/* A soft lamp light drifting slowly behind the card. */
+.welcome-glow {
+  position: fixed;
+  width: 120vmax;
+  height: 120vmax;
+  left: 50%;
+  top: 40%;
+  margin: -60vmax 0 0 -60vmax;
+  background: radial-gradient(closest-side, color-mix(in srgb, #fff6dc 70%, transparent), transparent 70%);
+  opacity: 0.55;
+  pointer-events: none;
+  animation: drift 18s ease-in-out infinite alternate;
+}
+:root[data-theme='dark'] .welcome-glow {
+  background: radial-gradient(closest-side, rgba(215, 154, 95, 0.16), transparent 70%);
+  opacity: 1;
+}
+@keyframes drift {
+  from { transform: translate(-8%, -4%) scale(1); }
+  to { transform: translate(8%, 5%) scale(1.12); }
+}
+
+/* ---- the opening scene ---- */
+.scene { position: relative; width: 132px; height: 164px; margin: 0.2rem 0 0.8rem; }
+.scene-page {
   position: absolute;
   inset: 0;
-  border-radius: 3px;
+  border-radius: 4px;
   background: var(--page);
   box-shadow: var(--shadow-page);
-  animation: fan 0.9s var(--spring) 0.2s both;
+  animation: fan 0.95s var(--spring) 0.15s both;
 }
-.welcome-pages span:nth-child(1) { --r: -9deg; --x: -10px; }
-.welcome-pages span:nth-child(2) { --r: 5deg; --x: 8px; }
-.welcome-pages span:nth-child(3) {
-  --r: 0deg; --x: 0px;
-  background:
-    repeating-linear-gradient(to bottom, transparent 0 13px, var(--line) 13px 14px) 12px 22px / calc(100% - 24px) calc(100% - 34px) no-repeat,
-    var(--page);
-}
+.scene-page.back-left { --r: -10deg; --x: -16px; --y: 4px; }
+.scene-page.back-right { --r: 7deg; --x: 14px; --y: 2px; }
+.scene-page.front { --r: -1.5deg; --x: 0px; --y: 0px; }
 @keyframes fan {
-  from { transform: rotate(0) translateX(0); }
-  to { transform: rotate(var(--r)) translateX(var(--x)); }
+  from { transform: translateY(18px) rotate(0) scale(0.92); opacity: 0; }
+  to { transform: translate(var(--x), var(--y)) rotate(var(--r)); opacity: 1; }
 }
+.scene svg { display: block; overflow: visible; }
+.scene-title, .scene-line {
+  fill: var(--ink);
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: left center;
+  animation: write-line 0.45s var(--ease) var(--d, 0.6s) forwards;
+}
+.scene-title { --d: 0.6s; }
+@keyframes write-line {
+  from { opacity: 0.22; transform: scaleX(0); }
+  to { opacity: 0.22; transform: scaleX(1); }
+}
+.scene-title { animation-name: write-title; }
+@keyframes write-title {
+  from { opacity: 0.55; transform: scaleX(0); }
+  to { opacity: 0.55; transform: scaleX(1); }
+}
+.scene-highlight {
+  fill: #ffd84d;
+  opacity: 0.6;
+  mix-blend-mode: multiply;
+  transform-box: fill-box;
+  transform-origin: left center;
+  transform: scaleX(0);
+  animation: highlight 0.55s cubic-bezier(0.65, 0, 0.35, 1) 1.25s forwards;
+}
+:root[data-theme='dark'] .scene-highlight { opacity: 0.35; mix-blend-mode: screen; }
+@keyframes highlight { to { transform: scaleX(1); } }
+.scene-ink {
+  fill: none;
+  stroke: #25489b;
+  stroke-width: 2.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+:root[data-theme='dark'] .scene-ink { stroke: #7aa2ff; }
+.scene-pen {
+  position: absolute;
+  left: 0;
+  top: 0;
+  opacity: 0;
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+/* The nib's point sits exactly on the element's origin. */
+.scene-pen svg { margin: -27px 0 0 -5px; filter: drop-shadow(0 4px 4px rgba(60, 40, 10, 0.25)); }
+.pen-body { fill: var(--accent); }
+.pen-band { stroke: var(--accent-ink); stroke-width: 1.6; stroke-linecap: round; opacity: 0.7; }
+.pen-tip { fill: var(--ink); }
+
+/* ---- the card's content arrives in turn ---- */
+.reveal { animation: rise 0.6s var(--ease) var(--d, 0s) both; }
+.welcome-cta { width: 100%; }
+
 .welcome .brand { font-size: clamp(2rem, 8vw, 2.6rem); }
 .welcome-lead { margin: 0; color: var(--muted); line-height: 1.5; }
 .welcome-points {
@@ -340,6 +416,15 @@ button:disabled { cursor: default; }
 .google-btn:disabled { opacity: 0.6; }
 :root[data-theme='dark'] .google-btn { background: #131314; color: #e3e3e3; border-color: #8e918f; }
 .welcome .google-btn { width: 100%; min-height: 48px; font-size: 1rem; }
+.google-btn .btn-spinner {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  opacity: 0.7;
+  animation: spin 0.8s linear infinite;
+}
 
 .avatar {
   width: 28px;
@@ -760,6 +845,7 @@ button:disabled { cursor: default; }
 @keyframes vt-in { from { opacity: 0; transform: scale(1.015); } }
 
 @media (prefers-reduced-motion: reduce) {
+  .welcome-glow { animation: none; }
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
     animation-delay: 0ms !important;
