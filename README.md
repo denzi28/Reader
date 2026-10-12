@@ -15,10 +15,10 @@ your device.
 - **Library** of the PDFs you have opened, with covers. Your place in each
   document and all your ink are remembered across visits.
 - **Day paper and night paper** themes. Ink colours adapt to the theme.
-- Works with mouse, touch and stylus. A finger scrolls by default and only a
-  pen or mouse draws; switch on "Finger draws" to draw with a finger.
+- Works with mouse, touch and stylus. Tap a tool to start drawing with it and
+  tap it again to stop; with no tool selected, a finger scrolls and zooms.
 
-Keyboard: `H` hand, `P` pen, `L` highlighter, `E` eraser, `Ctrl/Cmd+Z` undo,
+Keyboard: `P` pen, `L` highlighter, `E` eraser (press again to switch off), `Ctrl/Cmd+Z` undo,
 `Ctrl/Cmd+Shift+Z` redo, `+` / `-` zoom, `Esc` back to the library.
 
 ## Not built yet

@@ -18,11 +18,6 @@ function Icon({ children }: { children: ReactNode }) {
   );
 }
 
-export const HandIcon = () => (
-  <Icon>
-    <path d="M8 13V5.5a1.5 1.5 0 0 1 3 0V11m0-1V4.5a1.5 1.5 0 0 1 3 0V11m0-4.5a1.5 1.5 0 0 1 3 0V13m0-3.5a1.5 1.5 0 0 1 3 0V15a6 6 0 0 1-6 6h-1.5a6 6 0 0 1-4.7-2.3L4 15.5c-.6-.8.3-2 1.2-1.5L8 15" />
-  </Icon>
-);
 export const PenIcon = () => (
   <Icon>
     <path d="M4 20l1-4L16.5 4.5a2.1 2.1 0 0 1 3 3L8 19z" />
@@ -84,11 +79,6 @@ export const BackIcon = () => (
 export const TrashIcon = () => (
   <Icon>
     <path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" />
-  </Icon>
-);
-export const FingerIcon = () => (
-  <Icon>
-    <path d="M9 11V5a2 2 0 0 1 4 0v8l2.5-1a1.7 1.7 0 0 1 2 2.4L16 19a4 4 0 0 1-3.6 2H11a5 5 0 0 1-4-2l-2-3a1.6 1.6 0 0 1 2.5-2L9 16" />
   </Icon>
 );
 export const FileIcon = () => (

@@ -1,7 +1,6 @@
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { drawStroke, drawStrokes, newId, strokeHit } from '../lib/ink';
-import type { TouchPan } from '../lib/touchPan';
 import type { InkPoint, InkTool, Stroke, Tool } from '../lib/types';
 
 interface Props {
@@ -18,8 +17,6 @@ interface Props {
   color: string;
   /** Brush width as a fraction of page width. */
   brush: number;
-  fingerDraw: boolean;
-  touchPan: TouchPan;
   /** Night paper recolours the bitmap with a CSS filter instead of a tint. */
   dark: boolean;
   /** Timestamp of the last pen/mouse event anywhere, for palm rejection. */
@@ -40,7 +37,7 @@ const ERASER_RADIUS = 0.012; // fraction of page width
 function PageViewImpl(props: Props) {
   const {
     index, pdf, width, height, renderWidth, visible, strokes, tool, color,
-    brush, fingerDraw, touchPan, dark, lastPenAt, onCommit, register,
+    brush, dark, lastPenAt, onCommit, register,
   } = props;
 
   const pdfCanvas = useRef<HTMLCanvasElement>(null);
@@ -145,7 +142,7 @@ function PageViewImpl(props: Props) {
   // ---- drawing ----------------------------------------------------------
   const drawing = useRef<{
     id: number;
-    kind: 'ink' | 'erase' | 'pan';
+    kind: 'ink' | 'erase';
     points: InkPoint[];
     raf: number;
   } | null>(null);
@@ -194,16 +191,8 @@ function PageViewImpl(props: Props) {
   const onPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (tool === 'hand' || drawing.current) return;
     if (e.pointerType !== 'touch') lastPenAt.current = e.timeStamp;
-    if (e.pointerType === 'touch') {
-      // Palm rejection: ignore touches right after a pen, else fling the page.
-      if (e.timeStamp - lastPenAt.current < 600) return;
-      if (!fingerDraw) {
-        e.currentTarget.setPointerCapture(e.pointerId);
-        drawing.current = { id: e.pointerId, kind: 'pan', points: [], raf: 0 };
-        touchPan.start(e.nativeEvent);
-        return;
-      }
-    }
+    // Palm rejection: a hand resting beside a pen shouldn't leave marks.
+    if (e.pointerType === 'touch' && e.timeStamp - lastPenAt.current < 600) return;
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     e.preventDefault();
     e.currentTarget.setPointerCapture(e.pointerId);
@@ -220,10 +209,6 @@ function PageViewImpl(props: Props) {
     const d = drawing.current;
     if (!d || d.id !== e.pointerId) return;
     if (e.pointerType !== 'touch') lastPenAt.current = e.timeStamp;
-    if (d.kind === 'pan') {
-      touchPan.move(e.nativeEvent);
-      return;
-    }
     const rect = e.currentTarget.getBoundingClientRect();
     const samples = e.nativeEvent.getCoalescedEvents?.() ?? [];
     for (const s of samples.length ? samples : [e.nativeEvent]) {
@@ -241,11 +226,6 @@ function PageViewImpl(props: Props) {
     cancelAnimationFrame(d.raf);
     const live = liveCanvas.current;
     live?.getContext('2d')?.clearRect(0, 0, live.width, live.height);
-    if (d.kind === 'pan') {
-      if (cancelled) touchPan.cancel();
-      else touchPan.end(e.nativeEvent);
-      return;
-    }
     const prev = strokesRef.current;
     if (cancelled) {
       erased.current = new Set();

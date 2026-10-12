@@ -487,20 +487,6 @@ button:disabled { cursor: default; }
 .size i { display: block; border-radius: 50%; background: var(--ink); opacity: 0.55; transition: opacity 0.2s; }
 .size.on { background: var(--line); }
 .size.on i { opacity: 1; }
-.chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 10px 4px 6px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: transparent;
-  font-size: 0.8rem;
-  white-space: nowrap;
-  transition: background 0.2s, color 0.2s;
-}
-.chip svg { width: 18px; height: 18px; }
-.chip.on { background: var(--ink); color: var(--card); }
 
 /* ---------- motion ---------- */
 @keyframes rise {

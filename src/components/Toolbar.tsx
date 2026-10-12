@@ -1,7 +1,7 @@
 import { displayColor, HIGHLIGHT_COLORS, PEN_COLORS } from '../lib/ink';
 import type { Tool } from '../lib/types';
 import {
-  EraserIcon, FingerIcon, HandIcon, HighlighterIcon, MinusIcon,
+  EraserIcon, HighlighterIcon, MinusIcon,
   PenIcon, PlusIcon, RedoIcon, UndoIcon,
 } from './icons';
 
@@ -21,12 +21,9 @@ interface Props {
   zoom: number;
   onZoom: (z: number) => void;
   dark: boolean;
-  fingerDraw: boolean;
-  onFingerDraw: () => void;
 }
 
 const TOOLS: { id: Tool; label: string; icon: () => React.JSX.Element }[] = [
-  { id: 'hand', label: 'Read and scroll', icon: HandIcon },
   { id: 'pen', label: 'Pen', icon: PenIcon },
   { id: 'highlighter', label: 'Highlighter', icon: HighlighterIcon },
   { id: 'eraser', label: 'Eraser', icon: EraserIcon },
@@ -40,7 +37,7 @@ export function Toolbar(p: Props) {
 
   return (
     <div className="toolbar-wrap">
-      <div className={`options${inking || p.tool === 'eraser' ? ' open' : ''}`} aria-hidden={p.tool === 'hand'}>
+      <div className={`options${inking ? ' open' : ''}`} aria-hidden={!inking}>
         {inking && (
           <div className="swatches" role="radiogroup" aria-label="Colour">
             {colors.map((c) => (
@@ -72,16 +69,6 @@ export function Toolbar(p: Props) {
             ))}
           </div>
         )}
-        {p.tool !== 'hand' && (
-          <button
-            className={`chip${p.fingerDraw ? ' on' : ''}`}
-            onClick={p.onFingerDraw}
-            aria-pressed={p.fingerDraw}
-            title="When off, a finger scrolls and only a pen or mouse draws"
-          >
-            <FingerIcon /> Finger draws
-          </button>
-        )}
       </div>
 
       <div className="toolbar" role="toolbar" aria-label="Reader tools">
@@ -90,7 +77,7 @@ export function Toolbar(p: Props) {
             <button
               key={id}
               className={`tool${p.tool === id ? ' on' : ''}`}
-              onClick={() => p.onTool(id)}
+              onClick={() => p.onTool(p.tool === id ? 'hand' : id)}
               aria-pressed={p.tool === id}
               aria-label={label}
               title={label}

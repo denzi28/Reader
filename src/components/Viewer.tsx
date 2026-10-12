@@ -1,11 +1,10 @@
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import {
-  useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState,
+  useCallback, useEffect, useLayoutEffect, useRef, useState,
 } from 'react';
 import { BRUSH_SIZES, HIGHLIGHT_COLORS, PEN_COLORS } from '../lib/ink';
 import { openPdf, readPageSizes } from '../lib/pdf';
 import { getDocFile, getMeta, loadInk, patchMeta, saveInk } from '../lib/storage';
-import { createTouchPan } from '../lib/touchPan';
 import type { DocInk, DocMeta, InkTool, Stroke, Tool } from '../lib/types';
 import { BackIcon, MoonIcon, SunIcon } from './icons';
 import { PageView } from './PageView';
@@ -30,15 +29,6 @@ const MAX_ZOOM = 5;
 const GUTTER = 14;
 const MAX_BASE = 900;
 
-const readFlag = (key: string, fallback: boolean) => {
-  try {
-    const v = localStorage.getItem(key);
-    return v === null ? fallback : v === '1';
-  } catch {
-    return fallback;
-  }
-};
-
 export function Viewer({ docId, dark, onTheme, onClose }: Props) {
   const scroller = useRef<HTMLDivElement>(null);
   const [meta, setMeta] = useState<DocMeta | null>(null);
@@ -52,7 +42,6 @@ export function Viewer({ docId, dark, onTheme, onClose }: Props) {
   const [penColor, setPenColor] = useState(PEN_COLORS[0]);
   const [hlColor, setHlColor] = useState(HIGHLIGHT_COLORS[0]);
   const [sizeIdx, setSizeIdx] = useState(1);
-  const [fingerDraw, setFingerDraw] = useState(() => readFlag('reader.fingerDraw', false));
 
   const [containerWidth, setContainerWidth] = useState(0);
   const [zoom, setZoom] = useState(1);
@@ -64,7 +53,6 @@ export function Viewer({ docId, dark, onTheme, onClose }: Props) {
   const redoStack = useRef<Edit[]>([]);
   const [, bump] = useState(0);
   const lastPenAt = useRef(-Infinity);
-  const touchPan = useMemo(() => createTouchPan(() => scroller.current), []);
 
   // ---- load the document ------------------------------------------------
   useEffect(() => {
@@ -304,19 +292,12 @@ export function Viewer({ docId, dark, onTheme, onClose }: Props) {
       else if (!mod) {
         const map: Record<string, Tool> = { h: 'hand', p: 'pen', l: 'highlighter', e: 'eraser' };
         const next = map[e.key.toLowerCase()];
-        if (next) setTool(next);
+        if (next) setTool((cur) => (cur === next ? 'hand' : next));
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [undo, redo, applyZoom, onClose]);
-
-  const toggleFinger = () => {
-    setFingerDraw((v) => {
-      try { localStorage.setItem('reader.fingerDraw', v ? '0' : '1'); } catch { /* private mode */ }
-      return !v;
-    });
-  };
 
   // ---- render -----------------------------------------------------------
   if (error) {
@@ -390,8 +371,6 @@ export function Viewer({ docId, dark, onTheme, onClose }: Props) {
                 tool={tool}
                 color={color}
                 brush={brush}
-                fingerDraw={fingerDraw}
-                touchPan={touchPan}
                 dark={dark}
                 lastPenAt={lastPenAt}
                 onCommit={commit}
@@ -418,8 +397,6 @@ export function Viewer({ docId, dark, onTheme, onClose }: Props) {
         zoom={zoom}
         onZoom={applyZoom}
         dark={dark}
-        fingerDraw={fingerDraw}
-        onFingerDraw={toggleFinger}
       />
     </div>
   );
