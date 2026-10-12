@@ -15,7 +15,12 @@ your device.
   or mid-stroke) and it draws a straight line from where the stroke began to
   wherever you drag; nearly flat lines snap level.
 - **Library** of the PDFs you have opened, with covers. Your place in each
-  document and all your ink are remembered across visits.
+  document and all your ink are remembered across visits. Several PDFs can be
+  added at once.
+- **Folders** to sort documents by course, project or client. Move a document
+  with the folder button on its cover (or drag it onto a folder on desktop);
+  PDFs added while a folder is open go straight into it. Deleting a folder
+  keeps its documents and puts them back on the shelf.
 - **Day paper and night paper** themes. Ink colours adapt to the theme.
 - Works with mouse, touch and stylus. Tap a tool to start drawing with it and
   tap it again to stop. While drawing, one finger draws and two fingers scroll
@@ -96,6 +101,9 @@ How it is stored, per document (`<id>` is a hash of the PDF):
 | `ink-<id>.json` | the ink log: latest state of every stroke | per stroke, newest wins |
 | `pdf-<id>.pdf` | the document | uploaded once |
 | `thumb-<id>.jpg` | the shelf cover | uploaded once |
+| `folders.json` | every folder's name (and removal marker) | per folder, newest wins |
+
+Which folder a document is in is part of its `meta-<id>.json`.
 
 ## Develop
 

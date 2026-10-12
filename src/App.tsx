@@ -51,6 +51,8 @@ function transition(update: () => void) {
 export function App() {
   const [theme, setTheme] = useState<Theme>(initialTheme);
   const [docId, setDocId] = useState<string | null>(() => history.state?.doc ?? null);
+  // The folder open on the shelf; kept in the history so Back leaves it.
+  const [folder, setFolder] = useState<string | null>(() => history.state?.folder ?? null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(takeAuthResult);
   const [skipped, setSkipped] = useState(readSkipped);
@@ -64,14 +66,28 @@ export function App() {
   }, [theme]);
 
   useEffect(() => {
-    const onPop = () => transition(() => setDocId(history.state?.doc ?? null));
+    const onPop = () => transition(() => {
+      setDocId(history.state?.doc ?? null);
+      setFolder(history.state?.folder ?? null);
+    });
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
   }, []);
 
   const open = useCallback((id: string) => {
-    history.pushState({ doc: id }, '');
+    history.pushState({ doc: id, folder: history.state?.folder ?? null }, '');
     transition(() => setDocId(id));
+  }, []);
+
+  const openFolder = useCallback((id: string | null) => {
+    if (id) {
+      history.pushState({ folder: id }, '');
+      transition(() => setFolder(id));
+    } else if (history.state?.folder && !history.state?.doc) {
+      history.back();
+    } else {
+      transition(() => setFolder(null));
+    }
   }, []);
 
   const close = useCallback(() => {
@@ -79,16 +95,26 @@ export function App() {
     else transition(() => setDocId(null));
   }, []);
 
-  const importFile = useCallback(async (file: File) => {
+  /** Adds files to the library (into `into`); one file opens straight away. */
+  const importFiles = useCallback(async (files: File[], into: string | null) => {
+    if (!files.length) return;
     setBusy(true);
     setError(null);
-    try {
-      open((await importPdf(file)).id);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong adding that file.');
-    } finally {
-      setBusy(false);
+    const failed: string[] = [];
+    let last: string | null = null;
+    let reason = '';
+    for (const file of files) {
+      try {
+        last = (await importPdf(file, into ?? undefined)).id;
+      } catch (err) {
+        failed.push(file.name);
+        reason = err instanceof Error ? err.message : 'Something went wrong adding that file.';
+      }
     }
+    setBusy(false);
+    if (files.length === 1 && last) open(last);
+    else if (failed.length === 1 && files.length === 1) setError(reason);
+    else if (failed.length) setError(`${failed.length} of ${files.length} files could not be added (${failed.join(', ')}). ${reason}`);
   }, [open]);
 
   const toggleTheme = () => setTheme((t) => (t === 'dark' ? 'light' : 'dark'));
@@ -109,7 +135,9 @@ export function App() {
       dark={theme === 'dark'}
       onTheme={toggleTheme}
       onOpen={open}
-      onImport={importFile}
+      onImport={importFiles}
+      folder={folder}
+      onFolder={openFolder}
       busy={busy}
       error={error}
       onDismissError={() => setError(null)}

@@ -104,3 +104,25 @@ export const AlertIcon = () => (
     <path d="M12 10v4M12 17v.01" />
   </Icon>
 );
+export const FolderIcon = () => (
+  <Icon>
+    <path d="M3 7.5A1.5 1.5 0 0 1 4.5 6H9l2 2h8.5A1.5 1.5 0 0 1 21 9.5v8a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5z" />
+  </Icon>
+);
+export const FolderMoveIcon = () => (
+  <Icon>
+    <path d="M3 7.5A1.5 1.5 0 0 1 4.5 6H9l2 2h8.5A1.5 1.5 0 0 1 21 9.5v8a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5z" />
+    <path d="M9 13.5h6M12.5 11l2.5 2.5-2.5 2.5" />
+  </Icon>
+);
+export const FolderPlusIcon = () => (
+  <Icon>
+    <path d="M3 7.5A1.5 1.5 0 0 1 4.5 6H9l2 2h8.5A1.5 1.5 0 0 1 21 9.5v8a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5z" />
+    <path d="M12 10.5v6M9 13.5h6" />
+  </Icon>
+);
+export const CheckIcon = () => (
+  <Icon>
+    <path d="M5 12.5l4.5 4.5L19 7.5" />
+  </Icon>
+);

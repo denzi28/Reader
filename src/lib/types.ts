@@ -32,7 +32,22 @@ export interface DocMeta {
   deleted?: boolean;
   /** Known from Drive, but the PDF itself isn't on this device yet. */
   cloudOnly?: boolean;
+  /** The folder it is filed in; none (or a removed folder) means the shelf. */
+  folder?: string;
 }
+
+export interface Folder {
+  id: string;
+  name: string;
+  createdAt: number;
+  /** When it was created, renamed or removed; the newer copy wins. */
+  updatedAt: number;
+  /** Removed by the user; kept as a marker so sync removes it everywhere. */
+  deleted?: 1;
+}
+
+/** Every folder by id, removed ones included, so devices can merge. */
+export type FolderLog = Record<string, Folder>;
 
 /**
  * The latest state of one stroke. A document's ink is a log of these, keyed by

@@ -6,10 +6,13 @@
 //   pdf-<id>.pdf     the document itself (uploaded once; downloaded on demand)
 //   thumb-<id>.jpg   the cover shown on the shelf
 // <id> is a hash of the PDF's contents, so the same file matches everywhere.
+// The folders are one more file, folders.json, merged folder by folder; each
+// document's record says which folder it is in.
 
+import { foldersAhead, latestFolderChange, mergeFolderLogs } from '../folders';
 import { hasNewer, latestChange } from '../inkLog';
 import * as storage from '../storage';
-import type { DocMeta, InkLog } from '../types';
+import type { DocMeta, FolderLog, InkLog } from '../types';
 import * as drive from './drive';
 import {
   type Account,
@@ -41,6 +44,7 @@ export interface SyncStatus {
 }
 
 const ACCOUNT_KEY = 'reader.drive.account';
+const FOLDERS_FILE = 'folders.json';
 const NAME = /^(meta|ink|pdf|thumb)-([A-Za-z0-9]+)\.(json|pdf|jpg)$/;
 type Kind = 'meta' | 'ink' | 'pdf' | 'thumb';
 interface Group {
@@ -376,6 +380,51 @@ async function syncOne(t: string, id: string, group: Group | undefined, local: D
   await storage.putSyncRecord(id, rec);
 }
 
+/** Brings the folder list up to date; `files` is (at least) every folders.json. */
+async function syncFolders(t: string, files: drive.RemoteFile[]) {
+  const copies = files
+    .filter((f) => f.name === FOLDERS_FILE)
+    .sort((a, b) => (a.modifiedTime < b.modifiedTime ? 1 : -1));
+  const [main, ...dupes] = copies; // dupes come from two devices racing
+  const rec = await storage.getSyncRecord('folders');
+  let remote: FolderLog | null = null;
+  if (main && (dupes.length > 0 || main.modifiedTime !== rec.metaSeen)) {
+    remote = {};
+    for (const f of copies) remote = mergeFolderLogs(remote, await drive.downloadJson<FolderLog>(t, f.id)).log;
+    rec.metaSeen = main.modifiedTime;
+    if (await storage.mergeFolders(remote)) shelfChanged();
+  }
+  const local = await storage.getFolderLog();
+  const upload = remote
+    ? dupes.length > 0 || foldersAhead(local, remote)
+    : main
+      ? latestFolderChange(local) > (rec.metaPushed ?? 0)
+      : Object.keys(local).length > 0;
+  if (upload) {
+    const f = await putJson(t, main, FOLDERS_FILE, local);
+    rec.metaSeen = f.modifiedTime;
+  }
+  for (const d of dupes) await drive.deleteFile(t, d.id);
+  rec.metaPushed = latestFolderChange(local);
+  await storage.putSyncRecord('folders', rec);
+}
+
+/** Brings just the folder list up to date. */
+function syncFolderList() {
+  return exclusive(async () => {
+    if (!status.connected) return;
+    try {
+      const t = await token();
+      if (!t) return;
+      setStatus({ state: 'syncing', message: undefined });
+      await syncFolders(t, await drive.listFiles(t, 'folders'));
+      synced();
+    } catch (err) {
+      fail(err);
+    }
+  });
+}
+
 function emitInk(id: string) {
   inkListeners.get(id)?.forEach((fn) => fn());
 }
@@ -388,7 +437,9 @@ export function syncAll() {
       const t = await token();
       if (!t) return;
       setStatus({ state: 'syncing', message: undefined });
-      const groups = groupFiles(await drive.listFiles(t));
+      const files = await drive.listFiles(t);
+      await syncFolders(t, files);
+      const groups = groupFiles(files);
       const locals = new Map((await storage.listAllMeta()).map((m) => [m.id, m]));
       const ids = [...new Set([...groups.keys(), ...locals.keys()])];
       for (const [i, id] of ids.entries()) {
@@ -440,15 +491,15 @@ export function downloadPdf(id: string) {
 
 // ---- when to sync -----------------------------------------------------
 const pendingDocs = new Map<string, number>();
-storage.onLocalChange((id) => {
+storage.onLocalChange((id, kind) => {
   if (!status.connected) return;
   clearTimeout(pendingDocs.get(id));
   pendingDocs.set(
     id,
     window.setTimeout(() => {
       pendingDocs.delete(id);
-      void syncDoc(id);
-    }, 2500),
+      void (kind === 'folders' ? syncFolderList() : syncDoc(id));
+    }, kind === 'folders' ? 1200 : 2500),
   );
 });
 

@@ -11,7 +11,8 @@ function looksLikePdf(buf: ArrayBuffer) {
   return head.includes('%PDF-');
 }
 
-export async function importPdf(file: File): Promise<DocMeta> {
+/** Adds a PDF to the library, filed in `folder` when one is given. */
+export async function importPdf(file: File, folder?: string): Promise<DocMeta> {
   const buf = await file.arrayBuffer();
   if (!looksLikePdf(buf)) throw new Error(UNSUPPORTED);
 
@@ -23,7 +24,8 @@ export async function importPdf(file: File): Promise<DocMeta> {
       await putDocFile(id, new Blob([buf], { type: 'application/pdf' }));
       await putMeta({ ...existing, cloudOnly: false });
     }
-    await patchMeta(id, { openedAt: Date.now() });
+    // Adding it again from inside a folder files it there.
+    await patchMeta(id, folder ? { openedAt: Date.now(), folder } : { openedAt: Date.now() });
     return existing;
   }
 
@@ -43,6 +45,7 @@ export async function importPdf(file: File): Promise<DocMeta> {
       addedAt: now,
       openedAt: now,
       lastPage: 0,
+      folder,
       thumb: await makeThumbnail(pdf).catch(() => undefined),
     };
     await saveDoc(meta, new Blob([buf], { type: 'application/pdf' }));

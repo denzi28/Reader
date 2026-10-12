@@ -1,6 +1,7 @@
-import { clear, createStore, del, get, getMany, keys, set, type UseStore } from 'idb-keyval';
+import { clear, createStore, del, get, getMany, keys, set, update, type UseStore } from 'idb-keyval';
+import { cleanFolderName, mergeFolderLogs } from './folders';
 import { applyEdit, inkFromLog, logFromInk, mergeLogs } from './inkLog';
-import type { DocInk, DocMeta, InkLog, Stroke } from './types';
+import type { DocInk, DocMeta, Folder, FolderLog, InkLog, Stroke } from './types';
 
 // ---- one separate library per account ---------------------------------
 // Every Google account gets its own database on the device, and so does use
@@ -48,9 +49,10 @@ const metaKey = (id: string) => `meta:${id}`;
 const fileKey = (id: string) => `file:${id}`;
 const legacyInkKey = (id: string) => `ink:${id}`;
 const logKey = (id: string) => `inklog:${id}`;
+const FOLDERS_KEY = 'folders';
 
 // ---- change notifications (sync listens to these) ---------------------
-type ChangeKind = 'meta' | 'ink';
+type ChangeKind = 'meta' | 'ink' | 'folders';
 const listeners = new Set<(id: string, kind: ChangeKind) => void>();
 export function onLocalChange(fn: (id: string, kind: ChangeKind) => void) {
   listeners.add(fn);
@@ -120,6 +122,59 @@ export async function wipeDoc(id: string, marker: DocMeta) {
   dropInkCache(id);
   await Promise.all([del(fileKey(id), store), del(logKey(id), store), del(legacyInkKey(id), store)]);
   await set(metaKey(id), { ...marker, thumb: undefined, deleted: true }, store);
+}
+
+// ---- folders ------------------------------------------------------------
+export async function getFolderLog(): Promise<FolderLog> {
+  return (await get<FolderLog>(FOLDERS_KEY, store)) ?? {};
+}
+
+function editFolders(edit: (log: FolderLog) => FolderLog) {
+  return update<FolderLog>(FOLDERS_KEY, (log) => edit(log ?? {}), store);
+}
+
+export async function createFolder(name: string): Promise<Folder> {
+  const now = Date.now();
+  const folder: Folder = {
+    id: `f${now.toString(36)}${Math.random().toString(36).slice(2, 8)}`,
+    name: cleanFolderName(name) || 'Untitled folder',
+    createdAt: now,
+    updatedAt: now,
+  };
+  await editFolders((log) => ({ ...log, [folder.id]: folder }));
+  notify(FOLDERS_KEY, 'folders');
+  return folder;
+}
+
+export async function renameFolder(id: string, name: string) {
+  const clean = cleanFolderName(name);
+  if (!clean) return;
+  await editFolders((log) =>
+    log[id] ? { ...log, [id]: { ...log[id], name: clean, updatedAt: Date.now() } } : log);
+  notify(FOLDERS_KEY, 'folders');
+}
+
+/** Removes a folder. Its documents stay, back on the shelf. */
+export async function deleteFolder(id: string) {
+  await editFolders((log) =>
+    log[id] ? { ...log, [id]: { ...log[id], deleted: 1, updatedAt: Date.now() } } : log);
+  notify(FOLDERS_KEY, 'folders');
+}
+
+/** Folds in another device's folders (used by sync). True if anything changed. */
+export async function mergeFolders(remote: FolderLog) {
+  let changed = false;
+  await editFolders((log) => {
+    const merged = mergeFolderLogs(log, remote);
+    changed = merged.changed;
+    return merged.log;
+  });
+  return changed;
+}
+
+/** Files documents in a folder (null: back on the shelf). */
+export async function moveDocs(ids: string[], folder: string | null) {
+  for (const id of ids) await patchMeta(id, { folder: folder ?? undefined });
 }
 
 // ---- ink ----------------------------------------------------------------
@@ -235,6 +290,16 @@ export async function guestDocs(): Promise<DocMeta[]> {
 export async function adoptGuestDocs() {
   if (space === GUEST_SPACE) return 0;
   const docs = await guestDocs();
+  // Their folders come along, stamped now so they are sent to Drive.
+  const guestFolders = await get<FolderLog>(FOLDERS_KEY, guestStore);
+  if (guestFolders) {
+    const now = Date.now();
+    const fresh: FolderLog = {};
+    for (const f of Object.values(guestFolders)) fresh[f.id] = { ...f, updatedAt: now };
+    await mergeFolders(fresh);
+    await del(FOLDERS_KEY, guestStore);
+    notify(FOLDERS_KEY, 'folders');
+  }
   for (const g of docs) {
     const id = g.id;
     const [file, gLog, gLegacy, mine] = await Promise.all([
