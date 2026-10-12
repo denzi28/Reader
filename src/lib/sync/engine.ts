@@ -74,6 +74,8 @@ function writeAccount(a: Account | null) {
 }
 
 const saved = syncConfigured ? readAccount() : null;
+// Open the right library before anything reads it.
+storage.switchSpace(saved ? storage.accountSpace(saved.email) : null);
 let status: SyncStatus = {
   available: syncConfigured,
   ready: !syncConfigured,
@@ -110,6 +112,17 @@ function setStatus(patch: Partial<SyncStatus>) {
 }
 
 const shelfChanged = () => setStatus({ libraryVersion: status.libraryVersion + 1 });
+
+/** Shows (and syncs) the library of this account, or the guest library. */
+function enterAccount(account: Account | null) {
+  return exclusive(async () => {
+    if (storage.switchSpace(account ? storage.accountSpace(account.email) : null)) {
+      pendingDocs.forEach((t) => clearTimeout(t));
+      pendingDocs.clear();
+      shelfChanged();
+    }
+  });
+}
 
 // ---- one sync at a time -----------------------------------------------
 let chain: Promise<unknown> = Promise.resolve();
@@ -181,6 +194,7 @@ export async function connect() {
   try {
     const t = await requestToken(status.email);
     const me = await drive.whoAmI(t);
+    await enterAccount({ email: me.email });
     writeAccount({ email: me.email, name: me.name });
     setStatus({ connected: true, email: me.email, name: me.name });
     await syncAll();
@@ -202,12 +216,21 @@ async function reconnect() {
   }
 }
 
-/** Signs out of Google on this device. Documents stay here and in Drive. */
+/**
+ * Signs out on this device. The account's documents are removed from the
+ * device (they stay in its Google Drive) and the guest library is shown.
+ */
 export async function disconnect() {
   if (authMode() === 'server') await signOutEverywhere();
   else forgetToken(true);
   writeAccount(null);
-  await storage.clearSyncRecords();
+  await exclusive(async () => {
+    await storage.clearSpace();
+    storage.switchSpace(null);
+    pendingDocs.forEach((t) => clearTimeout(t));
+    pendingDocs.clear();
+    shelfChanged();
+  });
   setStatus({
     connected: false,
     state: 'off',
@@ -426,9 +449,10 @@ if (typeof window !== 'undefined' && syncConfigured) {
   window.setInterval(() => {
     if (document.visibilityState === 'visible') syncAllSoon();
   }, 120_000);
-  void initAuth().then(({ mode, account }) => {
+  void initAuth().then(async ({ mode, account }) => {
     if (mode === 'server') {
       // The session cookie is the truth: signed in there means signed in here.
+      await enterAccount(account);
       writeAccount(account);
       setStatus({
         ready: true,

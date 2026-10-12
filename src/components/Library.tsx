@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { deleteDoc, listDocs } from '../lib/storage';
+import { adoptGuestDocs, currentSpace, deleteDoc, guestDocs, listDocs } from '../lib/storage';
 import { downloadPdf } from '../lib/sync/engine';
 import { useSyncStatus } from '../lib/sync/useSync';
 import type { DocMeta } from '../lib/types';
@@ -55,6 +55,26 @@ export function Library({ dark, onTheme, onOpen, onImport, busy, error, onDismis
   const refresh = () => listDocs().then(setDocs).catch(() => setDocs([]));
   useEffect(() => { void refresh(); }, [busy, sync.libraryVersion]);
 
+  // Documents added on this device without an account are never uploaded on
+  // their own; the signed-in person is asked first.
+  const [guestCount, setGuestCount] = useState(0);
+  const promptKey = `reader.guestprompt.${currentSpace()}`;
+  useEffect(() => {
+    let dismissed = false;
+    try { dismissed = localStorage.getItem(promptKey) === '1'; } catch { /* ignore */ }
+    if (!sync.connected || dismissed) return setGuestCount(0);
+    void guestDocs().then((g) => setGuestCount(g.length));
+  }, [sync.connected, sync.libraryVersion, promptKey]);
+  const dismissGuest = () => {
+    try { localStorage.setItem(promptKey, '1'); } catch { /* ignore */ }
+    setGuestCount(0);
+  };
+  const adoptGuest = async () => {
+    await adoptGuestDocs();
+    setGuestCount(0);
+    void refresh();
+  };
+
   const openBook = async (d: DocMeta) => {
     if (!d.cloudOnly) return onOpen(d.id);
     // Only in Drive so far: bring the PDF to this device first.
@@ -96,6 +116,19 @@ export function Library({ dark, onTheme, onOpen, onImport, busy, error, onDismis
           </button>
         </div>
       </header>
+
+      {guestCount > 0 && (
+        <div className="notice notice-info" role="status">
+          <span>
+            {guestCount === 1 ? '1 document on this device was' : `${guestCount} documents on this device were`} added
+            without an account. Add {guestCount === 1 ? 'it' : 'them'} to {sync.email ?? 'your account'}?
+          </span>
+          <span className="notice-actions">
+            <button className="button button-small" onClick={() => void adoptGuest()}>Add to my account</button>
+            <button className="link" onClick={dismissGuest}>Not now</button>
+          </span>
+        </div>
+      )}
 
       {(error || fetchError) && (
         <div className="notice" role="alert">

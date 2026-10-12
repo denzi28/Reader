@@ -145,6 +145,14 @@ button:disabled { cursor: default; }
   animation: rise 0.35s var(--ease) both;
 }
 
+.notice-info {
+  flex-wrap: wrap;
+  background: color-mix(in srgb, var(--accent) 10%, var(--card));
+  border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+}
+.notice-actions { display: inline-flex; align-items: center; gap: 0.75rem; }
+.button-small { padding: 0.5rem 1rem; font-size: 0.9rem; }
+
 .dropzone {
   display: grid;
   justify-items: center;

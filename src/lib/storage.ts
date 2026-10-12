@@ -1,8 +1,48 @@
-import { createStore, del, get, getMany, keys, set } from 'idb-keyval';
+import { clear, createStore, del, get, getMany, keys, set, type UseStore } from 'idb-keyval';
 import { applyEdit, inkFromLog, logFromInk, mergeLogs } from './inkLog';
 import type { DocInk, DocMeta, InkLog, Stroke } from './types';
 
-const store = createStore('reader', 'keyval');
+// ---- one separate library per account ---------------------------------
+// Every Google account gets its own database on the device, and so does use
+// without an account ("guest"). Documents, ink and sync records never cross
+// between them, so signing in as someone else never shows or uploads the
+// previous person's documents.
+const GUEST_SPACE = 'reader';
+const guestStore = createStore(GUEST_SPACE, 'keyval');
+let space = GUEST_SPACE;
+let store: UseStore = guestStore;
+
+/** The database name for an account (a hash of its email, not the email). */
+export function accountSpace(email: string | undefined) {
+  const text = (email ?? 'unknown').trim().toLowerCase();
+  let a = 0x811c9dc5;
+  let b = 0x01000193;
+  for (let i = 0; i < text.length; i++) {
+    a = Math.imul(a ^ text.charCodeAt(i), 0x01000193) >>> 0;
+    b = Math.imul(b + text.charCodeAt(i), 0x85ebca6b) >>> 0;
+  }
+  return `reader-${a.toString(16)}${b.toString(16)}`;
+}
+
+export const currentSpace = () => space;
+
+/** Switches to another account's library (null: no account). True if it changed. */
+export function switchSpace(name: string | null) {
+  const next = name ?? GUEST_SPACE;
+  if (next === space) return false;
+  flushInk();
+  inkCache.clear();
+  space = next;
+  store = next === GUEST_SPACE ? guestStore : createStore(next, 'keyval');
+  return true;
+}
+
+/** Removes everything the current account keeps on this device. */
+export async function clearSpace() {
+  inkCache.forEach((e) => clearTimeout(e.timer));
+  inkCache.clear();
+  await clear(store);
+}
 
 const metaKey = (id: string) => `meta:${id}`;
 const fileKey = (id: string) => `file:${id}`;
@@ -85,7 +125,7 @@ export async function wipeDoc(id: string, marker: DocMeta) {
 // ---- ink ----------------------------------------------------------------
 // Each document's ink log is cached in memory and written back shortly after
 // a change, so drawing never waits on the database.
-const inkCache = new Map<string, { log: InkLog; timer: number }>();
+const inkCache = new Map<string, { log: InkLog; timer: number; store: UseStore }>();
 
 async function cachedLog(id: string) {
   let entry = inkCache.get(id);
@@ -95,7 +135,7 @@ async function cachedLog(id: string) {
       const legacy = await get<DocInk>(legacyInkKey(id), store);
       log = legacy ? logFromInk(legacy) : {};
     }
-    entry = inkCache.get(id) ?? { log, timer: 0 }; // another call may have won
+    entry = inkCache.get(id) ?? { log, timer: 0, store }; // another call may have won
     inkCache.set(id, entry);
   }
   return entry;
@@ -113,7 +153,7 @@ function scheduleWrite(id: string) {
   clearTimeout(entry.timer);
   entry.timer = window.setTimeout(() => {
     entry.timer = 0;
-    void set(logKey(id), entry.log, store);
+    void set(logKey(id), entry.log, entry.store);
   }, 300);
 }
 
@@ -122,7 +162,7 @@ function flushInk() {
     if (entry.timer) {
       clearTimeout(entry.timer);
       entry.timer = 0;
-      void set(logKey(id), entry.log, store);
+      void set(logKey(id), entry.log, entry.store);
     }
   });
 }
@@ -181,6 +221,43 @@ export function putSyncRecord(id: string, rec: SyncRecord) {
 export async function clearSyncRecords() {
   const all = await keys<string>(store);
   await Promise.all(all.filter((k) => k.startsWith('sync:')).map((k) => del(k, store)));
+}
+
+// ---- bringing documents made without an account into one -----------------
+export async function guestDocs(): Promise<DocMeta[]> {
+  if (space === GUEST_SPACE) return [];
+  const all = await keys<string>(guestStore);
+  const metas = await getMany<DocMeta | undefined>(all.filter((k) => k.startsWith('meta:')), guestStore);
+  return metas.filter((m): m is DocMeta => Boolean(m && !m.deleted));
+}
+
+/** Moves the guest library into the signed-in account (merging what both have). */
+export async function adoptGuestDocs() {
+  if (space === GUEST_SPACE) return 0;
+  const docs = await guestDocs();
+  for (const g of docs) {
+    const id = g.id;
+    const [file, gLog, gLegacy, mine] = await Promise.all([
+      get<Blob>(fileKey(id), guestStore),
+      get<InkLog>(logKey(id), guestStore),
+      get<DocInk>(legacyInkKey(id), guestStore),
+      getMeta(id),
+    ]);
+    if (file && !(await getDocFile(id))) await set(fileKey(id), file, store);
+    const meta: DocMeta = mine && !mine.deleted
+      ? { ...mine, cloudOnly: mine.cloudOnly && !file, thumb: mine.thumb ?? g.thumb }
+      : { ...g, cloudOnly: false, updatedAt: Date.now() };
+    await set(metaKey(id), meta, store);
+    const log = gLog ?? (gLegacy ? logFromInk(gLegacy) : null);
+    if (log) await mergeInk(id, log);
+    await Promise.all(
+      [metaKey(id), fileKey(id), logKey(id), legacyInkKey(id), syncKey(id)].map((k) => del(k, guestStore)),
+    );
+    notify(id, 'meta');
+    notify(id, 'ink');
+  }
+  flushInk();
+  return docs.length;
 }
 
 /** Ask the browser not to evict our data under storage pressure. */

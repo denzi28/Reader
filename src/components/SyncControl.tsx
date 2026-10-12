@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { connect, disconnect, syncAll, type SyncStatus } from '../lib/sync/engine';
+import { connect, disconnect, getStatus, syncAll, type SyncStatus } from '../lib/sync/engine';
 import { preloadGoogle } from '../lib/sync/google';
 import { useSyncStatus } from '../lib/sync/useSync';
 import { AlertIcon, CloudIcon, SyncIcon } from './icons';
@@ -123,11 +123,15 @@ export function SyncControl() {
           <button role="menuitem" onClick={() => { setOpen(false); void syncAll(); }}>Sync now</button>
           <button
             role="menuitem"
-            onClick={() => {
-              if (window.confirm('Sign out on this device? Your documents stay here and in your Google Drive.')) {
-                setOpen(false);
-                void disconnect();
-              }
+            onClick={async () => {
+              setOpen(false);
+              await syncAll(); // send anything still waiting before leaving
+              const ok = window.confirm(
+                getStatus().state === 'idle'
+                  ? 'Sign out on this device? Your documents will be removed from this device. They stay in your Google Drive and come back when you sign in again.'
+                  : 'Some changes have not reached your Google Drive yet and will be lost if you sign out now. Sign out anyway?',
+              );
+              if (ok) void disconnect();
             }}
           >
             Sign out
