@@ -99,7 +99,7 @@ export function App() {
   };
 
   if (!docId && sync.available && sync.ready && !sync.connected && !skipped) {
-    return <Welcome onSkip={skip} />;
+    return <Welcome onSkip={skip} dark={theme === 'dark'} onTheme={toggleTheme} />;
   }
 
   return docId ? (

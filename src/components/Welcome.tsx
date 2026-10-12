@@ -1,123 +1,184 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { MoonIcon, SunIcon } from './icons';
+import { InkArt, PhoneMirror, PrivacyArt, SyncArt } from './landing/Art';
+import { delay, PenScene } from './landing/PenScene';
 import { GoogleButton } from './SyncControl';
 
 interface Props {
   onSkip: () => void;
+  dark: boolean;
+  onTheme: () => void;
 }
 
-// The opening scene, in the top page's own pixels (it is drawn at this size).
-const PAGE_W = 132;
-const PAGE_H = 164;
-const LINES = [96, 78, 100, 66, 92, 84];
-const WAVE = 'M20 128 C 34 118, 44 138, 58 128 S 82 118, 94 128 S 108 136, 114 126';
-const WRITE_AT = 1650; // ms after the screen appears
-const WRITE_FOR = 1100;
-
-const delay = (s: number) => ({ '--d': `${s}s` }) as CSSProperties;
-
-/**
- * Pages fan out, lines appear, a highlighter marks one and a pen writes on
- * the page: what the app is for, in two seconds. The pen is moved along the
- * very curve it draws, so its tip always meets the ink.
- */
-function PenScene() {
-  const wave = useRef<SVGPathElement>(null);
-  const pen = useRef<HTMLDivElement>(null);
-
+/** Adds `in` to each [data-reveal] element the first time it scrolls into view. */
+function useReveal() {
+  const root = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    const path = wave.current;
-    const nib = pen.current;
-    if (!path || !nib) return;
-    const length = path.getTotalLength();
-    path.style.strokeDasharray = `${length}`;
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      path.style.strokeDashoffset = '0';
-      nib.style.opacity = '0';
-      return;
-    }
-    path.style.strokeDashoffset = `${length}`;
-    const start = performance.now() + WRITE_AT;
-    const ease = (t: number) => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2);
-    const clamp = (v: number) => Math.min(1, Math.max(0, v));
-    let raf = 0;
-    const frame = (now: number) => {
-      const t = clamp((now - start) / WRITE_FOR);
-      const drawn = length * ease(t);
-      path.style.strokeDashoffset = `${length - drawn}`;
-      const tip = path.getPointAtLength(drawn);
-      const arrive = clamp((now - (start - 350)) / 350); // pen comes down
-      const leave = clamp((now - (start + WRITE_FOR + 120)) / 450); // and lifts away
-      nib.style.opacity = `${arrive * (1 - leave)}`;
-      nib.style.transform = `translate(${tip.x + leave * 14}px, ${tip.y - (1 - arrive) * 12 - leave * 18}px)`;
-      if (leave < 1) raf = requestAnimationFrame(frame);
-    };
-    raf = requestAnimationFrame(frame);
-    return () => cancelAnimationFrame(raf);
+    const els = root.current?.querySelectorAll<HTMLElement>('[data-reveal]') ?? [];
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          if (e.isIntersecting) {
+            e.target.classList.add('in');
+            io.unobserve(e.target);
+          }
+        }
+      },
+      { threshold: 0.3, rootMargin: '0px 0px -8% 0px' },
+    );
+    els.forEach((el) => io.observe(el));
+    return () => io.disconnect();
   }, []);
+  return root;
+}
 
+function Logo() {
   return (
-    <div className="scene" aria-hidden="true">
-      <span className="scene-page back-left" />
-      <span className="scene-page back-right" />
-      <div className="scene-page front">
-        <svg viewBox={`0 0 ${PAGE_W} ${PAGE_H}`} width={PAGE_W} height={PAGE_H}>
-          <rect className="scene-title" x="18" y="16" width="62" height="7" rx="3.5" />
-          {LINES.map((w, i) => (
-            <rect
-              key={i}
-              className="scene-line"
-              style={delay(0.75 + i * 0.07)}
-              x="18"
-              y={36 + i * 13}
-              width={w}
-              height="4"
-              rx="2"
-            />
-          ))}
-          <rect className="scene-highlight" x="15" y="58.5" width="106" height="11" rx="2" />
-          <path ref={wave} className="scene-ink" d={WAVE} />
-        </svg>
-        <div ref={pen} className="scene-pen">
-          <svg viewBox="0 0 32 32" width="32" height="32">
-            <path className="pen-body" d="M5 27 7.2 20 22.6 4.6a2.6 2.6 0 0 1 3.7 3.7L10.9 23.7z" />
-            <path className="pen-band" d="m19.9 7.3 4.8 4.8" />
-            <path className="pen-tip" d="M5 27 7.2 20l3.7 3.7z" />
-          </svg>
-        </div>
-      </div>
-    </div>
+    <svg className="logo" viewBox="0 0 32 32" aria-hidden="true">
+      <rect x="6" y="4" width="18" height="24" rx="2.5" className="logo-back" transform="rotate(-8 15 16)" />
+      <rect x="8" y="4" width="18" height="24" rx="2.5" className="logo-page" />
+      <path className="logo-line" d="M12 11h10M12 15h10M12 19h6" />
+      <path className="logo-ink" d="M11.5 23.5c2-1.6 3.4 1.6 5.4 0s3.4 1.4 5.2-.2" />
+    </svg>
   );
 }
 
-/** First screen for someone not signed in: sign in with Google, or carry on without. */
-export function Welcome({ onSkip }: Props) {
-  const [error, setError] = useState<string | null>(null);
+function SignIn({ label, onError }: { label: string; onError: (m: string) => void }) {
+  return <GoogleButton label={label} onError={onError} />;
+}
+
+function Section({ eyebrow, title, children, art, flip }: {
+  eyebrow: string;
+  title: string;
+  children: ReactNode;
+  art: ReactNode;
+  flip?: boolean;
+}) {
   return (
-    <main className="welcome">
-      <div className="welcome-glow" aria-hidden="true" />
-      <div className="welcome-card">
-        <PenScene />
-        <h1 className="brand reveal" style={delay(0.45)}>The Reader</h1>
-        <p className="welcome-lead reveal" style={delay(0.6)}>
-          Read, mark up and keep your documents, on every device.
-        </p>
-        <ul className="welcome-points">
-          <li className="reveal" style={delay(0.75)}>Draw and highlight right on the page</li>
-          <li className="reveal" style={delay(0.85)}>Your library and notes follow you through your own Google Drive</li>
-          <li className="reveal" style={delay(0.95)}>Sign in once and stay signed in</li>
-        </ul>
-        <div className="welcome-cta reveal" style={delay(1.1)}>
-          <GoogleButton label="Continue with Google" onError={setError} />
-        </div>
-        {error && <p className="welcome-error" role="alert">{error}</p>}
-        <button className="link welcome-skip reveal" style={delay(1.2)} onClick={onSkip}>
-          Use without an account
-        </button>
-        <p className="welcome-legal reveal" style={delay(1.3)}>
-          By continuing you agree to the <a href="/terms.html">Terms</a> and{' '}
-          <a href="/privacy.html">Privacy Policy</a>.
-        </p>
+    <section className={`feature${flip ? ' flip' : ''}`} data-reveal>
+      <div className="feature-text">
+        <p className="eyebrow">{eyebrow}</p>
+        <h2>{title}</h2>
+        {children}
       </div>
-    </main>
+      <div className="feature-art">{art}</div>
+    </section>
+  );
+}
+
+/** The landing page for someone not signed in. */
+export function Welcome({ onSkip, dark, onTheme }: Props) {
+  const [error, setError] = useState<string | null>(null);
+  const root = useReveal();
+
+  return (
+    <div className="landing" ref={root}>
+      <div className="landing-glow" aria-hidden="true" />
+
+      <header className="landing-nav">
+        <span className="landing-brand"><Logo /> The Reader</span>
+        <div className="landing-nav-actions">
+          <button className="link nav-link" onClick={onSkip}>Open without an account</button>
+          <button
+            className="icon-button"
+            onClick={onTheme}
+            aria-label={dark ? 'Switch to day paper' : 'Switch to night paper'}
+          >
+            {dark ? <SunIcon /> : <MoonIcon />}
+          </button>
+        </div>
+      </header>
+
+      <main>
+        <section className="hero">
+          <div className="hero-text">
+            <p className="eyebrow reveal" style={delay(0.2)}>A reader that feels like paper</p>
+            <h1 className="hero-title reveal" style={delay(0.35)}>
+              Read it.<br />
+              <span className="hl">Mark it.</span><br />
+              Keep it.
+            </h1>
+            <p className="hero-lead reveal" style={delay(0.55)}>
+              Draw and highlight right on your PDFs. Your library and every note follow you to your
+              phone, tablet and computer, kept in your own Google Drive.
+            </p>
+            <div className="hero-cta reveal" style={delay(0.75)}>
+              <SignIn label="Continue with Google" onError={setError} />
+              <button className="link hero-skip" onClick={onSkip}>Use without an account</button>
+            </div>
+            {error && <p className="welcome-error" role="alert">{error}</p>}
+            <p className="hero-note reveal" style={delay(0.9)}>
+              No ads. No servers holding your files. Sign in once and stay signed in.
+            </p>
+          </div>
+          <div className="hero-art">
+            <PenScene k={2} />
+            <PhoneMirror />
+          </div>
+          <a className="scroll-hint" href="#ink" aria-label="See more">
+            <span />
+          </a>
+        </section>
+
+        <div id="ink" />
+        <Section eyebrow="Ink that feels like ink" title="Write on the page, not around it." art={<InkArt />}>
+          <p>
+            A pen that follows your stylus pressure, a highlighter, an eraser and undo. Two fingers
+            scroll and zoom while you write, and a resting palm leaves no marks.
+          </p>
+        </Section>
+
+        <Section
+          eyebrow="Everywhere you are"
+          title="Pick up where you left off."
+          art={<SyncArt />}
+          flip
+        >
+          <p>
+            Mark a page on your phone and it is there on your laptop: the document, every stroke and
+            the page you were on. Draw on two devices at once and nothing is lost.
+          </p>
+        </Section>
+
+        <Section eyebrow="Yours alone" title="Your files stay in your Drive." art={<PrivacyArt />}>
+          <ul className="checks">
+            <li>Everything is kept in a private folder in your own Google Drive.</li>
+            <li>The Reader can see that folder and nothing else in your Drive.</li>
+            <li>No servers of ours hold your documents, no one reads them, and there are no ads.</li>
+          </ul>
+        </Section>
+
+        <section className="tiles" data-reveal>
+          {[
+            ['Night paper', 'A warm, lamp-lit dark theme. Your ink changes colour to stay readable.'],
+            ['Big PDFs, smooth', 'Only the pages on screen are drawn, so long books scroll like short ones.'],
+            ['Remembers your page', 'Open a document anywhere and land where you stopped reading.'],
+            ['Signed in for good', 'One tap with Google, then it stays out of your way.'],
+          ].map(([title, text], i) => (
+            <div className="tile" key={title} style={delay(0.08 * i)}>
+              <h3>{title}</h3>
+              <p>{text}</p>
+            </div>
+          ))}
+        </section>
+
+        <section className="final" data-reveal>
+          <h2>Your next page is waiting.</h2>
+          <div className="hero-cta">
+            <SignIn label="Continue with Google" onError={setError} />
+            <button className="link hero-skip" onClick={onSkip}>Use without an account</button>
+          </div>
+        </section>
+      </main>
+
+      <footer className="landing-foot">
+        <span className="landing-brand small"><Logo /> The Reader</span>
+        <nav>
+          <a href="/privacy.html">Privacy</a>
+          <a href="/terms.html">Terms</a>
+        </nav>
+        <p>By continuing you agree to the Terms and Privacy Policy.</p>
+      </footer>
+    </div>
   );
 }
