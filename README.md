@@ -66,10 +66,10 @@ To enable it:
 
 1. In the OAuth client, add **Authorized redirect URIs**, one per address the
    app runs on, e.g. `https://reader-app-delta.vercel.app/api/auth/callback`.
-2. Set these environment variables in Vercel and redeploy:
-   - `GOOGLE_CLIENT_SECRET`: the OAuth client's secret (keep it private).
-   - `SESSION_SECRET`: 32 random bytes, base64 (`openssl rand -base64 32`).
-     Changing it signs everyone out.
+2. Set `GOOGLE_CLIENT_SECRET` (the OAuth client's secret; keep it private) in
+   Vercel and redeploy. Optionally set `SESSION_SECRET` (32 random bytes,
+   base64) to encrypt the session cookie with its own key; otherwise the key is
+   derived from the client secret. Changing either signs everyone out.
 
 Without them the app falls back to the hour-long popup tokens.
 

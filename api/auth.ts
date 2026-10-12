@@ -9,9 +9,10 @@
 //   POST /api/auth/token     → { access_token, expires_in, user }
 //   POST /api/auth/logout    → revokes access and clears the cookie
 //
-// Environment: VITE_GOOGLE_CLIENT_ID (shared with the app), GOOGLE_CLIENT_SECRET,
-// SESSION_SECRET (32 random bytes, base64). /api/auth/:action is rewritten to
-// this file in vercel.json.
+// Environment: VITE_GOOGLE_CLIENT_ID (shared with the app) and
+// GOOGLE_CLIENT_SECRET. SESSION_SECRET (32 random bytes, base64) is optional;
+// without it the cookie key is derived from the client secret. Changing either
+// signs everyone out. /api/auth/:action is rewritten to this file in vercel.json.
 
 declare const process: { env: Record<string, string | undefined> };
 
@@ -33,7 +34,7 @@ interface Session extends User {
   rt: string;
 }
 
-const configured = () => Boolean(CLIENT_ID && CLIENT_SECRET && SESSION_SECRET);
+const configured = () => Boolean(CLIENT_ID && CLIENT_SECRET);
 
 // ---- small helpers ------------------------------------------------------
 const b64url = (bytes: Uint8Array) =>
@@ -77,10 +78,14 @@ function cookie(request: Request, name: string, value: string, maxAge: number) {
 // ---- the encrypted session cookie (AES-256-GCM) ------------------------
 let keyPromise: Promise<CryptoKey> | null = null;
 const key = () =>
-  (keyPromise ??= crypto.subtle.importKey('raw', fromB64url(SESSION_SECRET), 'AES-GCM', false, [
-    'encrypt',
-    'decrypt',
-  ]));
+  (keyPromise ??= (async () => {
+    const raw = SESSION_SECRET
+      ? fromB64url(SESSION_SECRET)
+      : new Uint8Array(
+          await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`reader-session:${CLIENT_SECRET}`)),
+        );
+    return crypto.subtle.importKey('raw', raw, 'AES-GCM', false, ['encrypt', 'decrypt']);
+  })());
 
 async function seal(session: Session) {
   const iv = crypto.getRandomValues(new Uint8Array(12));
