@@ -144,14 +144,20 @@ export function Viewer({ docId, dark, onTheme, onClose }: Props) {
   const zoomRef = useRef(zoom);
   zoomRef.current = zoom;
 
-  // ---- two fingers scroll and zoom while a drawing tool is on ------------
-  // One finger draws, so the browser's own touch scrolling is switched off in
-  // drawing mode (see .scroller in CSS). These handlers run in the capture
-  // phase, before React's page handlers, so a second finger can claim the
-  // gesture and throw away the stroke the first finger had just started.
+  // ---- two fingers scroll and zoom the document ------------------------
+  // The browser's own page zoom is switched off in the viewer (see CSS), as it
+  // would magnify the toolbars off screen; pinching zooms the document instead.
+  //
+  // Drawing mode: one finger draws, so all touch scrolling is done here. The
+  // pointer handlers run in the capture phase, before React's page handlers, so
+  // a second finger can claim the gesture and drop the stroke the first started.
+  //
+  // Reading mode: one finger scrolls natively; two fingers are taken over here
+  // through touch events, which can cancel the browser's handling of them.
   useEffect(() => {
     const el = scroller.current;
-    if (!el || !pdf || tool === 'hand') return;
+    if (!el || !pdf) return;
+    const drawing = tool !== 'hand';
     const touches = new Map<number, { x: number; y: number }>();
     let start: { dist: number; zoom: number; cx: number; cy: number } | null = null;
     let raf = 0;
@@ -263,20 +269,90 @@ export function Viewer({ docId, dark, onTheme, onClose }: Props) {
       if (touches.size === 0) hub.gesture = false;
     };
 
-    el.addEventListener('pointerdown', onDown, true);
-    el.addEventListener('pointermove', onMove, true);
-    el.addEventListener('pointerup', onUp, true);
-    el.addEventListener('pointercancel', onUp, true);
+    // Reading mode: mirror the touch list into `touches` and reuse the above.
+    let owned = false; // false when the browser had already begun scrolling
+    const syncTouches = (e: TouchEvent) => {
+      touches.clear();
+      for (const t of Array.from(e.touches)) touches.set(t.identifier, { x: t.clientX, y: t.clientY });
+    };
+    const onTouchStart = (e: TouchEvent) => {
+      cancelAnimationFrame(fling);
+      syncTouches(e);
+      if (touches.size >= 2) {
+        begin();
+        owned = true;
+      }
+    };
+    const onTouchMove = (e: TouchEvent) => {
+      syncTouches(e);
+      if (!start || touches.size < 2) return;
+      if (!e.cancelable) owned = false;
+      if (!owned) {
+        start = null; // the browser is already scrolling; let it carry on
+        return;
+      }
+      e.preventDefault();
+      if (!raf) raf = requestAnimationFrame(update);
+    };
+    const onTouchEnd = (e: TouchEvent) => {
+      syncTouches(e);
+      if (touches.size >= 2) {
+        begin();
+      } else if (start) {
+        start = null;
+        cancelAnimationFrame(raf);
+        raf = 0;
+        launchFling();
+      }
+    };
+
+    if (drawing) {
+      el.addEventListener('pointerdown', onDown, true);
+      el.addEventListener('pointermove', onMove, true);
+      el.addEventListener('pointerup', onUp, true);
+      el.addEventListener('pointercancel', onUp, true);
+    } else {
+      el.addEventListener('touchstart', onTouchStart, { passive: true });
+      el.addEventListener('touchmove', onTouchMove, { passive: false });
+      el.addEventListener('touchend', onTouchEnd, { passive: true });
+      el.addEventListener('touchcancel', onTouchEnd, { passive: true });
+    }
     return () => {
       el.removeEventListener('pointerdown', onDown, true);
       el.removeEventListener('pointermove', onMove, true);
       el.removeEventListener('pointerup', onUp, true);
       el.removeEventListener('pointercancel', onUp, true);
+      el.removeEventListener('touchstart', onTouchStart);
+      el.removeEventListener('touchmove', onTouchMove);
+      el.removeEventListener('touchend', onTouchEnd);
+      el.removeEventListener('touchcancel', onTouchEnd);
       cancelAnimationFrame(raf);
       cancelAnimationFrame(fling);
       hub.gesture = false;
     };
   }, [pdf, tool, hub]);
+
+  // Safari zooms the whole page with its own gesture events, ignoring
+  // touch-action in places. Block that; on a Mac trackpad, zoom the document.
+  useEffect(() => {
+    let startZoom = 1;
+    const touchScreen = navigator.maxTouchPoints > 0;
+    const onStart = (e: Event) => {
+      e.preventDefault();
+      startZoom = zoomRef.current;
+    };
+    const onChange = (e: Event) => {
+      e.preventDefault();
+      const scale = (e as Event & { scale?: number }).scale;
+      if (!touchScreen && scale) applyZoom(startZoom * scale);
+    };
+    document.addEventListener('gesturestart', onStart, { passive: false });
+    document.addEventListener('gesturechange', onChange, { passive: false });
+    return () => {
+      document.removeEventListener('gesturestart', onStart);
+      document.removeEventListener('gesturechange', onChange);
+    };
+  }, [applyZoom]);
 
   // ---- which pages are on screen ----------------------------------------
   const pageEls = useRef(new Map<number, HTMLDivElement>());

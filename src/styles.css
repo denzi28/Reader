@@ -234,7 +234,7 @@ button:disabled { cursor: default; }
 @media (hover: none) { .book-delete { opacity: 0.9; transform: scale(0.85); } }
 
 /* ---------- viewer ---------- */
-.viewer { position: fixed; inset: 0; z-index: 1; }
+.viewer { position: fixed; inset: 0; z-index: 1; touch-action: pan-x pan-y; }
 
 .topbar {
   position: absolute;
@@ -297,7 +297,9 @@ button:disabled { cursor: default; }
   background:
     radial-gradient(1200px 600px at 50% -10%, color-mix(in srgb, var(--desk) 70%, #fff) 0%, transparent 70%),
     var(--desk);
-  touch-action: pan-x pan-y pinch-zoom;
+  /* No browser page zoom: it would push the toolbars off screen. Pinching
+     zooms the document instead (handled in Viewer). */
+  touch-action: pan-x pan-y;
 }
 /* While drawing, one finger draws and two fingers scroll or zoom by hand. */
 .viewer:not(.tool-hand) .scroller { touch-action: none; }
