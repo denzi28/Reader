@@ -10,8 +10,8 @@ import { downloadPdf } from '../lib/sync/engine';
 import { useSyncStatus } from '../lib/sync/useSync';
 import type { DocMeta, Folder } from '../lib/types';
 import {
-  BackIcon, CheckIcon, CloseIcon, CloudIcon, FileIcon, FolderIcon, FolderMoveIcon, FolderPlusIcon, MoonIcon, SearchIcon, SunIcon,
-  TrashIcon,
+  BackIcon, CheckIcon, CloseIcon, CloudIcon, FileIcon, FolderIcon, FolderMoveIcon, FolderPlusIcon, MoonIcon, PencilIcon, SearchIcon, SunIcon,
+  TrashIcon, UploadIcon,
 } from './icons';
 import { SyncControl } from './SyncControl';
 
@@ -326,6 +326,9 @@ export function Library(props: Props) {
     },
   });
 
+  // Once there is something on the shelf, adding more takes less room.
+  const compact = Boolean(docs?.length);
+
   const removeFolder = async (f: Folder) => {
     const n = counts.get(f.id) ?? 0;
     const note = n ? ` The ${plural(n, 'document', 'documents')} in it will go back to your shelf.` : '';
@@ -379,7 +382,7 @@ export function Library(props: Props) {
         </span>
         <span className="book-name"><Marked text={d.name} ranges={marks} /></span>
         <span className="book-meta">
-          {d.pages} pages · {formatSize(d.size)} · {ago(d.openedAt)}
+          {plural(d.pages, 'page', 'pages')} · {formatSize(d.size)} · {ago(d.openedAt)}
         </span>
         {showFolder && placeOf(d) && (
           <span className="book-folder"><FolderIcon />{folderName.get(placeOf(d)!)}</span>
@@ -477,22 +480,31 @@ export function Library(props: Props) {
             <BackIcon />
             All documents
           </button>
-          <div className="folder-heading">
-            <span className="folder-heading-icon"><FolderIcon /></span>
-            {renaming ? (
-              <NameField
-                initial={current.name}
-                label="Folder name"
-                onSave={async (name) => { setRenaming(false); await renameFolder(current.id, name); void refresh(); }}
-                onCancel={() => setRenaming(false)}
-              />
-            ) : (
-              <h2 className="folder-name">{current.name}</h2>
-            )}
+          <div className="folder-head">
+            <span className="folder-head-icon"><FolderIcon /></span>
+            <div className="folder-head-text">
+              {renaming ? (
+                <NameField
+                  initial={current.name}
+                  label="Folder name"
+                  onSave={async (name) => { setRenaming(false); await renameFolder(current.id, name); void refresh(); }}
+                  onCancel={() => setRenaming(false)}
+                />
+              ) : (
+                <h2 className="folder-name">{current.name}</h2>
+              )}
+              <p className="folder-sub">{plural(shown.length, 'document', 'documents')}</p>
+            </div>
             {!renaming && (
               <span className="folder-actions">
-                <button className="link" onClick={() => setRenaming(true)}>Rename</button>
-                <button className="link" onClick={() => void removeFolder(current)}>Delete</button>
+                <button className="chip-button" onClick={() => setRenaming(true)} aria-label="Rename folder">
+                  <PencilIcon />
+                  <span>Rename</span>
+                </button>
+                <button className="chip-button chip-danger" onClick={() => void removeFolder(current)} aria-label="Delete folder">
+                  <TrashIcon />
+                  <span>Delete</span>
+                </button>
               </span>
             )}
           </div>
@@ -551,7 +563,7 @@ export function Library(props: Props) {
       {!searching && (
         <>
           <div
-            className={`dropzone${dragging ? ' over' : ''}${busy ? ' busy' : ''}`}
+            className={`dropzone${compact ? ' compact' : ''}${dragging ? ' over' : ''}${busy ? ' busy' : ''}`}
             onDragOver={(e) => {
               if (isBook(e)) return;
               e.preventDefault();
@@ -572,13 +584,20 @@ export function Library(props: Props) {
               hidden
               onChange={(e) => { take(e.target.files); e.target.value = ''; }}
             />
-            <p className="drop-title">
-              {busy ? 'Adding to your library…' : current ? `Drop PDFs into “${current.name}”` : 'Drop PDFs here'}
-            </p>
-            <button className="button" disabled={busy} onClick={() => input.current?.click()}>
+            {compact && <span className="drop-icon"><UploadIcon /></span>}
+            <div className="drop-text">
+              <p className="drop-title">
+                {busy ? 'Adding to your library…' : current ? `Drop PDFs into “${current.name}”` : 'Drop PDFs here'}
+              </p>
+              <p className="drop-note">
+                {compact
+                  ? 'Or choose several at once.'
+                  : 'You can pick several at once. Word, Excel and PowerPoint support is coming next.'}
+              </p>
+            </div>
+            <button className={`button${compact ? ' button-small' : ''}`} disabled={busy} onClick={() => input.current?.click()}>
               Choose files
             </button>
-            <p className="drop-note">You can pick several at once. Word, Excel and PowerPoint support is coming next.</p>
           </div>
 
           {!current && docs && (
@@ -618,7 +637,7 @@ export function Library(props: Props) {
                   This folder is empty. Add PDFs above, or use the folder button on any document to move it here.
                 </p>
               )}
-              <ul className="shelf">
+              <ul className={`shelf${current ? ' folder-shelf' : ''}`}>
                 {shown.map((d, i) => book(d, i))}
               </ul>
             </>

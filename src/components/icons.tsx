@@ -137,3 +137,15 @@ export const CloseIcon = () => (
     <path d="M6 6l12 12M18 6L6 18" />
   </Icon>
 );
+export const PencilIcon = () => (
+  <Icon>
+    <path d="M4 20h4L19 9a2.1 2.1 0 0 0-4-4L4 16z" />
+    <path d="M13.5 6.5l4 4" />
+  </Icon>
+);
+export const UploadIcon = () => (
+  <Icon>
+    <path d="M12 15V4M7.5 8.5L12 4l4.5 4.5" />
+    <path d="M4 15v3.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V15" />
+  </Icon>
+);
