@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { liveFolders, MAX_FOLDER_NAME } from '../lib/folders';
+import { matchRanges, searchTerms } from '../lib/search';
 import {
   adoptGuestDocs, createFolder, currentSpace, deleteDoc, deleteFolder, getFolderLog, guestDocs,
   listDocs, moveDocs, renameFolder,
@@ -9,7 +10,7 @@ import { downloadPdf } from '../lib/sync/engine';
 import { useSyncStatus } from '../lib/sync/useSync';
 import type { DocMeta, Folder } from '../lib/types';
 import {
-  BackIcon, CheckIcon, CloudIcon, FileIcon, FolderIcon, FolderMoveIcon, FolderPlusIcon, MoonIcon, SunIcon,
+  BackIcon, CheckIcon, CloseIcon, CloudIcon, FileIcon, FolderIcon, FolderMoveIcon, FolderPlusIcon, MoonIcon, SearchIcon, SunIcon,
   TrashIcon,
 } from './icons';
 import { SyncControl } from './SyncControl';
@@ -56,6 +57,24 @@ function Cover({ meta }: { meta: DocMeta }) {
 }
 
 const DOC_TYPE = 'application/x-reader-doc';
+/** When the move menu is a bottom sheet; matches the media query in styles.css. */
+const SHEET_MEDIA = '(max-width: 520px), (hover: none) and (pointer: coarse)';
+// Kept while the app is open, so coming back from a document shows the results.
+let lastQuery = '';
+
+/** `text` with the matched parts marked. */
+function Marked({ text, ranges }: { text: string; ranges: [number, number][] | null }) {
+  if (!ranges?.length) return <>{text}</>;
+  const parts: React.ReactNode[] = [];
+  let at = 0;
+  for (const [a, b] of ranges) {
+    if (a > at) parts.push(text.slice(at, a));
+    parts.push(<mark key={a}>{text.slice(a, b)}</mark>);
+    at = b;
+  }
+  parts.push(text.slice(at));
+  return <>{parts}</>;
+}
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
 /** A one-line text field that saves on Enter or when it loses focus. */
@@ -112,17 +131,25 @@ function MoveMenu({ doc, folders, current, anchor, onMove, onClose }: {
       onClose();
     };
     const key = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    // The menu is placed once, so scrolling the shelf closes it.
-    const scroll = (e: Event) => { if (!box.current?.contains(e.target as Node)) onClose(); };
+    // The menu is placed once, so scrolling the shelf closes it. Not the phone
+    // sheet: it stays put, and the keyboard opening for a new name resizes.
+    const sheet = window.matchMedia(SHEET_MEDIA).matches;
+    // A scroll that was already ending when the menu opened doesn't count.
+    const startY = window.scrollY;
+    const scroll = (e: Event) => {
+      if (sheet || box.current?.contains(e.target as Node)) return;
+      if (e.target !== document || Math.abs(window.scrollY - startY) > 24) onClose();
+    };
+    const resize = () => { if (!sheet) onClose(); };
     document.addEventListener('pointerdown', away, true);
     document.addEventListener('keydown', key);
     window.addEventListener('scroll', scroll, true);
-    window.addEventListener('resize', onClose);
+    window.addEventListener('resize', resize);
     return () => {
       document.removeEventListener('pointerdown', away, true);
       document.removeEventListener('keydown', key);
       window.removeEventListener('scroll', scroll, true);
-      window.removeEventListener('resize', onClose);
+      window.removeEventListener('resize', resize);
     };
   }, [onClose]);
   const option = (id: string | null, name: string, icon: React.ReactNode) => (
@@ -184,8 +211,24 @@ export function Library(props: Props) {
   const [renaming, setRenaming] = useState(false);
   const [moving, setMoving] = useState<{ id: string; anchor: DOMRect } | null>(null);
   const [dropOn, setDropOn] = useState<string | null>(null);
+  const [query, setQuery] = useState(lastQuery);
   const input = useRef<HTMLInputElement>(null);
+  const searchBox = useRef<HTMLInputElement>(null);
   const sync = useSyncStatus();
+  useEffect(() => { lastQuery = query; }, [query]);
+
+  // "/" or Ctrl/Cmd+K jumps to the search box.
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      const typing = (e.target as Element)?.closest?.('input, textarea, [contenteditable="true"]');
+      if ((e.key === '/' && !typing) || (e.key.toLowerCase() === 'k' && (e.ctrlKey || e.metaKey))) {
+        e.preventDefault();
+        searchBox.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', key);
+    return () => window.removeEventListener('keydown', key);
+  }, []);
 
   const refresh = () =>
     Promise.all([listDocs(), getFolderLog()])
@@ -198,6 +241,21 @@ export function Library(props: Props) {
   const live = new Set(folders.map((f) => f.id));
   const placeOf = (d: DocMeta) => (d.folder && live.has(d.folder) ? d.folder : null);
   const shown = (docs ?? []).filter((d) => placeOf(d) === (current?.id ?? null));
+  const folderName = new Map(folders.map((f) => [f.id, f.name]));
+  // Searching looks through every document and folder, wherever it is filed.
+  const terms = searchTerms(query);
+  const searching = terms.length > 0;
+  const docHits = searching
+    ? (docs ?? []).flatMap((d) => {
+      const name = matchRanges(d.name, terms);
+      const inFolder = placeOf(d);
+      const folderMatch = inFolder ? matchRanges(folderName.get(inFolder) ?? '', terms) : null;
+      return name || folderMatch ? [{ d, name }] : [];
+    })
+    : [];
+  const folderHits = searching
+    ? folders.flatMap((f) => { const r = matchRanges(f.name, terms); return r ? [{ f, r }] : []; })
+    : [];
   const counts = new Map<string, number>();
   for (const d of docs ?? []) {
     const f = placeOf(d);
@@ -278,6 +336,95 @@ export function Library(props: Props) {
   };
 
 
+  const folderTile = (f: Folder, i: number, marks: [number, number][] | null = null) => (
+    <li key={f.id} style={{ ['--i' as string]: i }}>
+      <button
+        className={`folder-tile${dropOn === f.id ? ' drop' : ''}`}
+        onClick={() => { setQuery(''); onFolder(f.id); }}
+        {...dropTarget(f.id)}
+      >
+        <span className="folder-tile-icon"><FolderIcon /></span>
+        <span className="folder-tile-name"><Marked text={f.name} ranges={marks} /></span>
+        <span className="folder-tile-count">{plural(counts.get(f.id) ?? 0, 'document', 'documents')}</span>
+      </button>
+    </li>
+  );
+
+  /** One document on the shelf (or in the search results). */
+  const book = (d: DocMeta, i: number, marks: [number, number][] | null = null, showFolder = false) => (
+    <li
+      key={d.id}
+      className="book"
+      style={{ ['--i' as string]: i }}
+      draggable={folders.length > 0}
+      onDragStart={(e) => {
+        e.dataTransfer.setData(DOC_TYPE, d.id);
+        e.dataTransfer.effectAllowed = 'move';
+      }}
+      onDragEnd={() => setDropOn(null)}
+    >
+      <button
+        className={`book-open${fetching === d.id ? ' fetching' : ''}`}
+        onClick={() => void openBook(d)}
+        disabled={fetching !== null}
+      >
+        <span className="cover">
+          <Cover meta={d} />
+          {d.cloudOnly && (
+            <span className="cover-cloud" title="In your Google Drive; opens after downloading">
+              <CloudIcon />
+              {fetching === d.id ? 'Downloading…' : 'In Drive'}
+            </span>
+          )}
+        </span>
+        <span className="book-name"><Marked text={d.name} ranges={marks} /></span>
+        <span className="book-meta">
+          {d.pages} pages · {formatSize(d.size)} · {ago(d.openedAt)}
+        </span>
+        {showFolder && placeOf(d) && (
+          <span className="book-folder"><FolderIcon />{folderName.get(placeOf(d)!)}</span>
+        )}
+      </button>
+      <span className="book-tools">
+        <button
+          className="book-tool"
+          aria-label={`Move ${d.name} to a folder`}
+          title="Move to a folder"
+          aria-haspopup="menu"
+          aria-expanded={moving?.id === d.id}
+          onClick={(e) => setMoving(
+            moving?.id === d.id ? null : { id: d.id, anchor: e.currentTarget.getBoundingClientRect() },
+          )}
+        >
+          <FolderMoveIcon />
+        </button>
+        <button
+          className="book-tool"
+          aria-label={`Remove ${d.name}`}
+          title="Remove from this device"
+          onClick={async () => {
+            if (window.confirm(`Remove “${d.name}” and its notes from this device?`)) {
+              await deleteDoc(d.id);
+              void refresh();
+            }
+          }}
+        >
+          <TrashIcon />
+        </button>
+      </span>
+      {moving?.id === d.id && (
+        <MoveMenu
+          doc={d}
+          anchor={moving.anchor}
+          folders={folders}
+          current={placeOf(d)}
+          onMove={(to) => void move(d.id, to)}
+          onClose={() => setMoving(null)}
+        />
+      )}
+    </li>
+  );
+
   return (
     <main className="library">
       <header className="library-head">
@@ -352,158 +499,130 @@ export function Library(props: Props) {
         </nav>
       )}
 
-      <div
-        className={`dropzone${dragging ? ' over' : ''}${busy ? ' busy' : ''}`}
-        onDragOver={(e) => {
-          if (isBook(e)) return;
-          e.preventDefault();
-          setDragging(true);
-        }}
-        onDragLeave={() => setDragging(false)}
-        onDrop={(e) => {
-          e.preventDefault();
-          setDragging(false);
-          take(e.dataTransfer.files);
-        }}
-      >
-        <input
-          ref={input}
-          type="file"
-          accept="application/pdf,.pdf"
-          multiple
-          hidden
-          onChange={(e) => { take(e.target.files); e.target.value = ''; }}
-        />
-        <p className="drop-title">
-          {busy ? 'Adding to your library…' : current ? `Drop PDFs into “${current.name}”` : 'Drop PDFs here'}
-        </p>
-        <button className="button" disabled={busy} onClick={() => input.current?.click()}>
-          Choose files
-        </button>
-        <p className="drop-note">You can pick several at once. Word, Excel and PowerPoint support is coming next.</p>
-      </div>
-
-      {!current && docs && (
-        <section className="folders-section" aria-label="Folders">
-          <div className="section-head">
-            <h2 className="shelf-title">Folders</h2>
-            <button className="chip-button" onClick={() => setCreating(true)} disabled={creating}>
-              <FolderPlusIcon />
-              New folder
+      {docs && docs.length > 0 && (
+        <div className={`search${query ? ' active' : ''}`} role="search">
+          <SearchIcon />
+          <input
+            ref={searchBox}
+            type="search"
+            value={query}
+            placeholder={current ? 'Search all documents' : 'Search documents and folders'}
+            aria-label="Search documents and folders"
+            enterKeyHint="search"
+            autoComplete="off"
+            spellCheck={false}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') { setQuery(''); e.currentTarget.blur(); }
+              if (e.key === 'Enter') e.currentTarget.blur(); // phones: hide the keyboard
+            }}
+          />
+          {query ? (
+            <button
+              className="search-clear"
+              aria-label="Clear search"
+              onClick={() => { setQuery(''); searchBox.current?.focus(); }}
+            >
+              <CloseIcon />
             </button>
-          </div>
-          {folders.length === 0 && !creating ? (
-            <p className="empty-note">Group your notes by course, project or client. Create a folder, then move documents into it.</p>
           ) : (
-            <ul className="folders">
-              {folders.map((f, i) => (
-                <li key={f.id} style={{ ['--i' as string]: i }}>
-                  <button
-                    className={`folder-tile${dropOn === f.id ? ' drop' : ''}`}
-                    onClick={() => onFolder(f.id)}
-                    {...dropTarget(f.id)}
-                  >
-                    <span className="folder-tile-icon"><FolderIcon /></span>
-                    <span className="folder-tile-name">{f.name}</span>
-                    <span className="folder-tile-count">{plural(counts.get(f.id) ?? 0, 'document', 'documents')}</span>
-                  </button>
-                </li>
-              ))}
-              {creating && (
-                <li className="folder-tile folder-tile-new">
-                  <span className="folder-tile-icon"><FolderIcon /></span>
-                  <NameField
-                    label="Folder name"
-                    onSave={async (name) => { setCreating(false); await createFolder(name); void refresh(); }}
-                    onCancel={() => setCreating(false)}
-                  />
-                </li>
-              )}
-            </ul>
+            <kbd className="search-key" aria-hidden="true">/</kbd>
+          )}
+        </div>
+      )}
+
+      {searching && (
+        <section className="results" aria-label="Search results">
+          <h2 className="shelf-title" aria-live="polite">
+            {docHits.length + folderHits.length
+              ? `${plural(docHits.length + folderHits.length, 'result', 'results')} for “${query.trim()}”`
+              : `Nothing matches “${query.trim()}”`}
+          </h2>
+          {folderHits.length > 0 && <ul className="folders">{folderHits.map(({ f, r }, i) => folderTile(f, i, r))}</ul>}
+          {docHits.length > 0 && (
+            <ul className="shelf">{docHits.map(({ d, name }, i) => book(d, i, name, true))}</ul>
+          )}
+          {docHits.length + folderHits.length === 0 && (
+            <p className="empty-note">Try fewer letters, or another word from the title.</p>
           )}
         </section>
       )}
 
-      {docs && (shown.length > 0 || current) && (
+      {!searching && (
         <>
-          {!current && <h2 className="shelf-title">{folders.length ? 'Not in a folder' : 'Your shelf'}</h2>}
-          {current && shown.length === 0 && (
-            <p className="empty-note empty-folder">
-              This folder is empty. Add PDFs above, or use the folder button on any document to move it here.
+          <div
+            className={`dropzone${dragging ? ' over' : ''}${busy ? ' busy' : ''}`}
+            onDragOver={(e) => {
+              if (isBook(e)) return;
+              e.preventDefault();
+              setDragging(true);
+            }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragging(false);
+              take(e.dataTransfer.files);
+            }}
+          >
+            <input
+              ref={input}
+              type="file"
+              accept="application/pdf,.pdf"
+              multiple
+              hidden
+              onChange={(e) => { take(e.target.files); e.target.value = ''; }}
+            />
+            <p className="drop-title">
+              {busy ? 'Adding to your library…' : current ? `Drop PDFs into “${current.name}”` : 'Drop PDFs here'}
             </p>
-          )}
-          <ul className="shelf">
-            {shown.map((d, i) => (
-              <li
-                key={d.id}
-                className="book"
-                style={{ ['--i' as string]: i }}
-                draggable={folders.length > 0}
-                onDragStart={(e) => {
-                  e.dataTransfer.setData(DOC_TYPE, d.id);
-                  e.dataTransfer.effectAllowed = 'move';
-                }}
-                onDragEnd={() => setDropOn(null)}
-              >
-                <button
-                  className={`book-open${fetching === d.id ? ' fetching' : ''}`}
-                  onClick={() => void openBook(d)}
-                  disabled={fetching !== null}
-                >
-                  <span className="cover">
-                    <Cover meta={d} />
-                    {d.cloudOnly && (
-                      <span className="cover-cloud" title="In your Google Drive; opens after downloading">
-                        <CloudIcon />
-                        {fetching === d.id ? 'Downloading…' : 'In Drive'}
-                      </span>
-                    )}
-                  </span>
-                  <span className="book-name">{d.name}</span>
-                  <span className="book-meta">
-                    {d.pages} pages · {formatSize(d.size)} · {ago(d.openedAt)}
-                  </span>
+            <button className="button" disabled={busy} onClick={() => input.current?.click()}>
+              Choose files
+            </button>
+            <p className="drop-note">You can pick several at once. Word, Excel and PowerPoint support is coming next.</p>
+          </div>
+
+          {!current && docs && (
+            <section className="folders-section" aria-label="Folders">
+              <div className="section-head">
+                <h2 className="shelf-title">Folders</h2>
+                <button className="chip-button" onClick={() => setCreating(true)} disabled={creating}>
+                  <FolderPlusIcon />
+                  New folder
                 </button>
-                <span className="book-tools">
-                  <button
-                    className="book-tool"
-                    aria-label={`Move ${d.name} to a folder`}
-                    title="Move to a folder"
-                    aria-haspopup="menu"
-                    aria-expanded={moving?.id === d.id}
-                    onClick={(e) => setMoving(
-                      moving?.id === d.id ? null : { id: d.id, anchor: e.currentTarget.getBoundingClientRect() },
-                    )}
-                  >
-                    <FolderMoveIcon />
-                  </button>
-                  <button
-                    className="book-tool"
-                    aria-label={`Remove ${d.name}`}
-                    title="Remove from this device"
-                    onClick={async () => {
-                      if (window.confirm(`Remove “${d.name}” and its notes from this device?`)) {
-                        await deleteDoc(d.id);
-                        void refresh();
-                      }
-                    }}
-                  >
-                    <TrashIcon />
-                  </button>
-                </span>
-                {moving?.id === d.id && (
-                  <MoveMenu
-                    doc={d}
-                    anchor={moving.anchor}
-                    folders={folders}
-                    current={placeOf(d)}
-                    onMove={(to) => void move(d.id, to)}
-                    onClose={() => setMoving(null)}
-                  />
-                )}
-              </li>
-            ))}
-          </ul>
+              </div>
+              {folders.length === 0 && !creating ? (
+                <p className="empty-note">Group your notes by course, project or client. Create a folder, then move documents into it.</p>
+              ) : (
+                <ul className="folders">
+                  {folders.map((f, i) => folderTile(f, i))}
+                  {creating && (
+                    <li className="folder-tile folder-tile-new">
+                      <span className="folder-tile-icon"><FolderIcon /></span>
+                      <NameField
+                        label="Folder name"
+                        onSave={async (name) => { setCreating(false); await createFolder(name); void refresh(); }}
+                        onCancel={() => setCreating(false)}
+                      />
+                    </li>
+                  )}
+                </ul>
+              )}
+            </section>
+          )}
+
+          {docs && (shown.length > 0 || current) && (
+            <>
+              {!current && <h2 className="shelf-title">{folders.length ? 'Not in a folder' : 'Your shelf'}</h2>}
+              {current && shown.length === 0 && (
+                <p className="empty-note empty-folder">
+                  This folder is empty. Add PDFs above, or use the folder button on any document to move it here.
+                </p>
+              )}
+              <ul className="shelf">
+                {shown.map((d, i) => book(d, i))}
+              </ul>
+            </>
+          )}
         </>
       )}
       <footer className="library-foot">

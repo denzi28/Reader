@@ -21,6 +21,9 @@ your device.
   with the folder button on its cover (or drag it onto a folder on desktop);
   PDFs added while a folder is open go straight into it. Deleting a folder
   keeps its documents and puts them back on the shelf.
+- **Search** across every document and folder name (`/` or `Ctrl/Cmd+K` to
+  jump to it). Case, accents and the Turkish dotted/dotless i are ignored, so
+  "ders notlari" finds "Ders notları".
 - **Day paper and night paper** themes. Ink colours adapt to the theme.
 - Works with mouse, touch and stylus. Tap a tool to start drawing with it and
   tap it again to stop. While drawing, one finger draws and two fingers scroll

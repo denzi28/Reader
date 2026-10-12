@@ -248,6 +248,83 @@ button:disabled { cursor: default; }
 @media (hover: none) { .book-tool { opacity: 0.9; transform: scale(0.85); } }
 .book[draggable='true'] { -webkit-user-drag: element; }
 
+/* ---------- search ---------- */
+.search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+  padding: 0 0.5rem 0 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--card);
+  box-shadow: var(--shadow-page);
+  color: var(--muted);
+  transition: border-color 0.2s, box-shadow 0.2s;
+  animation: rise 0.4s var(--ease) both;
+}
+.search:focus-within, .search.active {
+  border-color: color-mix(in srgb, var(--accent) 60%, var(--line));
+  box-shadow: var(--shadow-page), 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+.search > svg { width: 20px; height: 20px; flex: none; }
+.search input {
+  flex: 1;
+  min-width: 0;
+  height: 46px;
+  border: 0;
+  outline: none;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: 16px; /* no zoom-on-focus on iOS */
+}
+.search input::placeholder { color: var(--muted); }
+.search input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
+.search-clear {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  flex: none;
+  border: 0;
+  border-radius: 50%;
+  background: var(--line);
+  color: var(--ink);
+}
+.search-clear svg { width: 16px; height: 16px; }
+.search-key {
+  display: none;
+  min-width: 24px;
+  padding: 1px 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--muted);
+  font: 600 0.8rem var(--sans);
+  text-align: center;
+}
+@media (hover: hover) and (pointer: fine) { .search-key { display: inline-block; } }
+.results .shelf-title { margin-top: 0.5rem; }
+.results .folders { margin-bottom: 1.75rem; }
+mark {
+  border-radius: 3px;
+  background: color-mix(in srgb, #ffd84d 55%, transparent);
+  color: inherit;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+:root[data-theme='dark'] mark { background: color-mix(in srgb, #ffd84d 30%, transparent); }
+.book-folder {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+.book-folder svg { width: 15px; height: 15px; flex: none; color: var(--accent); }
+
 /* ---------- folders ---------- */
 .section-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin: 2.5rem 0 1rem; }
 .section-head .shelf-title { margin: 0; }
