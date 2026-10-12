@@ -16,7 +16,8 @@ your device.
   document and all your ink are remembered across visits.
 - **Day paper and night paper** themes. Ink colours adapt to the theme.
 - Works with mouse, touch and stylus. Tap a tool to start drawing with it and
-  tap it again to stop; with no tool selected, a finger scrolls and zooms.
+  tap it again to stop. While drawing, one finger draws and two fingers scroll
+  (with a fling) or pinch to zoom; with no tool selected, a finger scrolls.
 
 Keyboard: `P` pen, `L` highlighter, `E` eraser (press again to switch off), `Ctrl/Cmd+Z` undo,
 `Ctrl/Cmd+Shift+Z` redo, `+` / `-` zoom, `Esc` back to the library.

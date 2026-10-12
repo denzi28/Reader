@@ -1,6 +1,7 @@
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { drawStroke, drawStrokes, newId, strokeHit } from '../lib/ink';
+import { PALM_WINDOW_MS, type PointerHub } from '../lib/pointerHub';
 import type { InkPoint, InkTool, Stroke, Tool } from '../lib/types';
 
 interface Props {
@@ -19,8 +20,7 @@ interface Props {
   brush: number;
   /** Night paper recolours the bitmap with a CSS filter instead of a tint. */
   dark: boolean;
-  /** Timestamp of the last pen/mouse event anywhere, for palm rejection. */
-  lastPenAt: { current: number };
+  hub: PointerHub;
   onCommit: (page: number, prev: Stroke[], next: Stroke[]) => void;
   register: (index: number, el: HTMLDivElement | null) => void;
 }
@@ -37,7 +37,7 @@ const ERASER_RADIUS = 0.012; // fraction of page width
 function PageViewImpl(props: Props) {
   const {
     index, pdf, width, height, renderWidth, visible, strokes, tool, color,
-    brush, dark, lastPenAt, onCommit, register,
+    brush, dark, hub, onCommit, register,
   } = props;
 
   const pdfCanvas = useRef<HTMLCanvasElement>(null);
@@ -188,11 +188,23 @@ function PageViewImpl(props: Props) {
     if (changed) paintInk();
   };
 
+  /** Drops the stroke in progress without saving it. */
+  const abortStroke = () => {
+    const d = drawing.current;
+    if (!d) return;
+    drawing.current = null;
+    cancelAnimationFrame(d.raf);
+    const live = liveCanvas.current;
+    live?.getContext('2d')?.clearRect(0, 0, live.width, live.height);
+    erased.current = new Set();
+    paintInk();
+  };
+
   const onPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    if (tool === 'hand' || drawing.current) return;
-    if (e.pointerType !== 'touch') lastPenAt.current = e.timeStamp;
+    if (tool === 'hand' || drawing.current || hub.gesture) return;
+    if (e.pointerType !== 'touch') hub.lastPenAt = e.timeStamp;
     // Palm rejection: a hand resting beside a pen shouldn't leave marks.
-    if (e.pointerType === 'touch' && e.timeStamp - lastPenAt.current < 600) return;
+    if (e.pointerType === 'touch' && e.timeStamp - hub.lastPenAt < PALM_WINDOW_MS) return;
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     e.preventDefault();
     e.currentTarget.setPointerCapture(e.pointerId);
@@ -201,6 +213,8 @@ function PageViewImpl(props: Props) {
     const kind = tool === 'eraser' ? 'erase' : 'ink';
     drawing.current = { id: e.pointerId, kind, points: [first], raf: 0 };
     erased.current = new Set();
+    // A second finger landing turns this into a scroll; the viewer calls this.
+    hub.cancelStroke = abortStroke;
     if (kind === 'erase') eraseAt(first[0], first[1]);
     drawing.current.raf = requestAnimationFrame(paintLive);
   };
@@ -208,7 +222,7 @@ function PageViewImpl(props: Props) {
   const onPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const d = drawing.current;
     if (!d || d.id !== e.pointerId) return;
-    if (e.pointerType !== 'touch') lastPenAt.current = e.timeStamp;
+    if (e.pointerType !== 'touch') hub.lastPenAt = e.timeStamp;
     const rect = e.currentTarget.getBoundingClientRect();
     const samples = e.nativeEvent.getCoalescedEvents?.() ?? [];
     for (const s of samples.length ? samples : [e.nativeEvent]) {
@@ -222,16 +236,16 @@ function PageViewImpl(props: Props) {
   const finish = (e: React.PointerEvent<HTMLCanvasElement>, cancelled: boolean) => {
     const d = drawing.current;
     if (!d || d.id !== e.pointerId) return;
+    if (hub.cancelStroke === abortStroke) hub.cancelStroke = null;
+    if (cancelled) {
+      abortStroke();
+      return;
+    }
     drawing.current = null;
     cancelAnimationFrame(d.raf);
     const live = liveCanvas.current;
     live?.getContext('2d')?.clearRect(0, 0, live.width, live.height);
     const prev = strokesRef.current;
-    if (cancelled) {
-      erased.current = new Set();
-      paintInk();
-      return;
-    }
     if (d.kind === 'ink') {
       const stroke: Stroke = {
         id: newId(),

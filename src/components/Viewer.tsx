@@ -4,6 +4,7 @@ import {
 } from 'react';
 import { BRUSH_SIZES, HIGHLIGHT_COLORS, PEN_COLORS } from '../lib/ink';
 import { openPdf, readPageSizes } from '../lib/pdf';
+import { PALM_WINDOW_MS, type PointerHub } from '../lib/pointerHub';
 import { getDocFile, getMeta, loadInk, patchMeta, saveInk } from '../lib/storage';
 import type { DocInk, DocMeta, InkTool, Stroke, Tool } from '../lib/types';
 import { BackIcon, MoonIcon, SunIcon } from './icons';
@@ -52,7 +53,7 @@ export function Viewer({ docId, dark, onTheme, onClose }: Props) {
   const undoStack = useRef<Edit[]>([]);
   const redoStack = useRef<Edit[]>([]);
   const [, bump] = useState(0);
-  const lastPenAt = useRef(-Infinity);
+  const hub = useRef<PointerHub>({ lastPenAt: -Infinity, gesture: false, cancelStroke: null }).current;
 
   // ---- load the document ------------------------------------------------
   useEffect(() => {
@@ -96,6 +97,8 @@ export function Viewer({ docId, dark, onTheme, onClose }: Props) {
 
   // ---- zoom -------------------------------------------------------------
   const pendingRatio = useRef<number | null>(null);
+  /** Exact scroll position to land on once a pinch's new zoom has rendered. */
+  const pendingScroll = useRef<{ left: number; top: number } | null>(null);
   const applyZoom = useCallback((next: number) => {
     setZoom((prev) => {
       const z = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, next));
@@ -107,8 +110,16 @@ export function Viewer({ docId, dark, onTheme, onClose }: Props) {
   useLayoutEffect(() => {
     const el = scroller.current;
     const ratio = pendingRatio.current;
+    const target = pendingScroll.current;
     pendingRatio.current = null;
-    if (!el || ratio === null) return;
+    pendingScroll.current = null;
+    if (!el) return;
+    if (target) {
+      el.scrollLeft = target.left;
+      el.scrollTop = target.top;
+      return;
+    }
+    if (ratio === null) return;
     // Keep whatever is in the middle of the screen in the middle.
     el.scrollTop = (el.scrollTop + el.clientHeight / 2) * ratio - el.clientHeight / 2;
     el.scrollLeft = (el.scrollLeft + el.clientWidth / 2) * ratio - el.clientWidth / 2;
@@ -132,6 +143,140 @@ export function Viewer({ docId, dark, onTheme, onClose }: Props) {
   }, [pdf, applyZoom]);
   const zoomRef = useRef(zoom);
   zoomRef.current = zoom;
+
+  // ---- two fingers scroll and zoom while a drawing tool is on ------------
+  // One finger draws, so the browser's own touch scrolling is switched off in
+  // drawing mode (see .scroller in CSS). These handlers run in the capture
+  // phase, before React's page handlers, so a second finger can claim the
+  // gesture and throw away the stroke the first finger had just started.
+  useEffect(() => {
+    const el = scroller.current;
+    if (!el || !pdf || tool === 'hand') return;
+    const touches = new Map<number, { x: number; y: number }>();
+    let start: { dist: number; zoom: number; cx: number; cy: number } | null = null;
+    let raf = 0;
+    let fling = 0;
+    let last = { x: 0, y: 0, t: 0 };
+    let vx = 0;
+    let vy = 0;
+    let pinched = false;
+
+    const pair = () => {
+      const [a, b] = touches.values();
+      return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, dist: Math.hypot(a.x - b.x, a.y - b.y) };
+    };
+    const padding = () => {
+      const cs = getComputedStyle(el);
+      return { left: parseFloat(cs.paddingLeft) || 0, top: parseFloat(cs.paddingTop) || 0 };
+    };
+
+    const begin = () => {
+      const m = pair();
+      const rect = el.getBoundingClientRect();
+      start = {
+        dist: Math.max(m.dist, 1),
+        zoom: zoomRef.current,
+        cx: el.scrollLeft + m.x - rect.left,
+        cy: el.scrollTop + m.y - rect.top,
+      };
+      last = { x: m.x, y: m.y, t: performance.now() };
+      vx = vy = 0;
+      pinched = false;
+    };
+
+    const update = () => {
+      raf = 0;
+      if (!start || touches.size < 2) return;
+      const m = pair();
+      const rect = el.getBoundingClientRect();
+      const pad = padding();
+      const z = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, start.zoom * (m.dist / start.dist)));
+      const r = z / start.zoom;
+      if (Math.abs(r - 1) > 0.04) pinched = true;
+      // Keep the content that was under the fingers under the fingers.
+      const left = (start.cx - pad.left) * r + pad.left - (m.x - rect.left);
+      const top = (start.cy - pad.top) * r + pad.top - (m.y - rect.top);
+      if (z !== zoomRef.current) {
+        pendingScroll.current = { left, top };
+        setZoom(z);
+      } else {
+        el.scrollLeft = left;
+        el.scrollTop = top;
+      }
+      const now = performance.now();
+      const dt = Math.max(1, now - last.t);
+      vx = vx * 0.6 + (-(m.x - last.x) / dt) * 0.4;
+      vy = vy * 0.6 + (-(m.y - last.y) / dt) * 0.4;
+      last = { x: m.x, y: m.y, t: now };
+    };
+
+    const launchFling = () => {
+      if (pinched || performance.now() - last.t > 80) return;
+      let prev = performance.now();
+      const step = (now: number) => {
+        const dt = now - prev;
+        prev = now;
+        el.scrollLeft += vx * dt;
+        el.scrollTop += vy * dt;
+        const decay = Math.pow(0.994, dt);
+        vx *= decay;
+        vy *= decay;
+        if (Math.hypot(vx, vy) > 0.02) fling = requestAnimationFrame(step);
+      };
+      fling = requestAnimationFrame(step);
+    };
+
+    const onDown = (e: PointerEvent) => {
+      cancelAnimationFrame(fling); // touching the page stops a glide
+      if (e.pointerType !== 'touch') return;
+      if (e.timeStamp - hub.lastPenAt < PALM_WINDOW_MS) return; // palm while writing
+      touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (touches.size < 2) return;
+      if (!hub.gesture) {
+        hub.gesture = true;
+        hub.cancelStroke?.();
+        hub.cancelStroke = null;
+      }
+      for (const id of touches.keys()) {
+        try { el.setPointerCapture(id); } catch { /* pointer already gone */ }
+      }
+      begin();
+    };
+
+    const onMove = (e: PointerEvent) => {
+      if (!touches.has(e.pointerId)) return;
+      touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (hub.gesture && touches.size >= 2 && !raf) raf = requestAnimationFrame(update);
+    };
+
+    const onUp = (e: PointerEvent) => {
+      if (!touches.delete(e.pointerId)) return;
+      if (touches.size >= 2) {
+        begin();
+      } else if (start) {
+        start = null;
+        cancelAnimationFrame(raf);
+        raf = 0;
+        launchFling();
+      }
+      // The finger left behind after a gesture must not start drawing.
+      if (touches.size === 0) hub.gesture = false;
+    };
+
+    el.addEventListener('pointerdown', onDown, true);
+    el.addEventListener('pointermove', onMove, true);
+    el.addEventListener('pointerup', onUp, true);
+    el.addEventListener('pointercancel', onUp, true);
+    return () => {
+      el.removeEventListener('pointerdown', onDown, true);
+      el.removeEventListener('pointermove', onMove, true);
+      el.removeEventListener('pointerup', onUp, true);
+      el.removeEventListener('pointercancel', onUp, true);
+      cancelAnimationFrame(raf);
+      cancelAnimationFrame(fling);
+      hub.gesture = false;
+    };
+  }, [pdf, tool, hub]);
 
   // ---- which pages are on screen ----------------------------------------
   const pageEls = useRef(new Map<number, HTMLDivElement>());
@@ -372,7 +517,7 @@ export function Viewer({ docId, dark, onTheme, onClose }: Props) {
                 color={color}
                 brush={brush}
                 dark={dark}
-                lastPenAt={lastPenAt}
+                hub={hub}
                 onCommit={commit}
                 register={register}
               />

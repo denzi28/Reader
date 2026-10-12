@@ -299,6 +299,8 @@ button:disabled { cursor: default; }
     var(--desk);
   touch-action: pan-x pan-y pinch-zoom;
 }
+/* While drawing, one finger draws and two fingers scroll or zoom by hand. */
+.viewer:not(.tool-hand) .scroller { touch-action: none; }
 :root[data-theme='dark'] .scroller {
   background:
     radial-gradient(1000px 520px at 50% -10%, #2c2519 0%, transparent 70%),
