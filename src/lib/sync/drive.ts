@@ -35,15 +35,20 @@ function allowance(init: RequestInit) {
   return 30_000 + size / 50; // plus 1 s per 50 KB sent
 }
 
+/** How long a download may go without receiving anything before giving up. */
+const STALL_MS = 30_000;
+
 /**
  * One Drive request, read to the end with `read`, within a time limit.
+ * `read` may call `alive()` as data arrives: the limit then counts from the
+ * last data received, so big downloads on any connection can finish.
  * Rate limits and server errors are retried with backoff.
  */
 async function request<T>(
   token: string,
   url: string,
   init: RequestInit,
-  read: (res: Response) => Promise<T>,
+  read: (res: Response, alive: () => void) => Promise<T>,
   attempt = 0,
 ): Promise<T> {
   const ctl = new AbortController();
@@ -52,10 +57,15 @@ async function request<T>(
   if (outer.aborted) throw new CancelledError('Cancelled');
   outer.addEventListener('abort', stop, { once: true });
   let timedOut = false;
-  const timer = setTimeout(() => {
-    timedOut = true;
-    ctl.abort();
-  }, allowance(init));
+  let timer = 0;
+  const arm = (ms: number) => {
+    clearTimeout(timer);
+    timer = window.setTimeout(() => {
+      timedOut = true;
+      ctl.abort();
+    }, ms);
+  };
+  arm(allowance(init));
   try {
     const res = await fetch(url, {
       ...init,
@@ -71,7 +81,7 @@ async function request<T>(
       }
     }
     if (!res.ok) throw new Error(await explain(res));
-    return await read(res);
+    return await read(res, () => arm(STALL_MS));
   } catch (err) {
     if (ctl.signal.aborted) {
       throw timedOut
@@ -118,6 +128,31 @@ export async function listFiles(token: string, nameContains?: string): Promise<R
 
 export function downloadBlob(token: string, id: string) {
   return request(token, `${API}/files/${id}?alt=media`, {}, (res) => res.blob());
+}
+
+/** Downloads a file as it streams in, reporting progress (0 to 1). */
+export function downloadWithProgress(
+  token: string,
+  file: RemoteFile,
+  onProgress: (fraction: number) => void,
+): Promise<Blob> {
+  return request(token, `${API}/files/${file.id}?alt=media`, {}, async (res, alive) => {
+    const total = Number(res.headers.get('content-length')) || Number(file.size) || 0;
+    if (!res.body) return res.blob();
+    const reader = res.body.getReader();
+    const parts: Uint8Array<ArrayBuffer>[] = [];
+    let received = 0;
+    alive();
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      parts.push(value);
+      received += value.length;
+      alive();
+      if (total) onProgress(Math.min(1, received / total));
+    }
+    return new Blob(parts, { type: res.headers.get('content-type') ?? 'application/octet-stream' });
+  });
 }
 
 export function downloadJson<T>(token: string, id: string): Promise<T> {

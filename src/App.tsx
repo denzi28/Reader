@@ -1,10 +1,19 @@
-import { useCallback, useEffect, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { Library } from './components/Library';
-import { Viewer } from './components/Viewer';
 import { Welcome } from './components/Welcome';
-import { importPdf } from './lib/importPdf';
 import { useSyncStatus } from './lib/sync/useSync';
+
+// The reader and the PDF engine are a large download of their own; the
+// shelf and welcome page show without waiting for them (the shelf fetches
+// them in the background).
+const Viewer = lazy(() => import('./components/Viewer').then((m) => ({ default: m.Viewer })));
+const opening = (
+  <div className="viewer-loading loading" role="status">
+    <span className="loading-page" />
+    <span>Opening your document…</span>
+  </div>
+);
 
 type Theme = 'light' | 'dark';
 
@@ -103,6 +112,7 @@ export function App() {
     const failed: string[] = [];
     let last: string | null = null;
     let reason = '';
+    const { importPdf } = await import('./lib/importPdf');
     for (const file of files) {
       try {
         last = (await importPdf(file, into ?? undefined)).id;
@@ -129,7 +139,9 @@ export function App() {
   }
 
   return docId ? (
-    <Viewer key={docId} docId={docId} dark={theme === 'dark'} onTheme={toggleTheme} onClose={close} />
+    <Suspense fallback={opening}>
+      <Viewer key={docId} docId={docId} dark={theme === 'dark'} onTheme={toggleTheme} onClose={close} />
+    </Suspense>
   ) : (
     <Library
       dark={theme === 'dark'}

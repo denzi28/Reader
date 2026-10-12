@@ -7,7 +7,7 @@ import {
   listDocs, moveDocs, renameFolder,
 } from '../lib/storage';
 import { downloadPdf } from '../lib/sync/engine';
-import { useSyncStatus } from '../lib/sync/useSync';
+import { useDownloadProgress, useSyncStatus } from '../lib/sync/useSync';
 import type { DocMeta, Folder } from '../lib/types';
 import {
   BackIcon, CheckIcon, CloseIcon, CloudIcon, FileIcon, FolderIcon, FolderMoveIcon, FolderPlusIcon, MoonIcon, PencilIcon, SearchIcon, SunIcon,
@@ -207,6 +207,7 @@ export function Library(props: Props) {
   const [dragging, setDragging] = useState(false);
   const [fetching, setFetching] = useState<string | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const downloaded = useDownloadProgress(fetching);
   const [creating, setCreating] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [moving, setMoving] = useState<{ id: string; anchor: DOMRect } | null>(null);
@@ -228,6 +229,16 @@ export function Library(props: Props) {
     };
     window.addEventListener('keydown', key);
     return () => window.removeEventListener('keydown', key);
+  }, []);
+
+  // Fetch the reader and start the PDF engine while the shelf is idle, so the
+  // first document opens without waiting for either.
+  useEffect(() => {
+    const later = window.requestIdleCallback ?? ((cb: () => void) => window.setTimeout(cb, 1200));
+    later(() => {
+      void import('./Viewer');
+      void import('../lib/pdf').then((m) => m.warmUp());
+    });
   }, []);
 
   const refresh = () =>
@@ -376,7 +387,7 @@ export function Library(props: Props) {
           {d.cloudOnly && (
             <span className="cover-cloud" title="In your Google Drive; opens after downloading">
               <CloudIcon />
-              {fetching === d.id ? 'Downloading…' : 'In Drive'}
+              {fetching === d.id ? `Downloading${downloaded === null ? '…' : ` ${Math.round(downloaded * 100)}%`}` : 'In Drive'}
             </span>
           )}
         </span>

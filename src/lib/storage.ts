@@ -49,6 +49,7 @@ const metaKey = (id: string) => `meta:${id}`;
 const fileKey = (id: string) => `file:${id}`;
 const legacyInkKey = (id: string) => `ink:${id}`;
 const logKey = (id: string) => `inklog:${id}`;
+const sizesKey = (id: string) => `sizes:${id}`;
 const FOLDERS_KEY = 'folders';
 
 // ---- change notifications (sync listens to these) ---------------------
@@ -87,9 +88,10 @@ export async function saveDoc(meta: DocMeta, file: Blob) {
 
 /** A change the user made; it is stamped so it wins over older copies. */
 export async function patchMeta(id: string, patch: Partial<DocMeta>) {
-  const current = await getMeta(id);
-  if (!current) return;
-  await set(metaKey(id), { ...current, ...patch, updatedAt: Date.now() }, store);
+  // One read-and-write step, so two quick changes (say, the page being read
+  // and the time it was opened) can't overwrite each other.
+  if (!(await getMeta(id))) return; // (update would otherwise store an empty record)
+  await update<DocMeta>(metaKey(id), (current) => ({ ...current!, ...patch, updatedAt: Date.now() }), store);
   notify(id, 'meta');
 }
 
@@ -110,7 +112,7 @@ export function putDocFile(id: string, file: Blob) {
 export async function deleteDoc(id: string) {
   const current = await getMeta(id);
   dropInkCache(id);
-  await Promise.all([del(fileKey(id), store), del(logKey(id), store), del(legacyInkKey(id), store)]);
+  await Promise.all([fileKey(id), logKey(id), legacyInkKey(id), sizesKey(id)].map((k) => del(k, store)));
   if (current) {
     await set(metaKey(id), { ...current, thumb: undefined, deleted: true, updatedAt: Date.now() }, store);
     notify(id, 'meta');
@@ -120,8 +122,17 @@ export async function deleteDoc(id: string) {
 /** Applies a deletion that came from another device. */
 export async function wipeDoc(id: string, marker: DocMeta) {
   dropInkCache(id);
-  await Promise.all([del(fileKey(id), store), del(logKey(id), store), del(legacyInkKey(id), store)]);
+  await Promise.all([fileKey(id), logKey(id), legacyInkKey(id), sizesKey(id)].map((k) => del(k, store)));
   await set(metaKey(id), { ...marker, thumb: undefined, deleted: true }, store);
+}
+
+// ---- page sizes (this device only; they let a document lay out at once) ----
+export function getPageSizes(id: string) {
+  return get<{ w: number; h: number }[]>(sizesKey(id), store);
+}
+
+export function putPageSizes(id: string, sizes: { w: number; h: number }[]) {
+  return set(sizesKey(id), sizes, store);
 }
 
 // ---- folders ------------------------------------------------------------

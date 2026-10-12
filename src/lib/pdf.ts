@@ -7,33 +7,79 @@ pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 
 const assets = `${import.meta.env.BASE_URL}pdfjs/`;
 
-export async function openPdf(data: ArrayBuffer): Promise<PDFDocumentProxy> {
+// One worker for the whole visit: starting one means loading and compiling
+// 1.3 MB of script, which used to happen on every document opened.
+let worker: pdfjs.PDFWorker | null = null;
+function sharedWorker() {
+  worker ??= new pdfjs.PDFWorker();
+  return worker;
+}
+
+/** Starts the PDF engine ahead of time, so the first document opens sooner. */
+export function warmUp() {
+  sharedWorker();
+}
+
+const common = () => ({
+  cMapUrl: `${assets}cmaps/`,
+  cMapPacked: true,
+  standardFontDataUrl: `${assets}standard_fonts/`,
+  wasmUrl: `${assets}wasm/`,
+  iccUrl: `${assets}iccs/`,
+  worker: sharedWorker(),
+});
+
+const CHUNK = 256 * 1024;
+
+/** Hands pdf.js the parts of a stored file it asks for, as it asks. */
+class BlobRange extends pdfjs.PDFDataRangeTransport {
+  constructor(private blob: Blob, head: Uint8Array) {
+    super(blob.size, head);
+  }
+  requestDataRange(begin: number, end: number) {
+    void this.blob.slice(begin, end).arrayBuffer().then(
+      (buf) => this.onDataRange(begin, new Uint8Array(buf)),
+      () => this.abort(),
+    );
+  }
+}
+
+/**
+ * Opens a stored PDF without reading all of it first: pdf.js fetches only the
+ * pieces it needs, so a 50 MB book shows its first page as quickly as a small
+ * one, and never sits in memory twice.
+ */
+export async function openPdfFile(file: Blob): Promise<PDFDocumentProxy> {
+  const head = new Uint8Array(await file.slice(0, Math.min(file.size, CHUNK)).arrayBuffer());
   return pdfjs.getDocument({
-    data: new Uint8Array(data),
-    cMapUrl: `${assets}cmaps/`,
-    cMapPacked: true,
-    standardFontDataUrl: `${assets}standard_fonts/`,
-    wasmUrl: `${assets}wasm/`,
-    iccUrl: `${assets}iccs/`,
+    range: new BlobRange(file, head),
+    rangeChunkSize: CHUNK,
+    disableAutoFetch: true,
+    disableStream: true,
+    ...common(),
   }).promise;
 }
 
-/** Page sizes in PDF points, fetched in chunks so huge files stay responsive. */
+export type PageSize = { w: number; h: number };
+
+/** One page's size in PDF points, turned the way it is shown. */
+export async function pageSize(pdf: PDFDocumentProxy, index: number): Promise<PageSize> {
+  const page = await pdf.getPage(index + 1);
+  const [x0, y0, x1, y1] = page.view;
+  const w = Math.abs(x1 - x0);
+  const h = Math.abs(y1 - y0);
+  return page.rotate % 180 !== 0 ? { w: h, h: w } : { w, h };
+}
+
+/** Every page's size, fetched in chunks so huge files stay responsive. */
 export async function readPageSizes(pdf: PDFDocumentProxy) {
-  const sizes: { w: number; h: number }[] = [];
+  const sizes: PageSize[] = [];
   const chunk = 40;
-  for (let start = 1; start <= pdf.numPages; start += chunk) {
-    const end = Math.min(pdf.numPages, start + chunk - 1);
-    const pages = await Promise.all(
-      Array.from({ length: end - start + 1 }, (_, i) => pdf.getPage(start + i)),
-    );
-    for (const page of pages) {
-      const [x0, y0, x1, y1] = page.view;
-      const rotated = page.rotate % 180 !== 0;
-      const w = Math.abs(x1 - x0);
-      const h = Math.abs(y1 - y0);
-      sizes.push(rotated ? { w: h, h: w } : { w, h });
-    }
+  for (let start = 0; start < pdf.numPages; start += chunk) {
+    const end = Math.min(pdf.numPages, start + chunk);
+    sizes.push(...(await Promise.all(
+      Array.from({ length: end - start }, (_, i) => pageSize(pdf, start + i)),
+    )));
   }
   return sizes;
 }

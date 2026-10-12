@@ -1,5 +1,5 @@
 import { fileId } from './hash';
-import { makeThumbnail, openPdf } from './pdf';
+import { makeThumbnail, openPdfFile } from './pdf';
 import { getMeta, patchMeta, putDocFile, putMeta, requestPersistence, saveDoc } from './storage';
 import type { DocMeta } from './types';
 
@@ -31,7 +31,8 @@ export async function importPdf(file: File, folder?: string): Promise<DocMeta> {
 
   let pdf;
   try {
-    pdf = await openPdf(buf.slice(0));
+    // Read from the file as needed rather than handing pdf.js another copy.
+    pdf = await openPdfFile(file);
   } catch {
     throw new Error('This PDF could not be read. It may be damaged or password-protected.');
   }

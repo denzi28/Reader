@@ -470,23 +470,65 @@ export function syncDoc(id: string) {
   });
 }
 
-/** Downloads a document that so far exists only in Drive. */
+// ---- downloading documents ------------------------------------------------
+const downloads = new Map<string, Promise<void>>();
+const progress = new Map<string, number>();
+const progressListeners = new Set<() => void>();
+
+/** How far along each running download is (0 to 1), by document id. */
+export function downloadProgress(): ReadonlyMap<string, number> {
+  return progress;
+}
+
+export function onDownloadProgress(fn: () => void) {
+  progressListeners.add(fn);
+  return () => void progressListeners.delete(fn);
+}
+
+function setProgress(id: string, fraction: number | null) {
+  if (fraction === null) progress.delete(id);
+  else progress.set(id, fraction);
+  progressListeners.forEach((fn) => fn());
+}
+
+/**
+ * Downloads a document that so far exists only in Drive. It runs at once,
+ * not queued behind a sync, since someone is waiting to read it.
+ */
 export function downloadPdf(id: string) {
-  return exclusive(async () => {
-    const t = await getAccessToken();
-    if (!t) {
-      needReauth();
-      throw new Error('Sign in with Google to download this document.');
-    }
-    const files = await drive.listFiles(t, id);
-    const pdf = files.find((f) => f.name === `pdf-${id}.pdf`);
-    if (!pdf) throw new Error('This document is no longer in your Google Drive.');
-    const blob = await drive.downloadBlob(t, pdf.id);
-    await storage.putDocFile(id, new Blob([blob], { type: 'application/pdf' }));
+  let run = downloads.get(id);
+  if (!run) {
+    run = fetchPdf(id).finally(() => {
+      downloads.delete(id);
+      setProgress(id, null);
+    });
+    downloads.set(id, run);
+  }
+  return run;
+}
+
+async function fetchPdf(id: string) {
+  if (await storage.getDocFile(id)) {
+    // Already here (a sync can mark it cloud-only just as a download ends).
     const meta = await storage.getMeta(id);
-    if (meta) await storage.putMeta({ ...meta, cloudOnly: false });
+    if (meta?.cloudOnly) await storage.putMeta({ ...meta, cloudOnly: false });
     shelfChanged();
-  });
+    return;
+  }
+  const t = await getAccessToken();
+  if (!t) {
+    needReauth();
+    throw new Error('Sign in with Google to download this document.');
+  }
+  setProgress(id, 0);
+  const files = await drive.listFiles(t, id);
+  const pdf = files.find((f) => f.name === `pdf-${id}.pdf`);
+  if (!pdf) throw new Error('This document is no longer in your Google Drive.');
+  const blob = await drive.downloadWithProgress(t, pdf, (f) => setProgress(id, f));
+  await storage.putDocFile(id, new Blob([blob], { type: 'application/pdf' }));
+  const meta = await storage.getMeta(id);
+  if (meta) await storage.putMeta({ ...meta, cloudOnly: false });
+  shelfChanged();
 }
 
 // ---- when to sync -----------------------------------------------------

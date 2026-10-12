@@ -1516,3 +1516,4 @@ mark {
   .tool { width: 34px; height: 34px; }
   .toolbar { gap: 4px; }
 }
+.viewer-loading { position: fixed; inset: 0; z-index: 1; }

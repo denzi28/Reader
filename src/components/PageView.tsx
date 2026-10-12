@@ -2,6 +2,7 @@ import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { drawStroke, drawStrokes, newId, strokeHit } from '../lib/ink';
 import { PALM_WINDOW_MS, type PointerHub } from '../lib/pointerHub';
+import { queueRender } from '../lib/renderQueue';
 import type { InkPoint, InkTool, Stroke, Tool } from '../lib/types';
 
 interface Props {
@@ -91,8 +92,10 @@ function PageViewImpl(props: Props) {
     }
     let cancelled = false;
     let task: ReturnType<Awaited<ReturnType<PDFDocumentProxy['getPage']>>['render']> | null = null;
-    (async () => {
+    const job = queueRender(index, () => (async () => {
+      if (cancelled) return;
       const page = await pdf.getPage(index + 1);
+      if (cancelled) return;
       const base = page.getViewport({ scale: 1 });
       let scale = (renderWidth / base.width) * dpr;
       const pixels = base.width * base.height * scale * scale;
@@ -101,6 +104,27 @@ function PageViewImpl(props: Props) {
       const w = Math.floor(viewport.width);
       const h = Math.floor(viewport.height);
       const bake = dark && CAN_BAKE_FILTER;
+      const tintPaper = (c: HTMLCanvasElement) => {
+        // Tint the white of the page once here, rather than blending every frame.
+        const tint = dark ? null : c.getContext('2d');
+        if (!tint) return;
+        tint.globalCompositeOperation = 'multiply';
+        tint.fillStyle = PAPER;
+        tint.fillRect(0, 0, c.width, c.height);
+      };
+      // On sharp screens a page first appears from a quick, plain-resolution
+      // drawing (a fraction of the pixels), then the sharp one replaces it.
+      if (canvas.width === 0 && dpr > 1.5) {
+        const quick = page.getViewport({ scale: scale / dpr });
+        canvas.width = Math.floor(quick.width);
+        canvas.height = Math.floor(quick.height);
+        task = page.render({ canvas, viewport: quick });
+        await task.promise;
+        if (cancelled) return;
+        tintPaper(canvas);
+        setBaked(false); // night paper comes from the CSS filter until then
+        setReady(true);
+      }
       // A page appearing for the first time is invisible until it is ready, so
       // it can be drawn straight in. Re-renders (zoom, theme) go off-screen and
       // are swapped in whole, so the page never flashes blank.
@@ -111,15 +135,7 @@ function PageViewImpl(props: Props) {
       task = page.render({ canvas: target, viewport });
       await task.promise;
       if (cancelled) return;
-      if (!dark) {
-        // Tint the white of the page once here, rather than blending every frame.
-        const tint = target.getContext('2d');
-        if (tint) {
-          tint.globalCompositeOperation = 'multiply';
-          tint.fillStyle = PAPER;
-          tint.fillRect(0, 0, w, h);
-        }
-      }
+      tintPaper(target);
       if (!direct) {
         canvas.width = w;
         canvas.height = h;
@@ -131,12 +147,24 @@ function PageViewImpl(props: Props) {
       setReady(true);
     })().catch((err) => {
       if (err?.name !== 'RenderingCancelledException') console.error(err);
-    });
+    }));
     return () => {
       cancelled = true;
+      job.cancel();
       task?.cancel();
     };
   }, [visible, renderWidth, pdf, index, dpr, dark]);
+
+  // Leaving the document: release the bitmaps at once. Left to the garbage
+  // collector, a few documents' worth piled up and stalled the next opening.
+  useEffect(() => () => {
+    for (const c of [pdfCanvas.current, inkCanvas.current]) {
+      if (c) {
+        c.width = 0;
+        c.height = 0;
+      }
+    }
+  }, []);
 
   // ---- committed ink ----------------------------------------------------
   const paintInk = useCallback(() => {

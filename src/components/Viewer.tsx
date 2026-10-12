@@ -3,10 +3,14 @@ import {
   useCallback, useEffect, useLayoutEffect, useRef, useState,
 } from 'react';
 import { BRUSH_SIZES, HIGHLIGHT_COLORS, PEN_COLORS } from '../lib/ink';
-import { openPdf, readPageSizes } from '../lib/pdf';
+import { openPdfFile, pageSize, type PageSize, readPageSizes } from '../lib/pdf';
 import { PALM_WINDOW_MS, type PointerHub } from '../lib/pointerHub';
-import { getDocFile, getMeta, loadInk, patchMeta, recordInkEdit } from '../lib/storage';
+import { setRenderFocus } from '../lib/renderQueue';
+import {
+  getDocFile, getMeta, getPageSizes, loadInk, patchMeta, putPageSizes, recordInkEdit,
+} from '../lib/storage';
 import { downloadPdf, onRemoteInk, syncDoc } from '../lib/sync/engine';
+import { useDownloadProgress } from '../lib/sync/useSync';
 import type { DocInk, DocMeta, InkTool, Stroke, Tool } from '../lib/types';
 import { BackIcon, MoonIcon, SunIcon } from './icons';
 import { SyncBadge } from './SyncControl';
@@ -36,7 +40,7 @@ export function Viewer({ docId, dark, onTheme, onClose }: Props) {
   const scroller = useRef<HTMLDivElement>(null);
   const [meta, setMeta] = useState<DocMeta | null>(null);
   const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null);
-  const [sizes, setSizes] = useState<{ w: number; h: number }[] | null>(null);
+  const [sizes, setSizes] = useState<PageSize[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [ink, setInk] = useState<DocInk>({});
 
@@ -63,27 +67,68 @@ export function Viewer({ docId, dark, onTheme, onClose }: Props) {
   const overlay = useRef<HTMLCanvasElement>(null);
 
   // ---- load the document ------------------------------------------------
+  const downloaded = useDownloadProgress(docId);
+  const currentRef = useRef(0);
+  /** Keeps the page being read in place while the layout changes under it. */
+  const anchor = useRef<{ page: number; offset: number } | null>(null);
+  /** A jump to a page that is still scrolling there. */
+  const jumping = useRef<{ page: number; until: number } | null>(null);
   useEffect(() => {
     let cancelled = false;
     let doc: PDFDocumentProxy | null = null;
     (async () => {
-      const [m, saved] = await Promise.all([getMeta(docId), loadInk(docId)]);
+      const [m, saved, known] = await Promise.all([getMeta(docId), loadInk(docId), getPageSizes(docId)]);
       let file = await getDocFile(docId);
       if (!file && m?.cloudOnly) {
         await downloadPdf(docId);
         file = await getDocFile(docId);
       }
       if (!m || !file || m.deleted) throw new Error('This document is no longer on this device.');
-      doc = await openPdf(await file.arrayBuffer());
-      const pageSizes = await readPageSizes(doc);
+      doc = await openPdfFile(file);
+      const start = Math.min(m.lastPage, doc.numPages - 1);
+      // Show the document straight away. Page sizes measured on an earlier
+      // visit are exact; the first time, every page is assumed to match the
+      // first (true of most documents) and the rest are measured afterwards.
+      const exact = known?.length === doc.numPages;
+      let guess: PageSize[];
+      if (exact) {
+        guess = known;
+      } else {
+        const first = await pageSize(doc, 0);
+        guess = Array.from({ length: doc.numPages }, () => first);
+        if (start > 0) guess[start] = await pageSize(doc, start);
+      }
       if (cancelled) return;
       setMeta(m);
       setInk(saved);
       setPdf(doc);
-      setSizes(pageSizes);
-      setCurrent(Math.min(m.lastPage, doc.numPages - 1));
+      setSizes(guess);
+      setCurrent(start);
       void patchMeta(docId, { openedAt: Date.now() });
       void syncDoc(docId); // pick up notes made on other devices
+      if (exact) return;
+      await new Promise((r) => setTimeout(r, 800)); // let the first pages draw first
+      if (cancelled) return;
+      const real = await readPageSizes(doc);
+      if (cancelled) return;
+      void putPageSizes(docId, real);
+      if (real.some((r, i) => r.w !== guess[i].w || r.h !== guess[i].h)) {
+        const el = scroller.current;
+        const jump = jumping.current;
+        if (jump && Date.now() < jump.until) {
+          anchor.current = { page: jump.page, offset: 70 }; // finish the jump under way
+        } else if (el) {
+          // The page at the top of the screen (where a restored page sits)
+          // stays exactly where it is.
+          let at = 0;
+          pageEls.current.forEach((page, i) => {
+            if (page.offsetTop <= el.scrollTop + 71 && i > at) at = i;
+          });
+          const page = pageEls.current.get(at);
+          if (page) anchor.current = { page: at, offset: page.offsetTop - el.scrollTop };
+        }
+        setSizes(real);
+      }
     })().catch((err: unknown) => {
       if (!cancelled) setError(err instanceof Error ? err.message : 'Could not open this document.');
     });
@@ -172,6 +217,8 @@ export function Viewer({ docId, dark, onTheme, onClose }: Props) {
     return () => {
       ro.disconnect();
       hub.overlay = null;
+      canvas.width = 0; // hand the memory back now, not whenever it is collected
+      canvas.height = 0;
     };
   }, [hub, pdf]);
 
@@ -435,6 +482,16 @@ export function Viewer({ docId, dark, onTheme, onClose }: Props) {
     if (el && scroller.current) scroller.current.scrollTop = el.offsetTop - 70;
   }, [sizes, containerWidth, current]);
 
+  currentRef.current = current;
+  setRenderFocus(current);
+  useLayoutEffect(() => {
+    const a = anchor.current;
+    anchor.current = null;
+    const page = a && pageEls.current.get(a.page);
+    if (page && scroller.current) scroller.current.scrollTop = page.offsetTop - a.offset;
+    if (a) recheckCurrent.current(); // the page counter follows the new layout
+  }, [sizes]);
+
   const recheckCurrent = useRef<() => void>(() => undefined);
   useEffect(() => {
     const el = scroller.current;
@@ -486,6 +543,7 @@ export function Viewer({ docId, dark, onTheme, onClose }: Props) {
     const i = Math.min(Math.max(n, 1), pdf?.numPages ?? 1) - 1;
     const el = pageEls.current.get(i);
     if (el && scroller.current) {
+      jumping.current = { page: i, until: Date.now() + 1500 };
       scroller.current.scrollTo({ top: el.offsetTop - 70, behavior: 'smooth' });
     }
   };
@@ -613,7 +671,9 @@ export function Viewer({ docId, dark, onTheme, onClose }: Props) {
         {!pdf || !sizes ? (
           <div className="loading" role="status">
             <span className="loading-page" />
-            <span>Opening your document…</span>
+            <span>
+              {downloaded === null ? 'Opening your document…' : `Downloading from Google Drive… ${Math.round(downloaded * 100)}%`}
+            </span>
           </div>
         ) : (
           <div className="pages">
