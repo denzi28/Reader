@@ -233,6 +233,16 @@ button:disabled { cursor: default; }
 .book:hover .book-delete, .book-delete:focus-visible { opacity: 1; transform: scale(1); }
 @media (hover: none) { .book-delete { opacity: 0.9; transform: scale(0.85); } }
 
+.library-foot {
+  display: flex;
+  justify-content: center;
+  gap: 0.6rem;
+  margin-top: 3.5rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.library-foot a { color: var(--muted); }
+
 /* ---------- Google Drive sync ---------- */
 .library-actions { display: flex; align-items: center; gap: 0.5rem; }
 .sync { position: relative; }

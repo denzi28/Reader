@@ -79,7 +79,7 @@ export function Library({ dark, onTheme, onOpen, onImport, busy, error, onDismis
     <main className="library">
       <header className="library-head">
         <div>
-          <h1 className="brand">Reader</h1>
+          <h1 className="brand">The Reader</h1>
           <p className="tagline">
             Read, mark up and keep your documents.{' '}
             {sync.connected ? 'Kept in step with your Google Drive.' : 'Everything stays on this device.'}
@@ -171,6 +171,11 @@ export function Library({ dark, onTheme, onOpen, onImport, busy, error, onDismis
           </ul>
         </>
       )}
+      <footer className="library-foot">
+        <a href="/privacy.html">Privacy</a>
+        <span aria-hidden="true">·</span>
+        <a href="/terms.html">Terms</a>
+      </footer>
     </main>
   );
 }
