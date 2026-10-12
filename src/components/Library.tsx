@@ -255,7 +255,7 @@ export function Library(props: Props) {
   const folderName = new Map(folders.map((f) => [f.id, f.name]));
   // Searching looks through every document and folder, wherever it is filed.
   const terms = searchTerms(query);
-  const searching = terms.length > 0;
+  const searching = !current && terms.length > 0; // the search box is on the main shelf
   const docHits = searching
     ? (docs ?? []).flatMap((d) => {
       const name = matchRanges(d.name, terms);
@@ -337,8 +337,15 @@ export function Library(props: Props) {
     },
   });
 
-  // Once there is something on the shelf, adding more takes less room.
-  const compact = Boolean(docs?.length);
+  // Files dragged in from outside can be dropped anywhere on the page.
+  const dragDepth = useRef(0);
+  const hasFiles = (e: React.DragEvent) => e.dataTransfer.types.includes('Files');
+  const addButton = (
+    <button className="button add-button" disabled={busy} onClick={() => input.current?.click()}>
+      <UploadIcon />
+      <span>{busy ? 'Adding…' : 'Add PDFs'}</span>
+    </button>
+  );
 
   const removeFolder = async (f: Folder) => {
     const n = counts.get(f.id) ?? 0;
@@ -440,7 +447,25 @@ export function Library(props: Props) {
   );
 
   return (
-    <main className="library">
+    <main
+      className="library"
+      onDragEnter={(e) => {
+        if (!hasFiles(e)) return;
+        dragDepth.current++;
+        setDragging(true);
+      }}
+      onDragOver={(e) => { if (hasFiles(e)) e.preventDefault(); }}
+      onDragLeave={(e) => {
+        if (hasFiles(e) && --dragDepth.current <= 0) { dragDepth.current = 0; setDragging(false); }
+      }}
+      onDrop={(e) => {
+        if (!hasFiles(e)) return;
+        e.preventDefault();
+        dragDepth.current = 0;
+        setDragging(false);
+        take(e.dataTransfer.files);
+      }}
+    >
       <header className="library-head">
         <div>
           <h1 className="brand">The Reader</h1>
@@ -481,7 +506,16 @@ export function Library(props: Props) {
         </div>
       )}
 
-      {current && (
+      <input
+        ref={input}
+        type="file"
+        accept="application/pdf,.pdf"
+        multiple
+        hidden
+        onChange={(e) => { take(e.target.files); e.target.value = ''; }}
+      />
+
+      {current ? (
         <nav className="folder-bar" aria-label="Folder">
           <button
             className={`crumb${dropOn === 'shelf' ? ' drop' : ''}`}
@@ -491,7 +525,7 @@ export function Library(props: Props) {
             <BackIcon />
             All documents
           </button>
-          <div className="folder-head">
+          <div className="folder-title">
             <span className="folder-head-icon"><FolderIcon /></span>
             <div className="folder-head-text">
               {renaming ? (
@@ -507,50 +541,55 @@ export function Library(props: Props) {
               <p className="folder-sub">{plural(shown.length, 'document', 'documents')}</p>
             </div>
             {!renaming && (
-              <span className="folder-actions">
-                <button className="chip-button" onClick={() => setRenaming(true)} aria-label="Rename folder">
+              <div className="folder-actions">
+                <button className="icon-button" onClick={() => setRenaming(true)} aria-label="Rename folder" title="Rename folder">
                   <PencilIcon />
-                  <span>Rename</span>
                 </button>
-                <button className="chip-button chip-danger" onClick={() => void removeFolder(current)} aria-label="Delete folder">
+                <button
+                  className="icon-button icon-danger"
+                  onClick={() => void removeFolder(current)}
+                  aria-label="Delete folder"
+                  title="Delete folder"
+                >
                   <TrashIcon />
-                  <span>Delete</span>
                 </button>
-              </span>
+                {addButton}
+              </div>
             )}
           </div>
         </nav>
-      )}
-
-      {docs && docs.length > 0 && (
-        <div className={`search${query ? ' active' : ''}`} role="search">
-          <SearchIcon />
-          <input
-            ref={searchBox}
-            type="search"
-            value={query}
-            placeholder={current ? 'Search all documents' : 'Search documents and folders'}
-            aria-label="Search documents and folders"
-            enterKeyHint="search"
-            autoComplete="off"
-            spellCheck={false}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Escape') { setQuery(''); e.currentTarget.blur(); }
-              if (e.key === 'Enter') e.currentTarget.blur(); // phones: hide the keyboard
-            }}
-          />
-          {query ? (
-            <button
-              className="search-clear"
-              aria-label="Clear search"
-              onClick={() => { setQuery(''); searchBox.current?.focus(); }}
-            >
-              <CloseIcon />
-            </button>
-          ) : (
-            <kbd className="search-key" aria-hidden="true">/</kbd>
-          )}
+      ) : docs && docs.length > 0 && (
+        <div className="shelf-bar">
+          <div className={`search${query ? ' active' : ''}`} role="search">
+            <SearchIcon />
+            <input
+              ref={searchBox}
+              type="search"
+              value={query}
+              placeholder="Search documents and folders"
+              aria-label="Search documents and folders"
+              enterKeyHint="search"
+              autoComplete="off"
+              spellCheck={false}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') { setQuery(''); e.currentTarget.blur(); }
+                if (e.key === 'Enter') e.currentTarget.blur(); // phones: hide the keyboard
+              }}
+            />
+            {query ? (
+              <button
+                className="search-clear"
+                aria-label="Clear search"
+                onClick={() => { setQuery(''); searchBox.current?.focus(); }}
+              >
+                <CloseIcon />
+              </button>
+            ) : (
+              <kbd className="search-key" aria-hidden="true">/</kbd>
+            )}
+          </div>
+          {addButton}
         </div>
       )}
 
@@ -573,45 +612,19 @@ export function Library(props: Props) {
 
       {!searching && (
         <>
-          <div
-            className={`dropzone${compact ? ' compact' : ''}${dragging ? ' over' : ''}${busy ? ' busy' : ''}`}
-            onDragOver={(e) => {
-              if (isBook(e)) return;
-              e.preventDefault();
-              setDragging(true);
-            }}
-            onDragLeave={() => setDragging(false)}
-            onDrop={(e) => {
-              e.preventDefault();
-              setDragging(false);
-              take(e.dataTransfer.files);
-            }}
-          >
-            <input
-              ref={input}
-              type="file"
-              accept="application/pdf,.pdf"
-              multiple
-              hidden
-              onChange={(e) => { take(e.target.files); e.target.value = ''; }}
-            />
-            {compact && <span className="drop-icon"><UploadIcon /></span>}
-            <div className="drop-text">
-              <p className="drop-title">
-                {busy ? 'Adding to your library…' : current ? `Drop PDFs into “${current.name}”` : 'Drop PDFs here'}
-              </p>
-              <p className="drop-note">
-                {compact
-                  ? 'Or choose several at once.'
-                  : 'You can pick several at once. Word, Excel and PowerPoint support is coming next.'}
-              </p>
+          {docs?.length === 0 && (
+            // An empty library gets a big, friendly place to start.
+            <div className={`dropzone${dragging ? ' over' : ''}${busy ? ' busy' : ''}`}>
+              <span className="drop-icon"><UploadIcon /></span>
+              <p className="drop-title">{busy ? 'Adding to your library…' : 'Drop PDFs here'}</p>
+              <button className="button" disabled={busy} onClick={() => input.current?.click()}>
+                Choose files
+              </button>
+              <p className="drop-note">You can pick several at once. Word, Excel and PowerPoint support is coming next.</p>
             </div>
-            <button className={`button${compact ? ' button-small' : ''}`} disabled={busy} onClick={() => input.current?.click()}>
-              Choose files
-            </button>
-          </div>
+          )}
 
-          {!current && docs && (
+          {!current && docs && docs.length > 0 && (
             <section className="folders-section" aria-label="Folders">
               <div className="section-head">
                 <h2 className="shelf-title">Folders</h2>
@@ -645,15 +658,25 @@ export function Library(props: Props) {
               {!current && <h2 className="shelf-title">{folders.length ? 'Not in a folder' : 'Your shelf'}</h2>}
               {current && shown.length === 0 && (
                 <p className="empty-note empty-folder">
-                  This folder is empty. Add PDFs above, or use the folder button on any document to move it here.
+                  This folder is empty. Add PDFs, drop them anywhere on this page, or move documents here with
+                  the folder button on each one.
                 </p>
               )}
-              <ul className={`shelf${current ? ' folder-shelf' : ''}`}>
+              <ul className="shelf">
                 {shown.map((d, i) => book(d, i))}
               </ul>
             </>
           )}
         </>
+      )}
+
+      {dragging && (
+        <div className="drop-overlay" aria-hidden="true">
+          <div className="drop-overlay-card">
+            <UploadIcon />
+            <p>{current ? `Drop to add to “${current.name}”` : 'Drop PDFs to add them'}</p>
+          </div>
+        </div>
       )}
       <footer className="library-foot">
         <a href="/privacy.html">Privacy</a>
