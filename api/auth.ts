@@ -19,7 +19,11 @@ declare const process: { env: Record<string, string | undefined> };
 const CLIENT_ID = process.env.VITE_GOOGLE_CLIENT_ID ?? process.env.GOOGLE_CLIENT_ID ?? '';
 const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET ?? '';
 const SESSION_SECRET = process.env.SESSION_SECRET ?? '';
-const SCOPES = 'openid email profile https://www.googleapis.com/auth/drive.appdata';
+// Only the app's own Drive folder. Asking for nothing else keeps Google's
+// consent to a single "Allow": combined with sign-in scopes (openid, email,
+// profile) it becomes a list of checkboxes the user must tick. The name, email
+// and photo come from Drive's "about" instead.
+const SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
 const SESSION = 'tr_session';
 const STATE = 'tr_oauth_state';
 const COOKIE_PATH = '/api/auth';
@@ -112,11 +116,18 @@ async function unseal(value: string | undefined): Promise<Session | null> {
   }
 }
 
-function userFromIdToken(idToken: string | undefined): User {
-  if (!idToken) return {};
+/** Who signed in, from Drive (the only thing we have access to). */
+async function driveUser(accessToken: string): Promise<User> {
   try {
-    const claims = JSON.parse(new TextDecoder().decode(fromB64url(idToken.split('.')[1])));
-    return { email: claims.email, name: claims.name, picture: claims.picture };
+    const res = await fetch(
+      'https://www.googleapis.com/drive/v3/about?fields=user(displayName,emailAddress,photoLink)',
+      { headers: { Authorization: `Bearer ${accessToken}` } },
+    );
+    if (!res.ok) return {};
+    const { user } = (await res.json()) as {
+      user?: { displayName?: string; emailAddress?: string; photoLink?: string };
+    };
+    return { email: user?.emailAddress, name: user?.displayName, picture: user?.photoLink };
   } catch {
     return {};
   }
@@ -147,9 +158,8 @@ function start(request: Request) {
     client_id: CLIENT_ID,
     redirect_uri: `${origin(request)}/api/auth/callback`,
     response_type: 'code',
-    scope: SCOPES,
+    scope: SCOPE,
     access_type: 'offline',
-    include_granted_scopes: 'true',
     // Google only hands out a refresh token with consent; ask for it again
     // when a previous sign-in left us without one.
     prompt: consent ? 'consent' : 'select_account',
@@ -190,7 +200,7 @@ async function callback(request: Request) {
     if (!state.endsWith('.c')) return redirect(`${origin(request)}/api/auth/start?consent=1`, headers);
     return redirect(`${home}?auth_error=no_refresh`, headers);
   }
-  const session: Session = { rt, ...userFromIdToken(body.id_token as string | undefined) };
+  const session: Session = { rt, ...(await driveUser(String(body.access_token))) };
   headers.append('Set-Cookie', cookie(request, SESSION, await seal(session), YEAR));
   return redirect(`${home}?signed_in=1`, headers);
 }
