@@ -53,7 +53,13 @@ export function Viewer({ docId, dark, onTheme, onClose }: Props) {
   const undoStack = useRef<Edit[]>([]);
   const redoStack = useRef<Edit[]>([]);
   const [, bump] = useState(0);
-  const hub = useRef<PointerHub>({ lastPenAt: -Infinity, gesture: false, cancelStroke: null }).current;
+  const hub = useRef<PointerHub>({
+    lastPenAt: -Infinity,
+    gesture: false,
+    cancelStroke: null,
+    overlay: null,
+  }).current;
+  const overlay = useRef<HTMLCanvasElement>(null);
 
   // ---- load the document ------------------------------------------------
   useEffect(() => {
@@ -143,6 +149,25 @@ export function Viewer({ docId, dark, onTheme, onClose }: Props) {
   }, [pdf, applyZoom]);
   const zoomRef = useRef(zoom);
   zoomRef.current = zoom;
+
+  // ---- screen-sized canvas for the stroke being drawn --------------------
+  useEffect(() => {
+    const canvas = overlay.current;
+    if (!canvas) return;
+    hub.overlay = canvas;
+    const size = () => {
+      const dpr = Math.min(window.devicePixelRatio || 1, 3);
+      canvas.width = Math.round(canvas.clientWidth * dpr);
+      canvas.height = Math.round(canvas.clientHeight * dpr);
+    };
+    size();
+    const ro = new ResizeObserver(size);
+    ro.observe(canvas);
+    return () => {
+      ro.disconnect();
+      hub.overlay = null;
+    };
+  }, [hub, pdf]);
 
   // ---- two fingers scroll and zoom the document ------------------------
   // The browser's own page zoom is switched off in the viewer (see CSS), as it
@@ -601,6 +626,8 @@ export function Viewer({ docId, dark, onTheme, onClose }: Props) {
           </div>
         )}
       </div>
+
+      <canvas ref={overlay} className="ink-overlay" aria-hidden="true" />
 
       <Toolbar
         tool={tool}

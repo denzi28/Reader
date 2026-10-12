@@ -25,7 +25,11 @@ interface Props {
   register: (index: number, el: HTMLDivElement | null) => void;
 }
 
-const MAX_PIXELS = 16_000_000;
+// Phones have far less memory for canvases than desktops; past these sizes a
+// zoomed-in page would freeze the browser rather than look any sharper.
+const TOUCH_DEVICE = typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0;
+const MAX_PIXELS = TOUCH_DEVICE ? 8_000_000 : 16_000_000;
+const MAX_INK_PIXELS = TOUCH_DEVICE ? 4_000_000 : 8_000_000;
 const PAPER = '#fffaf0';
 const NIGHT_FILTER = 'invert(0.88) hue-rotate(180deg) sepia(0.28) brightness(0.96)';
 // Where canvases can filter their own pixels, night paper is baked in once;
@@ -42,7 +46,7 @@ function PageViewImpl(props: Props) {
 
   const pdfCanvas = useRef<HTMLCanvasElement>(null);
   const inkCanvas = useRef<HTMLCanvasElement>(null);
-  const liveCanvas = useRef<HTMLCanvasElement>(null);
+  const surface = useRef<HTMLDivElement>(null);
   const [ready, setReady] = useState(false);
   const [baked, setBaked] = useState(false);
   const erased = useRef(new Set<string>());
@@ -53,8 +57,9 @@ function PageViewImpl(props: Props) {
 
   const aspect = height / width;
   const dpr = Math.min(window.devicePixelRatio || 1, 3);
-  const inkW = Math.max(1, Math.round(renderWidth * dpr));
-  const inkH = Math.max(1, Math.round(renderWidth * aspect * dpr));
+  const inkScale = Math.min(dpr, Math.sqrt(MAX_INK_PIXELS / (renderWidth * renderWidth * aspect)));
+  const inkW = Math.max(1, Math.round(renderWidth * inkScale));
+  const inkH = Math.max(1, Math.round(renderWidth * aspect * inkScale));
 
   // ---- PDF bitmap -------------------------------------------------------
   useEffect(() => {
@@ -127,11 +132,10 @@ function PageViewImpl(props: Props) {
   // Resizing clears a canvas, so only touch the size when it really changes.
   useEffect(() => {
     const ink = inkCanvas.current;
-    const live = liveCanvas.current;
-    const w = visible ? inkW : 0;
-    const h = visible ? inkH : 0;
-    if (ink) { ink.width = w; ink.height = h; }
-    if (live) { live.width = w; live.height = h; }
+    if (ink) {
+      ink.width = visible ? inkW : 0;
+      ink.height = visible ? inkH : 0;
+    }
     if (visible) paintInk();
   }, [visible, inkW, inkH, paintInk]);
 
@@ -153,27 +157,41 @@ function PageViewImpl(props: Props) {
     e.pointerType === 'mouse' ? 0.5 : e.pressure || 0.5,
   ];
 
+  const clearLive = () => {
+    const ov = hub.overlay;
+    ov?.getContext('2d')?.clearRect(0, 0, ov.width, ov.height);
+  };
+
   const paintLive = () => {
-    const live = liveCanvas.current;
-    const ctx = live?.getContext('2d');
     const d = drawing.current;
-    if (!live || !ctx || !d) return;
+    const ov = hub.overlay;
+    const ctx = ov?.getContext('2d');
+    const el = surface.current;
+    if (!d || !ov || !ctx || !el) return;
     d.raf = 0;
-    ctx.clearRect(0, 0, live.width, live.height);
+    const s = ov.width / (ov.clientWidth || 1); // canvas pixels per CSS pixel
+    const page = el.getBoundingClientRect();
+    const origin = ov.getBoundingClientRect();
+    const w = page.width * s;
+    ctx.clearRect(0, 0, ov.width, ov.height);
+    ctx.save();
+    ctx.translate((page.left - origin.left) * s, (page.top - origin.top) * s);
+    ctx.beginPath();
+    ctx.rect(0, 0, w, page.height * s);
+    ctx.clip();
     if (d.kind === 'ink') {
-      drawStroke(ctx, { tool: tool as InkTool, color, size: brush, points: d.points }, live.width, darkRef.current);
-    } else if (d.kind === 'erase') {
+      drawStroke(ctx, { tool: tool as InkTool, color, size: brush, points: d.points }, w, darkRef.current);
+    } else {
       const [x, y] = d.points[d.points.length - 1];
-      ctx.save();
       ctx.beginPath();
-      ctx.arc(x * live.width, y * live.width, ERASER_RADIUS * live.width, 0, Math.PI * 2);
+      ctx.arc(x * w, y * w, ERASER_RADIUS * w, 0, Math.PI * 2);
       ctx.strokeStyle = 'rgba(60,45,25,.55)';
       ctx.fillStyle = 'rgba(255,250,235,.35)';
-      ctx.lineWidth = Math.max(1, live.width * 0.0015);
+      ctx.lineWidth = Math.max(1, s * 1.2);
       ctx.fill();
       ctx.stroke();
-      ctx.restore();
     }
+    ctx.restore();
   };
 
   const eraseAt = (x: number, y: number) => {
@@ -194,13 +212,12 @@ function PageViewImpl(props: Props) {
     if (!d) return;
     drawing.current = null;
     cancelAnimationFrame(d.raf);
-    const live = liveCanvas.current;
-    live?.getContext('2d')?.clearRect(0, 0, live.width, live.height);
+    clearLive();
     erased.current = new Set();
     paintInk();
   };
 
-  const onPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
+  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (tool === 'hand' || drawing.current || hub.gesture) return;
     if (e.pointerType !== 'touch') hub.lastPenAt = e.timeStamp;
     // Palm rejection: a hand resting beside a pen shouldn't leave marks.
@@ -219,7 +236,7 @@ function PageViewImpl(props: Props) {
     drawing.current.raf = requestAnimationFrame(paintLive);
   };
 
-  const onPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
+  const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     const d = drawing.current;
     if (!d || d.id !== e.pointerId) return;
     if (e.pointerType !== 'touch') hub.lastPenAt = e.timeStamp;
@@ -233,7 +250,7 @@ function PageViewImpl(props: Props) {
     if (!d.raf) d.raf = requestAnimationFrame(paintLive);
   };
 
-  const finish = (e: React.PointerEvent<HTMLCanvasElement>, cancelled: boolean) => {
+  const finish = (e: React.PointerEvent<HTMLDivElement>, cancelled: boolean) => {
     const d = drawing.current;
     if (!d || d.id !== e.pointerId) return;
     if (hub.cancelStroke === abortStroke) hub.cancelStroke = null;
@@ -243,8 +260,7 @@ function PageViewImpl(props: Props) {
     }
     drawing.current = null;
     cancelAnimationFrame(d.raf);
-    const live = liveCanvas.current;
-    live?.getContext('2d')?.clearRect(0, 0, live.width, live.height);
+    clearLive();
     const prev = strokesRef.current;
     if (d.kind === 'ink') {
       const stroke: Stroke = {
@@ -273,8 +289,9 @@ function PageViewImpl(props: Props) {
     >
       <canvas ref={pdfCanvas} className={`page-pdf${baked ? ' baked' : ''}`} />
       <canvas ref={inkCanvas} className="page-ink" />
-      <canvas
-        ref={liveCanvas}
+      {/* Catches pen and finger input; the stroke itself is drawn on hub.overlay. */}
+      <div
+        ref={surface}
         className={`page-live${interactive ? ' on' : ''} tool-${tool}`}
         onPointerDown={interactive ? onPointerDown : undefined}
         onPointerMove={interactive ? onPointerMove : undefined}

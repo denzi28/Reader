@@ -350,7 +350,15 @@ button:disabled { cursor: default; }
 .page-pdf.baked { filter: none; }
 .page.ready .page-pdf { opacity: 1; }
 .page-ink { pointer-events: none; }
-.page-live { pointer-events: none; }
+.page-live { position: absolute; inset: 0; pointer-events: none; }
+.ink-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 4; /* above the pages, below the bars */
+  pointer-events: none;
+}
 .page-live.on { pointer-events: auto; touch-action: none; }
 .page-live.on.tool-pen, .page-live.on.tool-highlighter { cursor: crosshair; }
 .page-live.on.tool-eraser { cursor: cell; }
