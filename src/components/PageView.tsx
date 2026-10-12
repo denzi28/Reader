@@ -37,6 +37,24 @@ const NIGHT_FILTER = 'invert(0.88) hue-rotate(180deg) sepia(0.28) brightness(0.9
 const CAN_BAKE_FILTER =
   typeof CanvasRenderingContext2D !== 'undefined' && 'filter' in CanvasRenderingContext2D.prototype;
 const ERASER_RADIUS = 0.012; // fraction of page width
+// Holding the highlighter still turns the stroke into a straight line from
+// where it started to wherever the pointer goes next.
+const HOLD_MS = 350;
+const HOLD_SLOP = 6; // CSS px a held finger may wobble
+const LEVEL_SLOPE = Math.tan((6 * Math.PI) / 180); // nearly flat lines snap level
+
+/** Points along a straight line, dense enough to render and erase like ink. */
+function straightLine(a: InkPoint, b: InkPoint): InkPoint[] {
+  const x = b[0];
+  const y = Math.abs(b[1] - a[1]) <= Math.abs(b[0] - a[0]) * LEVEL_SLOPE ? a[1] : b[1];
+  const steps = Math.max(1, Math.ceil(Math.hypot(x - a[0], y - a[1]) / 0.004));
+  const line: InkPoint[] = [];
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    line.push([a[0] + (x - a[0]) * t, a[1] + (y - a[1]) * t, a[2]]);
+  }
+  return line;
+}
 
 function PageViewImpl(props: Props) {
   const {
@@ -149,6 +167,11 @@ function PageViewImpl(props: Props) {
     kind: 'ink' | 'erase';
     points: InkPoint[];
     raf: number;
+    /** Highlighter only: the hold timer and where the pointer last settled. */
+    hold: number;
+    anchor: InkPoint;
+    /** Set once held: the stroke is a straight line from here. */
+    from: InkPoint | null;
   } | null>(null);
 
   const toPoint = (e: PointerEvent | React.PointerEvent, rect: DOMRect): InkPoint => [
@@ -206,11 +229,27 @@ function PageViewImpl(props: Props) {
     if (changed) paintInk();
   };
 
+  /** (Re)starts the wait for the pointer to stay put at `p`. */
+  const armHold = (p: InkPoint) => {
+    const d = drawing.current;
+    if (!d) return;
+    clearTimeout(d.hold);
+    d.anchor = p;
+    d.hold = window.setTimeout(() => {
+      if (drawing.current !== d || d.from) return;
+      d.from = d.points[0];
+      d.points = straightLine(d.from, d.points[d.points.length - 1]);
+      navigator.vibrate?.(8);
+      if (!d.raf) d.raf = requestAnimationFrame(paintLive);
+    }, HOLD_MS);
+  };
+
   /** Drops the stroke in progress without saving it. */
   const abortStroke = () => {
     const d = drawing.current;
     if (!d) return;
     drawing.current = null;
+    clearTimeout(d.hold);
     cancelAnimationFrame(d.raf);
     clearLive();
     erased.current = new Set();
@@ -228,7 +267,8 @@ function PageViewImpl(props: Props) {
     const rect = e.currentTarget.getBoundingClientRect();
     const first = toPoint(e, rect);
     const kind = tool === 'eraser' ? 'erase' : 'ink';
-    drawing.current = { id: e.pointerId, kind, points: [first], raf: 0 };
+    drawing.current = { id: e.pointerId, kind, points: [first], raf: 0, hold: 0, anchor: first, from: null };
+    if (tool === 'highlighter') armHold(first);
     erased.current = new Set();
     // A second finger landing turns this into a scroll; the viewer calls this.
     hub.cancelStroke = abortStroke;
@@ -241,11 +281,20 @@ function PageViewImpl(props: Props) {
     if (!d || d.id !== e.pointerId) return;
     if (e.pointerType !== 'touch') hub.lastPenAt = e.timeStamp;
     const rect = e.currentTarget.getBoundingClientRect();
+    if (d.from) {
+      d.points = straightLine(d.from, toPoint(e, rect));
+      if (!d.raf) d.raf = requestAnimationFrame(paintLive);
+      return;
+    }
     const samples = e.nativeEvent.getCoalescedEvents?.() ?? [];
     for (const s of samples.length ? samples : [e.nativeEvent]) {
       const p = toPoint(s, rect);
       d.points.push(p);
       if (d.kind === 'erase') eraseAt(p[0], p[1]);
+    }
+    const last = d.points[d.points.length - 1];
+    if (tool === 'highlighter' && Math.hypot(last[0] - d.anchor[0], last[1] - d.anchor[1]) * rect.width > HOLD_SLOP) {
+      armHold(last);
     }
     if (!d.raf) d.raf = requestAnimationFrame(paintLive);
   };
@@ -259,6 +308,7 @@ function PageViewImpl(props: Props) {
       return;
     }
     drawing.current = null;
+    clearTimeout(d.hold);
     cancelAnimationFrame(d.raf);
     clearLive();
     const prev = strokesRef.current;

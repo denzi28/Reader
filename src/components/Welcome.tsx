@@ -123,7 +123,7 @@ export function Welcome({ onSkip, dark, onTheme }: Props) {
         <div id="ink" />
         <Section eyebrow="Ink that feels like ink" title="Write on the page, not around it." art={<InkArt />}>
           <p>
-            A pen that follows your stylus pressure, a highlighter, an eraser and undo. Two fingers
+            A pen that follows your stylus pressure, a highlighter that holds a straight line, an eraser and undo. Two fingers
             scroll and zoom while you write, and a resting palm leaves no marks.
           </p>
         </Section>

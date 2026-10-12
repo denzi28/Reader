@@ -23,9 +23,9 @@ interface Props {
   dark: boolean;
 }
 
-const TOOLS: { id: Tool; label: string; icon: () => React.JSX.Element }[] = [
+const TOOLS: { id: Tool; label: string; hint?: string; icon: () => React.JSX.Element }[] = [
   { id: 'pen', label: 'Pen', icon: PenIcon },
-  { id: 'highlighter', label: 'Highlighter', icon: HighlighterIcon },
+  { id: 'highlighter', label: 'Highlighter', hint: 'Highlighter (hold still for a straight line)', icon: HighlighterIcon },
   { id: 'eraser', label: 'Eraser', icon: EraserIcon },
 ];
 
@@ -73,14 +73,14 @@ export function Toolbar(p: Props) {
 
       <div className="toolbar" role="toolbar" aria-label="Reader tools">
         <div className="group">
-          {TOOLS.map(({ id, label, icon: Ico }) => (
+          {TOOLS.map(({ id, label, hint, icon: Ico }) => (
             <button
               key={id}
               className={`tool${p.tool === id ? ' on' : ''}`}
               onClick={() => p.onTool(p.tool === id ? 'hand' : id)}
               aria-pressed={p.tool === id}
               aria-label={label}
-              title={label}
+              title={hint ?? label}
             >
               <Ico />
               {(id === 'pen' || id === 'highlighter') && (

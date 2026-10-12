@@ -968,6 +968,7 @@ button:disabled { cursor: default; }
   contain: layout paint;
   user-select: none;
   -webkit-user-select: none;
+  -webkit-touch-callout: none; /* a long press draws a straight line, not a menu */
 }
 .page::before {
   content: '';

@@ -11,7 +11,9 @@ your device.
   light on memory.
 - **Ink** on any page: pen (pressure-sensitive with a stylus), highlighter,
   stroke eraser, undo and redo. Strokes are stored relative to the page, so
-  they stay put at every zoom level.
+  they stay put at every zoom level. Hold the highlighter still (at the start
+  or mid-stroke) and it draws a straight line from where the stroke began to
+  wherever you drag; nearly flat lines snap level.
 - **Library** of the PDFs you have opened, with covers. Your place in each
   document and all your ink are remembered across visits.
 - **Day paper and night paper** themes. Ink colours adapt to the theme.
@@ -35,6 +37,10 @@ Keyboard: `P` pen, `L` highlighter, `E` eraser (press again to switch off), `Ctr
 
 - Word, Excel and PowerPoint files (only PDF opens today).
 - Paid unlock, installable app-store builds.
+- Android and iOS apps. When they are built, bring over everything the web
+  app does, including hold-to-straighten for the highlighter (hold ~350 ms,
+  6 px wobble allowed, lines within 6° of flat snap level, short haptic tick
+  when it engages; see `PageView.tsx`).
 
 ## Google Drive sync
 
@@ -61,7 +67,7 @@ On its own, the browser only gets access tokens that last an hour, so the user
 would be asked to reconnect. `api/auth.ts` (a Vercel Function, reached through
 the rewrite in `vercel.json`) runs Google's code flow instead: the user signs
 in once on Google's page, the function keeps the refresh token encrypted in an
-HttpOnly cookie (no database), and hands the app fresh access tokens silently.
+HttpOnly cookie, and hands the app fresh access tokens silently.
 To enable it:
 
 1. In the OAuth client, add **Authorized redirect URIs**, one per address the
@@ -70,6 +76,15 @@ To enable it:
    Vercel and redeploy. Optionally set `SESSION_SECRET` (32 random bytes,
    base64) to encrypt the session cookie with its own key; otherwise the key is
    derived from the client secret. Changing either signs everyone out.
+
+3. Optional, so Google asks for permission only once per account rather than
+   once per device: set `SUPABASE_URL` and `SUPABASE_KEY` (the project's
+   publishable key) for a Supabase project with the `reader_grants` table and
+   its `reader_get_grant` / `reader_put_grant` / `reader_drop_grant`
+   functions. The function stores each refresh token there, sealed with the
+   session key and filed under a keyed hash of the Google account, and reuses
+   it when Google returns none. If the database is unreachable, sign-in still
+   works and simply asks for permission again.
 
 Without them the app falls back to the hour-long popup tokens.
 
