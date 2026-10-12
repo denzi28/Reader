@@ -1,6 +1,6 @@
 import { fileId } from './hash';
 import { makeThumbnail, openPdf } from './pdf';
-import { getMeta, patchMeta, requestPersistence, saveDoc } from './storage';
+import { getMeta, patchMeta, putDocFile, putMeta, requestPersistence, saveDoc } from './storage';
 import type { DocMeta } from './types';
 
 export const UNSUPPORTED =
@@ -17,7 +17,12 @@ export async function importPdf(file: File): Promise<DocMeta> {
 
   const id = await fileId(buf);
   const existing = await getMeta(id);
-  if (existing) {
+  if (existing && !existing.deleted) {
+    if (existing.cloudOnly) {
+      // Already in Drive; this device now has the file too.
+      await putDocFile(id, new Blob([buf], { type: 'application/pdf' }));
+      await putMeta({ ...existing, cloudOnly: false });
+    }
     await patchMeta(id, { openedAt: Date.now() });
     return existing;
   }

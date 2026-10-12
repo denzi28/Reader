@@ -233,6 +233,105 @@ button:disabled { cursor: default; }
 .book:hover .book-delete, .book-delete:focus-visible { opacity: 1; transform: scale(1); }
 @media (hover: none) { .book-delete { opacity: 0.9; transform: scale(0.85); } }
 
+/* ---------- Google Drive sync ---------- */
+.library-actions { display: flex; align-items: center; gap: 0.5rem; }
+.sync { position: relative; }
+.sync-connect,
+.sync-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 44px;
+  padding: 0 0.95rem 0 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--card);
+  font-size: 0.9rem;
+  white-space: nowrap;
+  box-shadow: var(--shadow-float);
+  transition: transform 0.2s var(--spring), background 0.2s, opacity 0.2s;
+}
+.sync-connect:active, .sync-chip:active { transform: scale(0.96); }
+.sync-connect:disabled { opacity: 0.6; }
+.sync-connect svg, .sync-chip svg { width: 19px; height: 19px; }
+.sync-chip.state-idle svg { color: #2e6b3a; }
+:root[data-theme='dark'] .sync-chip.state-idle svg { color: #6fce86; }
+.sync-chip.state-reauth, .sync-chip.state-error {
+  border-color: color-mix(in srgb, #b3261e 45%, transparent);
+  color: color-mix(in srgb, #b3261e 70%, var(--ink));
+}
+.sync-error {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  width: min(260px, 70vw);
+  margin: 0;
+  padding: 0.6rem 0.75rem;
+  border-radius: 10px;
+  background: var(--card);
+  border: 1px solid color-mix(in srgb, #b3261e 35%, transparent);
+  font-size: 0.85rem;
+  box-shadow: var(--shadow-float);
+  z-index: 3;
+}
+.sync-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  z-index: 3;
+  display: grid;
+  min-width: 220px;
+  padding: 0.5rem;
+  border-radius: 14px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-float);
+  animation: rise 0.25s var(--ease) both;
+}
+.sync-menu p { margin: 0; padding: 0.35rem 0.6rem; }
+.sync-account { font-size: 0.85rem; color: var(--muted); overflow-wrap: anywhere; }
+.sync-account strong { color: var(--ink); font-weight: 600; }
+.sync-note { font-size: 0.8rem; color: var(--muted); }
+.sync-menu button {
+  border: 0;
+  background: none;
+  text-align: left;
+  padding: 0.65rem 0.6rem;
+  border-radius: 8px;
+}
+.sync-menu button:hover { background: var(--line); }
+.spin { display: inline-grid; animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.sync-badge svg { width: 20px; height: 20px; }
+.sync-badge.state-idle { color: var(--muted); }
+.sync-badge.state-reauth, .sync-badge.state-error { color: #b3261e; }
+
+.cover { position: relative; }
+.cover-cloud {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px 3px 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--card) 92%, transparent);
+  box-shadow: var(--shadow-float);
+  font-size: 0.75rem;
+  color: var(--ink);
+}
+.cover-cloud svg { width: 15px; height: 15px; }
+.book-open.fetching .cover { animation: leaf 0.9s var(--ease) infinite alternate; }
+.book-open:disabled { cursor: progress; }
+
+@media (max-width: 520px) {
+  .library-head { flex-wrap: wrap; }
+  .sync-connect { padding: 0 0.8rem 0 0.6rem; font-size: 0.85rem; }
+  /* The header wraps on phones, putting the button on the left. */
+  .sync-menu, .sync-error { left: 0; right: auto; }
+}
+
 /* ---------- viewer ---------- */
 .viewer { position: fixed; inset: 0; z-index: 1; touch-action: pan-x pan-y; }
 

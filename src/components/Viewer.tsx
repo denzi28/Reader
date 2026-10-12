@@ -5,9 +5,11 @@ import {
 import { BRUSH_SIZES, HIGHLIGHT_COLORS, PEN_COLORS } from '../lib/ink';
 import { openPdf, readPageSizes } from '../lib/pdf';
 import { PALM_WINDOW_MS, type PointerHub } from '../lib/pointerHub';
-import { getDocFile, getMeta, loadInk, patchMeta, saveInk } from '../lib/storage';
+import { getDocFile, getMeta, loadInk, patchMeta, recordInkEdit } from '../lib/storage';
+import { downloadPdf, onRemoteInk, syncDoc } from '../lib/sync/engine';
 import type { DocInk, DocMeta, InkTool, Stroke, Tool } from '../lib/types';
 import { BackIcon, MoonIcon, SunIcon } from './icons';
+import { SyncBadge } from './SyncControl';
 import { PageView } from './PageView';
 import { Toolbar } from './Toolbar';
 
@@ -37,7 +39,6 @@ export function Viewer({ docId, dark, onTheme, onClose }: Props) {
   const [sizes, setSizes] = useState<{ w: number; h: number }[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [ink, setInk] = useState<DocInk>({});
-  const [inkLoaded, setInkLoaded] = useState(false);
 
   const [tool, setTool] = useState<Tool>('hand');
   const [penColor, setPenColor] = useState(PEN_COLORS[0]);
@@ -66,18 +67,23 @@ export function Viewer({ docId, dark, onTheme, onClose }: Props) {
     let cancelled = false;
     let doc: PDFDocumentProxy | null = null;
     (async () => {
-      const [m, file, saved] = await Promise.all([getMeta(docId), getDocFile(docId), loadInk(docId)]);
-      if (!m || !file) throw new Error('This document is no longer on this device.');
+      const [m, saved] = await Promise.all([getMeta(docId), loadInk(docId)]);
+      let file = await getDocFile(docId);
+      if (!file && m?.cloudOnly) {
+        await downloadPdf(docId);
+        file = await getDocFile(docId);
+      }
+      if (!m || !file || m.deleted) throw new Error('This document is no longer on this device.');
       doc = await openPdf(await file.arrayBuffer());
       const pageSizes = await readPageSizes(doc);
       if (cancelled) return;
       setMeta(m);
       setInk(saved);
-      setInkLoaded(true);
       setPdf(doc);
       setSizes(pageSizes);
       setCurrent(Math.min(m.lastPage, doc.numPages - 1));
       void patchMeta(docId, { openedAt: Date.now() });
+      void syncDoc(docId); // pick up notes made on other devices
     })().catch((err: unknown) => {
       if (!cancelled) setError(err instanceof Error ? err.message : 'Could not open this document.');
     });
@@ -407,6 +413,7 @@ export function Viewer({ docId, dark, onTheme, onClose }: Props) {
           else visibleSet.current.delete(i);
         }
         setVisible(new Set(visibleSet.current));
+        recheckCurrent.current();
       },
       { root, rootMargin: '120% 0px' },
     );
@@ -428,11 +435,22 @@ export function Viewer({ docId, dark, onTheme, onClose }: Props) {
     if (el && scroller.current) scroller.current.scrollTop = el.offsetTop - 70;
   }, [sizes, containerWidth, current]);
 
+  const recheckCurrent = useRef<() => void>(() => undefined);
   useEffect(() => {
     const el = scroller.current;
     if (!el || !pdf) return;
     let raf = 0;
     let save = 0;
+    let saved = -1;
+    let pending: number | null = null;
+    const persist = () => {
+      clearTimeout(save);
+      if (pending !== null && pending !== saved) {
+        saved = pending;
+        void patchMeta(docId, { lastPage: pending });
+      }
+      pending = null;
+    };
     const update = () => {
       raf = 0;
       const box = el.getBoundingClientRect();
@@ -446,16 +464,21 @@ export function Viewer({ docId, dark, onTheme, onClose }: Props) {
       });
       if (best >= 0) {
         setCurrent(best);
+        pending = best;
         clearTimeout(save);
-        save = window.setTimeout(() => void patchMeta(docId, { lastPage: best }), 600);
+        save = window.setTimeout(persist, 600);
       }
     };
     const onScroll = () => { if (!raf) raf = requestAnimationFrame(update); };
+    // After a big jump the visible pages are only known once the observer
+    // reports, which can be after the last scroll event; check again then.
+    recheckCurrent.current = onScroll;
     el.addEventListener('scroll', onScroll, { passive: true });
     return () => {
       el.removeEventListener('scroll', onScroll);
+      recheckCurrent.current = () => undefined;
       cancelAnimationFrame(raf);
-      clearTimeout(save);
+      persist(); // don't lose the page if the reader leaves right after scrolling
     };
   }, [pdf, docId]);
 
@@ -467,58 +490,47 @@ export function Viewer({ docId, dark, onTheme, onClose }: Props) {
     }
   };
 
-  // ---- ink: commit, undo, redo, persist ---------------------------------
+  // ---- ink: commit, undo, redo (each is saved as it happens) -------------
   const commit = useCallback((page: number, prev: Stroke[], next: Stroke[]) => {
+    void recordInkEdit(docId, page, prev, next);
     setInk((cur) => ({ ...cur, [page]: next }));
     undoStack.current.push({ page, prev, next });
     redoStack.current = [];
     bump((n) => n + 1);
-  }, []);
+  }, [docId]);
 
   const undo = useCallback(() => {
     const edit = undoStack.current.pop();
     if (!edit) return;
     redoStack.current.push(edit);
+    void recordInkEdit(docId, edit.page, edit.next, edit.prev);
     setInk((cur) => ({ ...cur, [edit.page]: edit.prev }));
     bump((n) => n + 1);
-  }, []);
+  }, [docId]);
 
   const redo = useCallback(() => {
     const edit = redoStack.current.pop();
     if (!edit) return;
     undoStack.current.push(edit);
+    void recordInkEdit(docId, edit.page, edit.prev, edit.next);
     setInk((cur) => ({ ...cur, [edit.page]: edit.next }));
     bump((n) => n + 1);
-  }, []);
-
-  const inkRef = useRef(ink);
-  inkRef.current = ink;
-  const dirty = useRef(false);
-  useEffect(() => {
-    if (!inkLoaded) return;
-    dirty.current = true;
-    const t = setTimeout(() => {
-      dirty.current = false;
-      void saveInk(docId, ink);
-    }, 500);
-    return () => clearTimeout(t);
-  }, [ink, inkLoaded, docId]);
-
-  useEffect(() => {
-    const flush = () => {
-      if (dirty.current) {
-        dirty.current = false;
-        void saveInk(docId, inkRef.current);
-      }
-    };
-    window.addEventListener('pagehide', flush);
-    document.addEventListener('visibilitychange', flush);
-    return () => {
-      window.removeEventListener('pagehide', flush);
-      document.removeEventListener('visibilitychange', flush);
-      flush();
-    };
   }, [docId]);
+
+  // Another device's notes arrived: show them. The undo history no longer
+  // matches what is on the page, so it starts afresh.
+  useEffect(
+    () =>
+      onRemoteInk(docId, () => {
+        void loadInk(docId).then((fresh) => {
+          setInk(fresh);
+          undoStack.current = [];
+          redoStack.current = [];
+          bump((n) => n + 1);
+        });
+      }),
+    [docId],
+  );
 
   // ---- keyboard ---------------------------------------------------------
   useEffect(() => {
@@ -586,6 +598,7 @@ export function Viewer({ docId, dark, onTheme, onClose }: Props) {
             <span>/ {pdf.numPages}</span>
           </label>
         )}
+        <SyncBadge />
         <button
           className="icon-button"
           onClick={onTheme}

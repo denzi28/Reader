@@ -26,4 +26,28 @@ export interface DocMeta {
   /** Zero-based index of the page the reader was last looking at. */
   lastPage: number;
   thumb?: Blob;
+  /** When a synced field last changed; the newer copy wins between devices. */
+  updatedAt?: number;
+  /** Removed by the user. Kept as a marker so sync deletes it everywhere. */
+  deleted?: boolean;
+  /** Known from Drive, but the PDF itself isn't on this device yet. */
+  cloudOnly?: boolean;
 }
+
+/**
+ * The latest state of one stroke. A document's ink is a log of these, keyed by
+ * stroke id, so two devices merge by keeping the newer entry for each stroke.
+ */
+export interface InkEntry {
+  /** Page index. */
+  p: number;
+  /** When the stroke was first drawn, for drawing order. */
+  c: number;
+  /** When this entry last changed. */
+  t: number;
+  /** 1 when the stroke was erased (its points are then dropped). */
+  d?: 1;
+  s?: Stroke;
+}
+
+export type InkLog = Record<string, InkEntry>;

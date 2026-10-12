@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { deleteDoc, listDocs } from '../lib/storage';
+import { downloadPdf } from '../lib/sync/engine';
+import { useSyncStatus } from '../lib/sync/useSync';
 import type { DocMeta } from '../lib/types';
-import { FileIcon, MoonIcon, SunIcon, TrashIcon } from './icons';
+import { CloudIcon, FileIcon, MoonIcon, SunIcon, TrashIcon } from './icons';
+import { SyncControl } from './SyncControl';
 
 interface Props {
   dark: boolean;
@@ -44,10 +47,28 @@ function Cover({ meta }: { meta: DocMeta }) {
 export function Library({ dark, onTheme, onOpen, onImport, busy, error, onDismissError }: Props) {
   const [docs, setDocs] = useState<DocMeta[] | null>(null);
   const [dragging, setDragging] = useState(false);
+  const [fetching, setFetching] = useState<string | null>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const input = useRef<HTMLInputElement>(null);
+  const sync = useSyncStatus();
 
   const refresh = () => listDocs().then(setDocs).catch(() => setDocs([]));
-  useEffect(() => { void refresh(); }, [busy]);
+  useEffect(() => { void refresh(); }, [busy, sync.libraryVersion]);
+
+  const openBook = async (d: DocMeta) => {
+    if (!d.cloudOnly) return onOpen(d.id);
+    // Only in Drive so far: bring the PDF to this device first.
+    setFetching(d.id);
+    setFetchError(null);
+    try {
+      await downloadPdf(d.id);
+      onOpen(d.id);
+    } catch (err) {
+      setFetchError(err instanceof Error ? err.message : 'Could not download this document.');
+    } finally {
+      setFetching(null);
+    }
+  };
 
   const take = (files: FileList | null) => {
     const file = files?.[0];
@@ -59,21 +80,27 @@ export function Library({ dark, onTheme, onOpen, onImport, busy, error, onDismis
       <header className="library-head">
         <div>
           <h1 className="brand">Reader</h1>
-          <p className="tagline">Read, mark up and keep your documents. Everything stays on this device.</p>
+          <p className="tagline">
+            Read, mark up and keep your documents.{' '}
+            {sync.connected ? 'Kept in step with your Google Drive.' : 'Everything stays on this device.'}
+          </p>
         </div>
-        <button
-          className="icon-button"
-          onClick={onTheme}
-          aria-label={dark ? 'Switch to day paper' : 'Switch to night paper'}
-        >
-          {dark ? <SunIcon /> : <MoonIcon />}
-        </button>
+        <div className="library-actions">
+          <SyncControl />
+          <button
+            className="icon-button"
+            onClick={onTheme}
+            aria-label={dark ? 'Switch to day paper' : 'Switch to night paper'}
+          >
+            {dark ? <SunIcon /> : <MoonIcon />}
+          </button>
+        </div>
       </header>
 
-      {error && (
+      {(error || fetchError) && (
         <div className="notice" role="alert">
-          <span>{error}</span>
-          <button className="link" onClick={onDismissError}>Dismiss</button>
+          <span>{error ?? fetchError}</span>
+          <button className="link" onClick={() => { onDismissError(); setFetchError(null); }}>Dismiss</button>
         </div>
       )}
 
@@ -107,8 +134,20 @@ export function Library({ dark, onTheme, onOpen, onImport, busy, error, onDismis
           <ul className="shelf">
             {docs.map((d, i) => (
               <li key={d.id} className="book" style={{ ['--i' as string]: i }}>
-                <button className="book-open" onClick={() => onOpen(d.id)}>
-                  <span className="cover"><Cover meta={d} /></span>
+                <button
+                  className={`book-open${fetching === d.id ? ' fetching' : ''}`}
+                  onClick={() => void openBook(d)}
+                  disabled={fetching !== null}
+                >
+                  <span className="cover">
+                    <Cover meta={d} />
+                    {d.cloudOnly && (
+                      <span className="cover-cloud" title="In your Google Drive; opens after downloading">
+                        <CloudIcon />
+                        {fetching === d.id ? 'Downloading…' : 'In Drive'}
+                      </span>
+                    )}
+                  </span>
                   <span className="book-name">{d.name}</span>
                   <span className="book-meta">
                     {d.pages} pages · {formatSize(d.size)} · {ago(d.openedAt)}

@@ -87,3 +87,20 @@ export const FileIcon = () => (
     <path d="M14 3v5h5" />
   </Icon>
 );
+export const CloudIcon = () => (
+  <Icon>
+    <path d="M7 18a4.5 4.5 0 0 1-.6-8.96A6 6 0 0 1 18 9.5a4.25 4.25 0 0 1-.25 8.5z" />
+  </Icon>
+);
+export const SyncIcon = () => (
+  <Icon>
+    <path d="M20 12a8 8 0 0 1-14.2 5M4 12a8 8 0 0 1 14.2-5" />
+    <path d="M18.5 3v4h-4M5.5 21v-4h4" />
+  </Icon>
+);
+export const AlertIcon = () => (
+  <Icon>
+    <path d="M12 4l9 16H3z" />
+    <path d="M12 10v4M12 17v.01" />
+  </Icon>
+);
