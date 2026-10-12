@@ -16,27 +16,87 @@ export interface RemoteFile {
 
 /** The token was rejected; the user has to grant access again. */
 export class AuthError extends Error {}
+/** Google did not answer in time. */
+export class TimeoutError extends Error {}
+/** The request was stopped on purpose (e.g. signing out). */
+export class CancelledError extends Error {}
 
-async function call(token: string, url: string, init: RequestInit = {}, attempt = 0): Promise<Response> {
-  const res = await fetch(url, {
-    ...init,
-    headers: { ...(init.headers as Record<string, string>), Authorization: `Bearer ${token}` },
-  });
-  if (res.status === 401) throw new AuthError('Google access expired.');
-  if ((res.status === 429 || res.status >= 500 || res.status === 403) && attempt < 3) {
-    const body = res.status === 403 ? await res.clone().text() : '';
-    if (res.status !== 403 || /rate|quota/i.test(body)) {
-      await new Promise((r) => setTimeout(r, 500 * 2 ** attempt + Math.random() * 300));
-      return call(token, url, init, attempt + 1);
-    }
-  }
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    if (/storageQuotaExceeded/.test(text)) throw new Error('Your Google Drive is full.');
-    throw new Error(`Google Drive error ${res.status}`);
-  }
-  return res;
+// Every request can be stopped at once, so signing out never waits on a
+// request that is stuck.
+let cancel = new AbortController();
+export function cancelAll() {
+  cancel.abort();
+  cancel = new AbortController();
 }
+
+/** Time allowed for a request: generous for big uploads, short otherwise. */
+function allowance(init: RequestInit) {
+  const size = init.body instanceof Blob ? init.body.size : 0;
+  return 30_000 + size / 50; // plus 1 s per 50 KB sent
+}
+
+/**
+ * One Drive request, read to the end with `read`, within a time limit.
+ * Rate limits and server errors are retried with backoff.
+ */
+async function request<T>(
+  token: string,
+  url: string,
+  init: RequestInit,
+  read: (res: Response) => Promise<T>,
+  attempt = 0,
+): Promise<T> {
+  const ctl = new AbortController();
+  const outer = cancel.signal;
+  const stop = () => ctl.abort();
+  if (outer.aborted) throw new CancelledError('Cancelled');
+  outer.addEventListener('abort', stop, { once: true });
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    ctl.abort();
+  }, allowance(init));
+  try {
+    const res = await fetch(url, {
+      ...init,
+      signal: ctl.signal,
+      headers: { ...(init.headers as Record<string, string>), Authorization: `Bearer ${token}` },
+    });
+    if (res.status === 401) throw new AuthError('Google access expired.');
+    if ((res.status === 429 || res.status >= 500 || res.status === 403) && attempt < 3) {
+      const body = res.status === 403 ? await res.clone().text() : '';
+      if (res.status !== 403 || /rate|quota/i.test(body)) {
+        await new Promise((r) => setTimeout(r, 500 * 2 ** attempt + Math.random() * 300));
+        return request(token, url, init, read, attempt + 1);
+      }
+    }
+    if (!res.ok) throw new Error(await explain(res));
+    return await read(res);
+  } catch (err) {
+    if (ctl.signal.aborted) {
+      throw timedOut
+        ? new TimeoutError('Google Drive is not responding. Sync will try again shortly.')
+        : new CancelledError('Cancelled');
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+    outer.removeEventListener('abort', stop);
+  }
+}
+
+/** Google's own reason for a failed request, in words a person can act on. */
+async function explain(res: Response) {
+  const text = await res.text().catch(() => '');
+  if (/storageQuotaExceeded/.test(text)) return 'Your Google Drive is full.';
+  try {
+    const message = (JSON.parse(text) as { error?: { message?: string } }).error?.message;
+    if (message) return `Google Drive: ${message}`;
+  } catch { /* not JSON */ }
+  return `Google Drive error ${res.status}`;
+}
+
+const asJson = <T>(res: Response) => res.json() as Promise<T>;
 
 export async function listFiles(token: string, nameContains?: string): Promise<RemoteFile[]> {
   const files: RemoteFile[] = [];
@@ -49,20 +109,19 @@ export async function listFiles(token: string, nameContains?: string): Promise<R
     });
     if (nameContains) params.set('q', `name contains '${nameContains.replace(/'/g, '')}'`);
     if (pageToken) params.set('pageToken', pageToken);
-    const res = await call(token, `${API}/files?${params}`);
-    const body = (await res.json()) as { files: RemoteFile[]; nextPageToken?: string };
+    const body = await request(token, `${API}/files?${params}`, {}, asJson<{ files: RemoteFile[]; nextPageToken?: string }>);
     files.push(...body.files);
     pageToken = body.nextPageToken ?? '';
   } while (pageToken);
   return files;
 }
 
-export async function downloadBlob(token: string, id: string) {
-  return (await call(token, `${API}/files/${id}?alt=media`)).blob();
+export function downloadBlob(token: string, id: string) {
+  return request(token, `${API}/files/${id}?alt=media`, {}, (res) => res.blob());
 }
 
-export async function downloadJson<T>(token: string, id: string): Promise<T> {
-  return (await call(token, `${API}/files/${id}?alt=media`)).json() as Promise<T>;
+export function downloadJson<T>(token: string, id: string): Promise<T> {
+  return request(token, `${API}/files/${id}?alt=media`, {}, asJson<T>);
 }
 
 export async function createFile(token: string, name: string, body: Blob): Promise<RemoteFile> {
@@ -76,50 +135,57 @@ export async function createFile(token: string, name: string, body: Blob): Promi
     body,
     `\r\n--${boundary}--`,
   ]);
-  const res = await call(token, `${UPLOAD}/files?uploadType=multipart&fields=${FIELDS}`, {
-    method: 'POST',
-    headers: { 'Content-Type': `multipart/related; boundary=${boundary}` },
-    body: multipart,
-  });
-  return res.json() as Promise<RemoteFile>;
+  return request(
+    token,
+    `${UPLOAD}/files?uploadType=multipart&fields=${FIELDS}`,
+    { method: 'POST', headers: { 'Content-Type': `multipart/related; boundary=${boundary}` }, body: multipart },
+    asJson<RemoteFile>,
+  );
 }
 
 /** Large files go up in a resumable session (Drive's advice above 5 MB). */
 async function createResumable(token: string, metadata: object, body: Blob): Promise<RemoteFile> {
-  const start = await call(token, `${UPLOAD}/files?uploadType=resumable&fields=${FIELDS}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json; charset=UTF-8',
-      'X-Upload-Content-Type': body.type || 'application/octet-stream',
-      'X-Upload-Content-Length': String(body.size),
+  const session = await request(
+    token,
+    `${UPLOAD}/files?uploadType=resumable&fields=${FIELDS}`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json; charset=UTF-8',
+        'X-Upload-Content-Type': body.type || 'application/octet-stream',
+        'X-Upload-Content-Length': String(body.size),
+      },
+      body: JSON.stringify(metadata),
     },
-    body: JSON.stringify(metadata),
-  });
-  const session = start.headers.get('Location');
+    async (res) => res.headers.get('Location'),
+  );
   if (!session) throw new Error('Google Drive did not accept the upload.');
-  const res = await call(token, session, { method: 'PUT', body });
-  return res.json() as Promise<RemoteFile>;
+  return request(token, session, { method: 'PUT', body }, asJson<RemoteFile>);
 }
 
 export async function updateFile(token: string, id: string, body: Blob): Promise<RemoteFile> {
-  const res = await call(token, `${UPLOAD}/files/${id}?uploadType=media&fields=${FIELDS}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': body.type || 'application/octet-stream' },
-    body,
-  });
-  return res.json() as Promise<RemoteFile>;
+  return request(
+    token,
+    `${UPLOAD}/files/${id}?uploadType=media&fields=${FIELDS}`,
+    { method: 'PATCH', headers: { 'Content-Type': body.type || 'application/octet-stream' }, body },
+    asJson<RemoteFile>,
+  );
 }
 
 export async function deleteFile(token: string, id: string) {
   try {
-    await call(token, `${API}/files/${id}`, { method: 'DELETE' });
+    await request(token, `${API}/files/${id}`, { method: 'DELETE' }, async () => undefined);
   } catch (err) {
-    if (!(err instanceof Error && /error 404/.test(err.message))) throw err;
+    if (!(err instanceof Error && /404|not found/i.test(err.message))) throw err;
   }
 }
 
 export async function whoAmI(token: string): Promise<{ email?: string; name?: string }> {
-  const res = await call(token, `${API}/about?fields=user(displayName,emailAddress)`);
-  const body = (await res.json()) as { user?: { displayName?: string; emailAddress?: string } };
+  const body = await request(
+    token,
+    `${API}/about?fields=user(displayName,emailAddress)`,
+    {},
+    asJson<{ user?: { displayName?: string; emailAddress?: string } }>,
+  );
   return { email: body.user?.emailAddress, name: body.user?.displayName };
 }

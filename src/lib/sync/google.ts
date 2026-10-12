@@ -21,13 +21,20 @@ export interface Account {
 }
 
 let mode: AuthMode = 'browser';
+
+/** An abort signal that fires after `ms` (AbortSignal.timeout is too new for some phones). */
+function timeout(ms: number) {
+  const ctl = new AbortController();
+  setTimeout(() => ctl.abort(), ms);
+  return ctl.signal;
+}
 export const authMode = () => mode;
 
 /** Finds out which sign-in is available and, for "server", who is signed in. */
 export async function initAuth(): Promise<{ mode: AuthMode; account: Account | null }> {
   if (CLIENT_ID) {
     try {
-      const res = await fetch('/api/auth/status', { credentials: 'same-origin' });
+      const res = await fetch('/api/auth/status', { credentials: 'same-origin', signal: timeout(10_000) });
       if (res.ok) {
         const body = (await res.json()) as { configured: boolean; user: Account | null };
         if (body.configured) {
@@ -52,6 +59,7 @@ export async function signOutEverywhere() {
     method: 'POST',
     credentials: 'same-origin',
     headers: { 'X-Reader': '1' },
+    signal: timeout(10_000),
   }).catch(() => undefined);
 }
 
@@ -66,6 +74,7 @@ export async function getAccessToken(): Promise<string | null> {
     method: 'POST',
     credentials: 'same-origin',
     headers: { 'X-Reader': '1' },
+    signal: timeout(15_000),
   });
   if (res.status === 401) return null;
   if (!res.ok) throw new Error('Google is not responding. Sync will try again.');

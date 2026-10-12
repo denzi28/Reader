@@ -125,7 +125,8 @@ export function SyncControl() {
             role="menuitem"
             onClick={async () => {
               setOpen(false);
-              await syncAll(); // send anything still waiting before leaving
+              // Send anything still waiting, but never wait more than a few seconds.
+              await Promise.race([syncAll(), new Promise((r) => setTimeout(r, 3000))]);
               const ok = window.confirm(
                 getStatus().state === 'idle'
                   ? 'Sign out on this device? Your documents will be removed from this device. They stay in your Google Drive and come back when you sign in again.'

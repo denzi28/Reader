@@ -133,7 +133,16 @@ function exclusive<T>(task: () => Promise<T>): Promise<T> {
 }
 
 let authRetried = false;
+let retryTimer = 0;
 function fail(err: unknown) {
+  if (err instanceof drive.CancelledError) return; // stopped on purpose
+  console.warn('Sync failed:', err);
+  if (err instanceof drive.TimeoutError) {
+    setStatus({ state: 'offline', message: err.message });
+    clearTimeout(retryTimer);
+    retryTimer = window.setTimeout(() => void syncAll(), 30_000);
+    return;
+  }
   if (err instanceof drive.AuthError) {
     forgetToken(false);
     if (authMode() === 'server' && !authRetried) {
@@ -180,7 +189,7 @@ async function token(): Promise<string | null> {
 
 function synced() {
   authRetried = false;
-  setStatus({ state: 'idle', lastSyncedAt: Date.now() });
+  setStatus({ state: 'idle', lastSyncedAt: Date.now(), message: undefined });
 }
 
 // ---- connecting -------------------------------------------------------
@@ -221,16 +230,26 @@ async function reconnect() {
  * device (they stay in its Google Drive) and the guest library is shown.
  */
 export async function disconnect() {
+  // Not connected any more: syncs already queued see this and stop at once,
+  // then the one running is cancelled, so nothing is left to wait behind.
+  setStatus({ connected: false, state: 'off' });
+  drive.cancelAll();
+  clearTimeout(retryTimer);
   if (authMode() === 'server') await signOutEverywhere();
   else forgetToken(true);
   writeAccount(null);
-  await exclusive(async () => {
+  let done = false;
+  const leave = async () => {
+    if (done) return;
+    done = true;
     await storage.clearSpace();
     storage.switchSpace(null);
     pendingDocs.forEach((t) => clearTimeout(t));
     pendingDocs.clear();
     shelfChanged();
-  });
+  };
+  // Normally after the running sync stops; if that hangs, leave anyway.
+  await Promise.race([exclusive(leave), new Promise((r) => setTimeout(r, 4000)).then(leave)]);
   setStatus({
     connected: false,
     state: 'off',
@@ -371,7 +390,9 @@ export function syncAll() {
       setStatus({ state: 'syncing', message: undefined });
       const groups = groupFiles(await drive.listFiles(t));
       const locals = new Map((await storage.listAllMeta()).map((m) => [m.id, m]));
-      for (const id of new Set([...groups.keys(), ...locals.keys()])) {
+      const ids = [...new Set([...groups.keys(), ...locals.keys()])];
+      for (const [i, id] of ids.entries()) {
+        if (ids.length > 1) setStatus({ message: `Syncing document ${i + 1} of ${ids.length}` });
         await syncOne(t, id, groups.get(id), locals.get(id));
       }
       synced();
