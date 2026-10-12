@@ -1,5 +1,5 @@
 import { clear, createStore, del, get, getMany, keys, set, update, type UseStore } from 'idb-keyval';
-import { cleanFolderName, mergeFolderLogs } from './folders';
+import { cleanFolderName, FOLDER_COLORS, liveFolders, mergeFolderLogs } from './folders';
 import { applyEdit, inkFromLog, logFromInk, mergeLogs } from './inkLog';
 import type { DocInk, DocMeta, Folder, FolderLog, InkLog, Stroke } from './types';
 
@@ -144,11 +144,13 @@ function editFolders(edit: (log: FolderLog) => FolderLog) {
   return update<FolderLog>(FOLDERS_KEY, (log) => edit(log ?? {}), store);
 }
 
-export async function createFolder(name: string): Promise<Folder> {
+export async function createFolder(name: string, color?: string): Promise<Folder> {
   const now = Date.now();
   const folder: Folder = {
     id: `f${now.toString(36)}${Math.random().toString(36).slice(2, 8)}`,
     name: cleanFolderName(name) || 'Untitled folder',
+    // New folders take the colours in turn, so they tell apart at a glance.
+    color: color ?? FOLDER_COLORS[liveFolders(await getFolderLog()).length % FOLDER_COLORS.length],
     createdAt: now,
     updatedAt: now,
   };
@@ -162,6 +164,12 @@ export async function renameFolder(id: string, name: string) {
   if (!clean) return;
   await editFolders((log) =>
     log[id] ? { ...log, [id]: { ...log[id], name: clean, updatedAt: Date.now() } } : log);
+  notify(FOLDERS_KEY, 'folders');
+}
+
+export async function setFolderColor(id: string, color: string) {
+  await editFolders((log) =>
+    log[id] ? { ...log, [id]: { ...log[id], color, updatedAt: Date.now() } } : log);
   notify(FOLDERS_KEY, 'folders');
 }
 

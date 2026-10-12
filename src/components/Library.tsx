@@ -1,16 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { liveFolders, MAX_FOLDER_NAME } from '../lib/folders';
+import { FOLDER_COLORS, folderColor, liveFolders, MAX_FOLDER_NAME } from '../lib/folders';
 import { matchRanges, searchTerms } from '../lib/search';
 import {
   adoptGuestDocs, createFolder, currentSpace, deleteDoc, deleteFolder, getFolderLog, guestDocs,
-  listDocs, moveDocs, renameFolder,
+  listDocs, moveDocs, renameFolder, setFolderColor,
 } from '../lib/storage';
 import { downloadPdf } from '../lib/sync/engine';
 import { useDownloadProgress, useSyncStatus } from '../lib/sync/useSync';
 import type { DocMeta, Folder } from '../lib/types';
 import {
-  BackIcon, CheckIcon, CloseIcon, CloudIcon, FileIcon, FolderIcon, FolderMoveIcon, FolderPlusIcon, MoonIcon, PencilIcon, SearchIcon, SunIcon,
+  ArrowIcon, BackIcon, CheckIcon, CloseIcon, CloudIcon, FileIcon, FolderIcon, FolderMoveIcon, FolderPlusIcon, MoonIcon, PencilIcon, SearchIcon, SunIcon,
   TrashIcon, UploadIcon,
 } from './icons';
 import { SyncControl } from './SyncControl';
@@ -53,6 +53,21 @@ function Cover({ meta }: { meta: DocMeta }) {
     <img src={url} alt="" draggable={false} />
   ) : (
     <span className="cover-fallback"><FileIcon /></span>
+  );
+}
+
+/** How far through a document the reader is (0 to 1), from the page last read. */
+const progressOf = (d: DocMeta) => (d.pages > 1 ? Math.min(1, d.lastPage / (d.pages - 1)) : 0);
+const percent = (d: DocMeta) => Math.round(progressOf(d) * 100);
+
+/** A thin bar showing how much of a document has been read. */
+function Progress({ doc, className = '' }: { doc: DocMeta; className?: string }) {
+  const p = progressOf(doc);
+  if (p <= 0) return null;
+  return (
+    <span className={`progress ${className}`} title={`Page ${doc.lastPage + 1} of ${doc.pages}`}>
+      <span style={{ width: `${Math.max(3, p * 100)}%` }} />
+    </span>
   );
 }
 
@@ -210,6 +225,14 @@ export function Library(props: Props) {
   const downloaded = useDownloadProgress(fetching);
   const [creating, setCreating] = useState(false);
   const [renaming, setRenaming] = useState(false);
+  const [coloring, setColoring] = useState(false);
+  const colorBox = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    if (!coloring) return;
+    const away = (e: PointerEvent) => { if (!colorBox.current?.contains(e.target as Node)) setColoring(false); };
+    document.addEventListener('pointerdown', away);
+    return () => document.removeEventListener('pointerdown', away);
+  }, [coloring]);
   const [moving, setMoving] = useState<{ id: string; anchor: DOMRect } | null>(null);
   const [dropOn, setDropOn] = useState<string | null>(null);
   const [query, setQuery] = useState(lastQuery);
@@ -268,9 +291,12 @@ export function Library(props: Props) {
     ? folders.flatMap((f) => { const r = matchRanges(f.name, terms); return r ? [{ f, r }] : []; })
     : [];
   const counts = new Map<string, number>();
+  const inFolder = new Map<string, DocMeta[]>(); // newest opened first, like the shelf
   for (const d of docs ?? []) {
     const f = placeOf(d);
-    if (f) counts.set(f, (counts.get(f) ?? 0) + 1);
+    if (!f) continue;
+    counts.set(f, (counts.get(f) ?? 0) + 1);
+    inFolder.set(f, [...(inFolder.get(f) ?? []), d]);
   }
 
   // Documents added on this device without an account are never uploaded on
@@ -337,6 +363,9 @@ export function Library(props: Props) {
     },
   });
 
+  // The document opened most recently, ready to pick up again.
+  const resume = !current && !searching ? docs?.[0] : undefined;
+
   // Files dragged in from outside can be dropped anywhere on the page.
   const dragDepth = useRef(0);
   const hasFiles = (e: React.DragEvent) => e.dataTransfer.types.includes('Files');
@@ -357,19 +386,35 @@ export function Library(props: Props) {
   };
 
 
-  const folderTile = (f: Folder, i: number, marks: [number, number][] | null = null) => (
-    <li key={f.id} style={{ ['--i' as string]: i }}>
-      <button
-        className={`folder-tile${dropOn === f.id ? ' drop' : ''}`}
-        onClick={() => { setQuery(''); onFolder(f.id); }}
-        {...dropTarget(f.id)}
-      >
-        <span className="folder-tile-icon"><FolderIcon /></span>
-        <span className="folder-tile-name"><Marked text={f.name} ranges={marks} /></span>
-        <span className="folder-tile-count">{plural(counts.get(f.id) ?? 0, 'document', 'documents')}</span>
-      </button>
-    </li>
-  );
+  const folderTile = (f: Folder, i: number, marks: [number, number][] | null = null) => {
+    // Up to three of its covers, fanned out, the most recent on top.
+    const stack = (inFolder.get(f.id) ?? []).slice(0, 3).reverse();
+    return (
+      <li key={f.id} style={{ ['--i' as string]: i }}>
+        <button
+          className={`folder-tile c-${folderColor(f.color)}${dropOn === f.id ? ' drop' : ''}`}
+          onClick={() => { setQuery(''); onFolder(f.id); }}
+          {...dropTarget(f.id)}
+        >
+          <span className={`folder-stack n${stack.length}`} aria-hidden="true">
+            {stack.length ? (
+              stack.map((d, k) => (
+                <span key={d.id} className={`stack-cover k${stack.length - 1 - k}`}>
+                  <Cover meta={d} />
+                </span>
+              ))
+            ) : (
+              <span className="folder-tile-icon"><FolderIcon /></span>
+            )}
+          </span>
+          <span className="folder-tile-text">
+            <span className="folder-tile-name"><Marked text={f.name} ranges={marks} /></span>
+            <span className="folder-tile-count">{plural(counts.get(f.id) ?? 0, 'document', 'documents')}</span>
+          </span>
+        </button>
+      </li>
+    );
+  };
 
   /** One document on the shelf (or in the search results). */
   const book = (d: DocMeta, i: number, marks: [number, number][] | null = null, showFolder = false) => (
@@ -391,6 +436,7 @@ export function Library(props: Props) {
       >
         <span className="cover">
           <Cover meta={d} />
+          <Progress doc={d} className="cover-progress" />
           {d.cloudOnly && (
             <span className="cover-cloud" title="In your Google Drive; opens after downloading">
               <CloudIcon />
@@ -526,7 +572,31 @@ export function Library(props: Props) {
             All documents
           </button>
           <div className="folder-title">
-            <span className="folder-head-icon"><FolderIcon /></span>
+            <span className="color-wrap" ref={colorBox}>
+              <button
+                className={`folder-head-icon c-${folderColor(current.color)}`}
+                onClick={() => setColoring((v) => !v)}
+                aria-label="Folder colour"
+                title="Folder colour"
+                aria-expanded={coloring}
+              >
+                <FolderIcon />
+              </button>
+              {coloring && (
+                <span className="color-pop" role="menu" aria-label="Folder colour">
+                  {FOLDER_COLORS.map((c) => (
+                    <button
+                      key={c}
+                      className={`color-dot c-${c}${folderColor(current.color) === c ? ' on' : ''}`}
+                      role="menuitemradio"
+                      aria-checked={folderColor(current.color) === c}
+                      aria-label={c}
+                      onClick={async () => { setColoring(false); await setFolderColor(current.id, c); void refresh(); }}
+                    />
+                  ))}
+                </span>
+              )}
+            </span>
             <div className="folder-head-text">
               {renaming ? (
                 <NameField
@@ -591,6 +661,37 @@ export function Library(props: Props) {
           </div>
           {addButton}
         </div>
+      )}
+
+      {resume && (
+        <button
+          className={`resume${fetching === resume.id ? ' fetching' : ''}`}
+          onClick={() => void openBook(resume)}
+          disabled={fetching !== null}
+        >
+          <span className="resume-cover">
+            <Cover meta={resume} />
+          </span>
+          <span className="resume-text">
+            <span className="resume-eyebrow">{resume.lastPage > 0 ? 'Continue reading' : 'Start reading'}</span>
+            <span className="resume-title">{resume.name}</span>
+            <span className="resume-where">
+              {resume.lastPage > 0
+                ? `Page ${resume.lastPage + 1} of ${resume.pages}`
+                : plural(resume.pages, 'page', 'pages')}
+              {placeOf(resume) && <> · <FolderIcon /> {folderName.get(placeOf(resume)!)}</>}
+            </span>
+            {resume.lastPage > 0 && (
+              <span className="resume-progress">
+                <Progress doc={resume} />
+                <span>{percent(resume)}%</span>
+              </span>
+            )}
+          </span>
+          <span className="resume-go" aria-hidden="true">
+            {resume.cloudOnly ? <CloudIcon /> : <ArrowIcon />}
+          </span>
+        </button>
       )}
 
       {searching && (

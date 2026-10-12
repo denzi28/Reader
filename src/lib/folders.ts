@@ -2,6 +2,12 @@ import type { Folder, FolderLog } from './types';
 
 export const MAX_FOLDER_NAME = 80;
 
+/** Folder colours, by name (the stylesheet gives each a day and a night shade). */
+export const FOLDER_COLORS = ['amber', 'blue', 'green', 'red', 'purple', 'teal', 'gold'] as const;
+export type FolderColor = (typeof FOLDER_COLORS)[number];
+export const folderColor = (c: string | undefined): FolderColor =>
+  (FOLDER_COLORS as readonly string[]).includes(c ?? '') ? (c as FolderColor) : 'amber';
+
 /** Folders still in use, in natural name order ("Week 2" before "Week 10"). */
 export function liveFolders(log: FolderLog): Folder[] {
   return Object.values(log)

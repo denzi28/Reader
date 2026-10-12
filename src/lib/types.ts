@@ -40,7 +40,9 @@ export interface Folder {
   id: string;
   name: string;
   createdAt: number;
-  /** When it was created, renamed or removed; the newer copy wins. */
+  /** One of FOLDER_COLORS. */
+  color?: string;
+  /** When it was created, renamed, recoloured or removed; the newer copy wins. */
   updatedAt: number;
   /** Removed by the user; kept as a marker so sync removes it everywhere. */
   deleted?: 1;
