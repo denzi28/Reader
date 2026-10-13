@@ -8,7 +8,7 @@ import {
   HIGHLIGHT_NAMES, LINE_HEIGHT, MARGIN, useBookSettings, FONT_STACKS, type HighlightColor,
 } from '../lib/book/settings';
 import { acquirePdf, releasePdf } from '../lib/pdf';
-import { ocrEstimate, recognisePages, recognisedPages } from '../lib/ocr';
+import { recognisePages, recognisedPages } from '../lib/ocr';
 import { getBookMarks, getDocFile, patchMeta, recordBookMark } from '../lib/storage';
 import { onRemoteInk, syncDoc } from '../lib/sync/engine';
 import type { BookMark } from '../lib/types';
@@ -145,7 +145,7 @@ export function BookReader(props: Props) {
   startRef.current = startScan;
   const scanFn = useCallback((only?: ScanOnly) => { void startRef.current(only); }, []);
 
-  if (data) return <Reader data={data} {...props} scan={scan} onScan={scanFn} />;
+  if (data) return <Reader data={data} {...props} scan={scan} />;
   const error = state && 'error' in state ? state : null;
   // A scanned PDF opens as its own pages; reading them into text is only offered when something needs text.
   if (error?.scanned) {
@@ -173,7 +173,7 @@ export function BookReader(props: Props) {
   );
 }
 
-function Reader({ data, docId, startPage, dark, onTheme, onClose, onPdf, scan, onScan }: Props & { data: Loaded; scan: ScanState | null; onScan: (only?: ScanOnly) => void }) {
+function Reader({ data, docId, startPage, dark, onTheme, onClose, onPdf, scan }: Props & { data: Loaded; scan: ScanState | null }) {
   const { meta, book, ix, image } = data;
   const phone = usePhone();
   const [settings, change] = useBookSettings();
@@ -356,7 +356,12 @@ function Reader({ data, docId, startPage, dark, onTheme, onClose, onPdf, scan, o
   const measure = useCallback(() => {
     const f = flowRef.current;
     if (!f || !paged) return;
-    const n = Math.max(1, Math.ceil((f.scrollWidth + dims.gap) / dims.stride - 0.02));
+    // How many screens the chapter fills: by the box's overflow, and by where its last line ends up (which
+    // does not depend on how a browser reports the overflow).
+    const last = f.lastElementChild;
+    const lastRects = last ? last.getClientRects() : null;
+    const lastEnd = lastRects?.length ? lastRects[lastRects.length - 1].right - f.getBoundingClientRect().left : 0;
+    const n = Math.max(1, Math.ceil((f.scrollWidth + dims.gap) / dims.stride - 0.02), Math.ceil((lastEnd + dims.gap) / dims.stride - 0.02));
     const want = pending.current;
     pending.current = null;
     let s = want === 'last' ? n - 1 : typeof want === 'number' ? want : screenOfPos(posRef.current);
@@ -731,7 +736,9 @@ function Reader({ data, docId, startPage, dark, onTheme, onClose, onPdf, scan, o
                 ref={flowRef}
                 className="bk-flow"
                 style={{
-                  width: dims.clipW, height: dims.clipH, columnCount: dims.cols, columnGap: dims.gap,
+                  // The column width is given too: WebKit (every iPhone browser) makes no columns at all for a
+                  // single column of automatic width, and then the text runs down off the page instead of across.
+                  width: dims.clipW, height: dims.clipH, columnCount: dims.cols, columnWidth: Math.floor((dims.clipW - (dims.cols - 1) * dims.gap) / dims.cols), columnGap: dims.gap,
                   // Resting pages are placed by layout, not by a transform: a transformed layer is drawn
                   // without sub-pixel text smoothing and looks softer. A turn slides with a transform only while it moves.
                   left: -screen * dims.stride,
@@ -754,12 +761,8 @@ function Reader({ data, docId, startPage, dark, onTheme, onClose, onPdf, scan, o
         )}
       </div>
 
-      {(scan || (book.fromPdf && (book.blank?.length ?? 0) > meta.pages * 0.3)) && (
-        <div className="bk-scan" role="status">
-          {scan ? <span>Reading the pages… {scan.done} of {scan.total}</span> : (
-            <button onClick={() => onScan()}>{book.blank!.length} pages have no text yet · Read them ({ocrEstimate(book.blank!.length)})</button>
-          )}
-        </div>
+      {scan && (
+        <div className="bk-scan" role="status"><span>Reading the pages… {scan.done} of {scan.total}</span></div>
       )}
 
       <footer className="bk-bottom">
