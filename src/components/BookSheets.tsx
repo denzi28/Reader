@@ -42,7 +42,7 @@ function Seg<T extends string>({ label, value, options, onPick }: { label: strin
   );
 }
 
-export function ReadingPanel({ settings, change, themeNow, wide, onPdf }: {
+export function ReadingPanel({ settings, change, themeNow, wide, onPdf, imageOnly }: {
   settings: BookSettings;
   change: (c: Partial<BookSettings>) => void;
   /** The theme in force (so "auto" shows as the one it picked). */
@@ -50,6 +50,8 @@ export function ReadingPanel({ settings, change, themeNow, wide, onPdf }: {
   /** A screen wide enough for two pages. */
   wide: boolean;
   onPdf?: () => void;
+  /** Showing the PDF's own pages (not text): only the colours, the layout and eye comfort apply. */
+  imageOnly?: boolean;
 }) {
   return (
     <div className="bk-reading">
@@ -60,6 +62,8 @@ export function ReadingPanel({ settings, change, themeNow, wide, onPdf }: {
             className={`bk-theme bk-t-${t.id}${themeNow === t.id ? ' on' : ''}`} onClick={() => change({ theme: t.id })}>Aa</button>
         ))}
       </div>
+      {!imageOnly && (
+        <>
       <div className="bk-lab">Typeface</div>
       <div className="bk-fonts" role="radiogroup" aria-label="Typeface">
         {FONTS.map((f) => (
@@ -78,8 +82,12 @@ export function ReadingPanel({ settings, change, themeNow, wide, onPdf }: {
       <Seg label="Line spacing" value={settings.spacing} options={[['tight', 'Tight'], ['normal', 'Normal'], ['roomy', 'Roomy']]} onPick={(spacing) => change({ spacing })} />
       <div className="bk-lab">Margins</div>
       <Seg label="Margins" value={settings.margins} options={[['narrow', 'Narrow'], ['medium', 'Medium'], ['wide', 'Wide']]} onPick={(margins) => change({ margins })} />
-      <div className="bk-lab">{wide ? 'Layout' : 'Turning pages'}</div>
-      {wide ? (
+        </>
+      )}
+      <div className="bk-lab">{wide || imageOnly ? 'Layout' : 'Turning pages'}</div>
+      {imageOnly ? (wide ? (
+        <Seg label="Layout" value={settings.spread} options={[['one', 'One page'], ['two', 'Two pages']]} onPick={(spread) => change({ spread })} />
+      ) : <p className="bk-empty" style={{ margin: 0 }}>One page at a time.</p>) : wide ? (
         <Seg label="Layout" value={settings.flow === 'scroll' ? 'scroll' : settings.spread}
           options={[['one', 'One page'], ['two', 'Two pages'], ['scroll', 'Scroll']]}
           onPick={(v) => (v === 'scroll' ? change({ flow: 'scroll' }) : change({ flow: 'pages', spread: v }))} />

@@ -103,6 +103,8 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose, onOpen, onBoo
   const scroller = useRef<HTMLDivElement>(null);
   const goToRef = useRef<(n: number) => void>(() => undefined);
   const [meta, setMeta] = useState<DocMeta | null>(null);
+  /** The record as it was when the document opened. */
+  const startMeta = useRef<DocMeta | null>(null);
   const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null);
   const [sizes, setSizes] = useState<PageSize[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -200,6 +202,7 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose, onOpen, onBoo
       }
       if (cancelled) return;
       setMeta(m);
+      startMeta.current = m;
       // A fresh notebook is for writing: the pen is in hand.
       if (m.notebook && !Object.values(saved).some((list) => list.length)) setToolRaw('pen');
       setInk(saved);
@@ -700,7 +703,8 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose, onOpen, onBoo
       if (pending !== null && pending !== saved) {
         saved = pending;
         // (The place kept for book mode follows the page read here.)
-        void patchMeta(docId, { lastPage: pending, bookPos: undefined });
+        // (Staying on the page book mode left it on keeps the exact place there.)
+        void patchMeta(docId, { lastPage: pending, ...(pending !== startMeta.current?.lastPage ? { bookPos: undefined } : {}) });
       }
       pending = null;
     };

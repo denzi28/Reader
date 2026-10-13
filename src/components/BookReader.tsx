@@ -2,13 +2,13 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { posFromPoint, posNear, pickedSelection, rectOfPos, type Picked } from '../lib/book/dom';
 import { loadBook, NoTextError, type Loaded } from '../lib/book/load';
 import {
-  chapterTitle, fractionAt, formatLeft, posAtFraction, sliceText, WORDS_PER_MINUTE, type Pos,
+  chapterTitle, fractionAt, formatLeft, fromStable, posAtFraction, sliceText, toStable, WORDS_PER_MINUTE, type Pos,
 } from '../lib/book/model';
 import {
   HIGHLIGHT_NAMES, LINE_HEIGHT, MARGIN, useBookSettings, FONT_STACKS, type HighlightColor,
 } from '../lib/book/settings';
 import { acquirePdf, releasePdf } from '../lib/pdf';
-import { recognisePages, recognisedPages } from '../lib/ocr';
+import { ocrEstimate, recognisePages, recognisedPages } from '../lib/ocr';
 import { getBookMarks, getDocFile, patchMeta, recordBookMark } from '../lib/storage';
 import { onRemoteInk, syncDoc } from '../lib/sync/engine';
 import type { BookMark } from '../lib/types';
@@ -16,6 +16,7 @@ import { usePhone } from '../lib/usePhone';
 import { BlockView, type MarkRange } from './BookText';
 import { BookSheet, ContentsPanel, MarkBar, NoteEditor, ReadingPanel } from './BookSheets';
 import { BookLoader } from './BookLoader';
+import { PageBook } from './PageBook';
 import {
   AaIcon, BackIcon, BookmarkIcon, BookOpenIcon, ListIcon, MoonIcon, MoreVIcon, SearchIcon, SunIcon,
 } from './icons';
@@ -92,7 +93,7 @@ export function BookReader(props: Props) {
    * Reads the pages that have no text, from their pictures. The book opens as soon as the first
    * pages are read and grows as the rest come in, so there is no waiting for a whole scan.
    */
-  const startScan = async () => {
+  const startScan = async (only?: { from: number; count: number }) => {
     if (scanning.current) return;
     scanning.current = true;
     const file = await getDocFile(docId);
@@ -102,7 +103,12 @@ export function BookReader(props: Props) {
       const read = await recognisedPages(docId);
       const blank = current.current?.book.blank;
       // The pages with no text (all of them, when nothing has been read yet), minus those already read.
-      const todo = (blank ?? Array.from({ length: pdf.numPages }, (_, i) => i)).filter((i) => !read.has(i));
+      let todo = (blank ?? Array.from({ length: pdf.numPages }, (_, i) => i)).filter((i) => !read.has(i));
+      // From where the reader is (a few pages, or on to the end and then the pages before).
+      if (only) {
+        const after = todo.filter((i) => i >= only.from);
+        todo = [...after, ...todo.filter((i) => i < only.from)].slice(0, only.count);
+      }
       if (!todo.length) return;
       setScan({ done: 0, total: todo.length });
       const first = Math.min(3, todo.length);
@@ -134,20 +140,21 @@ export function BookReader(props: Props) {
 
   if (data) return <Reader data={data} {...props} scan={scan} onScan={() => void startScan()} />;
   const error = state && 'error' in state ? state : null;
+  // A scanned PDF opens as its own pages; reading them into text is only offered when something needs text.
+  if (error?.scanned) {
+    return <PageBook docId={docId} startPage={props.startPage} dark={props.dark} onTheme={props.onTheme} onClose={props.onClose} onPdf={props.onPdf} scan={scan} onScan={(only) => void startScan(only)} />;
+  }
   const progress = state && 'progress' in state ? state.progress : 0;
   return (
     <div className="viewer-loading loading bk-loading" role="status">
       {error ? (
         <div className="bk-problem">
-          <h2>{error.scanned ? 'This looks like a scanned PDF' : 'This could not be opened as a book'}</h2>
-          <p>{error.scanned ? 'There are no letters to reflow yet. Reading the pages (on your device, nothing is sent anywhere) turns them into text. You can start reading after the first few pages.' : error.error}</p>
-          {scan ? <p className="bk-count">Reading pages… {scan.done} of {scan.total}</p> : (
-            <div className="bk-problem-actions">
-              {error.scanned && <button className="button" onClick={() => void startScan()}>Read the pages</button>}
-              {props.onPdf && <button className="chip-button" onClick={props.onPdf}>Open the PDF</button>}
-              <button className="chip-button" onClick={props.onClose}>Back</button>
-            </div>
-          )}
+          <h2>This could not be opened as a book</h2>
+          <p>{error.error}</p>
+          <div className="bk-problem-actions">
+            {props.onPdf && <button className="button" onClick={props.onPdf}>Open the PDF</button>}
+            <button className="chip-button" onClick={props.onClose}>Back</button>
+          </div>
         </div>
       ) : (
         <>
@@ -171,13 +178,13 @@ function Reader({ data, docId, startPage, dark, onTheme, onClose, onPdf, scan, o
   const initial = useMemo<Pos>(() => {
     if (book.fromPdf) {
       const page = startPage ?? meta.lastPage;
-      const saved = meta.bookPos;
+      const saved = meta.bookPos ? { b: fromStable(ix, meta.bookPos.b), o: meta.bookPos.o } : undefined;
       const savedPage = saved ? ix.blocks[saved.b]?.pg : undefined;
       if (saved && startPage === undefined && savedPage === meta.lastPage) return saved;
       const b = ix.blocks.findIndex((x) => (x.pg ?? 0) >= page);
       return { b: b < 0 ? 0 : b, o: 0 };
     }
-    return meta.bookPos && meta.bookPos.b <= lastBlock ? meta.bookPos : { b: 0, o: 0 };
+    return meta.bookPos ? { b: fromStable(ix, meta.bookPos.b), o: meta.bookPos.o } : { b: 0, o: 0 };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const posRef = useRef<Pos>(initial);
   const [pos, setPos] = useState<Pos>(initial);
@@ -195,7 +202,7 @@ function Reader({ data, docId, startPage, dark, onTheme, onClose, onPdf, scan, o
     // The shelf shows progress as a page: the PDF's own page, or for a book how far through it is.
     const page = book.fromPdf ? ix.blocks[p.b]?.pg : Math.floor(fractionAt(ix, p) * meta.pages);
     void patchMeta(docId, {
-      bookPos: p,
+      bookPos: { b: toStable(ix, p.b), o: p.o },
       ...(page !== undefined ? { lastPage: Math.min(page, Math.max(0, meta.pages - 1)) } : {}),
     });
   }, [docId, book.fromPdf, ix, meta.pages]);
@@ -224,17 +231,31 @@ function Reader({ data, docId, startPage, dark, onTheme, onClose, onPdf, scan, o
     const off = onRemoteInk(docId, load);
     return () => { on = false; off(); };
   }, [docId]);
+  // Marks are kept by stable places (see BookIndex.stable); here they are used by block number.
+  const live = useMemo(() => {
+    const out: Record<string, BookMark> = {};
+    for (const [id, m] of Object.entries(marks)) {
+      out[id] = { ...m, a: [fromStable(ix, m.a[0]), m.a[1]], ...(m.z ? { z: [fromStable(ix, m.z[0]), m.z[1]] as [number, number] } : {}) };
+    }
+    return out;
+  }, [marks, ix]);
+  /** Saves a mark given by block numbers (or removes it when `mark` is null). */
   const putMark = (id: string, mark: BookMark | null) => {
+    const kept = mark && {
+      ...mark,
+      a: [toStable(ix, mark.a[0]), mark.a[1]] as [number, number],
+      ...(mark.z ? { z: [toStable(ix, mark.z[0]), mark.z[1]] as [number, number] } : {}),
+    };
     setMarks((m) => {
       const next = { ...m };
-      if (mark) next[id] = mark; else delete next[id];
+      if (kept) next[id] = kept; else delete next[id];
       return next;
     });
-    void recordBookMark(docId, id, mark);
+    void recordBookMark(docId, id, kept);
   };
   const ranges = useMemo(() => {
     const map = new Map<number, MarkRange[]>();
-    for (const [id, m] of Object.entries(marks)) {
+    for (const [id, m] of Object.entries(live)) {
       if (m.k !== 'hl' || !m.z) continue;
       const color = (HIGHLIGHT_NAMES as string[]).includes(m.c ?? '') ? (m.c as HighlightColor) : 'yellow';
       for (let b = m.a[0]; b <= m.z[0] && b < ix.blocks.length; b++) {
@@ -246,7 +267,7 @@ function Reader({ data, docId, startPage, dark, onTheme, onClose, onPdf, scan, o
       }
     }
     return map;
-  }, [marks, ix]);
+  }, [live, ix]);
 
   // ---- the page ------------------------------------------------------------------
   const viewRef = useRef<HTMLDivElement>(null);
@@ -586,9 +607,9 @@ function Reader({ data, docId, startPage, dark, onTheme, onClose, onPdf, scan, o
   }, [paged, screen, screens, posOfScreen, ix, chapter, lastBlock]);
   const bookmarksHere = (): string[] => {
     const [from, to] = screenSpan();
-    return Object.entries(marks).filter(([, m]) => m.k === 'bm' && !before({ b: m.a[0], o: m.a[1] }, from) && before({ b: m.a[0], o: m.a[1] }, to)).map(([id]) => id);
+    return Object.entries(live).filter(([, m]) => m.k === 'bm' && !before({ b: m.a[0], o: m.a[1] }, from) && before({ b: m.a[0], o: m.a[1] }, to)).map(([id]) => id);
   };
-  const marked = useMemo(() => bookmarksHere().length > 0, [marks, pos, screen, screens, chapter, paged]); // eslint-disable-line react-hooks/exhaustive-deps
+  const marked = useMemo(() => bookmarksHere().length > 0, [live, pos, screen, screens, chapter, paged]); // eslint-disable-line react-hooks/exhaustive-deps
   const toggleBookmark = () => {
     const here = bookmarksHere();
     if (here.length) { here.forEach((id) => putMark(id, null)); return; }
@@ -596,8 +617,8 @@ function Reader({ data, docId, startPage, dark, onTheme, onClose, onPdf, scan, o
     putMark(newId(), { k: 'bm', a: [p.b, p.o], q: sliceText(ix, p, { b: Math.min(p.b + 1, lastBlock), o: 0 }, 90) });
   };
 
-  const editedMark = noteFor ? marks[noteFor.id] : undefined;
-  const barMark = markBar ? marks[markBar.id] : undefined;
+  const editedMark = noteFor ? live[noteFor.id] : undefined;
+  const barMark = markBar ? live[markBar.id] : undefined;
   const barColor = barMark?.c as HighlightColor | undefined;
 
   // ---- drawing ---------------------------------------------------------------------------------
@@ -715,7 +736,7 @@ function Reader({ data, docId, startPage, dark, onTheme, onClose, onPdf, scan, o
       {(scan || (book.fromPdf && (book.blank?.length ?? 0) > meta.pages * 0.3)) && (
         <div className="bk-scan" role="status">
           {scan ? <span>Reading the pages… {scan.done} of {scan.total}</span> : (
-            <button onClick={onScan}>{book.blank!.length} pages have no text yet · Read them</button>
+            <button onClick={onScan}>{book.blank!.length} pages have no text yet · Read them ({ocrEstimate(book.blank!.length)})</button>
           )}
         </div>
       )}
@@ -754,7 +775,7 @@ function Reader({ data, docId, startPage, dark, onTheme, onClose, onPdf, scan, o
       )}
       {panel === 'contents' && (
         <BookSheet kind={phone ? 'pop' : 'drawer'} label="Contents and marks" onClose={() => { setPanel(null); setTerm(''); }}>
-          <ContentsPanel tab={tab} onTab={setTab} book={book} ix={ix} currentToc={currentToc} marks={marks}
+          <ContentsPanel tab={tab} onTab={setTab} book={book} ix={ix} currentToc={currentToc} marks={live}
             onGo={(p) => goTo(p, tab === 'search')} term={term} onTerm={setTerm}
             onDeleteMark={(id) => putMark(id, null)} onEditNote={(id) => { setPanel(null); setNoteFor({ id }); }} />
         </BookSheet>

@@ -7,7 +7,7 @@ import { pageText } from '../ocr';
 import { pageSize, type TextBox } from '../pdf';
 import type { Block, Book, Chapter, TocEntry } from './model';
 
-export const PDF_BOOK_VERSION = 8;
+export const PDF_BOOK_VERSION = 9;
 
 export class NoTextError extends Error {
   constructor() {
@@ -134,7 +134,7 @@ export async function bookFromPdf(
       const i = next++;
       const [t, size] = await Promise.all([pageText(pdf, id, i), pageSize(pdf, i).catch(() => ({ w: 1, h: 1.4 }))]);
       pages[i] = { lines: toLines(t.boxes, i), height: size.h / size.w };
-      if (!t.boxes.length) blank.push(i);
+      if (!t.boxes.length && !t.recognised) blank.push(i); // (a page read from its picture with nothing on it is not blank for this)
       progress(++done, n);
     }
   };
@@ -282,7 +282,7 @@ async function pageOfDest(pdf: PDFDocumentProxy, dest: unknown): Promise<number 
   }
 }
 
-async function flattenOutline(pdf: PDFDocumentProxy) {
+export async function flattenOutline(pdf: PDFDocumentProxy) {
   let outline: OutlineNode[] | null = null;
   try { outline = (await pdf.getOutline()) as OutlineNode[] | null; } catch { /* no outline */ }
   const out: { title: string; level: number; page: number }[] = [];

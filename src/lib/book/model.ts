@@ -66,7 +66,16 @@ export interface BookIndex {
   /** Words before each block (and the total at the end). */
   words: Float64Array;
   total: number;
+  /**
+   * What is kept for a place instead of the block number: for a PDF, the page the block starts
+   * on and its number among that page's blocks, so a place (and a mark) stays put when pages
+   * are added to the book later (scanned ones, read afterwards).
+   */
+  stable: Float64Array;
 }
+
+/** Stable places from a PDF are at least this; smaller numbers are plain block numbers. */
+export const STABLE_BASE = 1_000_000;
 
 export const blockText = (b: Block) => (b.t === 'p' || b.t === 'h' ? b.x : '');
 export const countWords = (s: string) => (s.match(/\S+/g) ?? []).length;
@@ -81,12 +90,22 @@ export function indexBook(book: Book): BookIndex {
   first[book.chapters.length] = blocks.length;
   const chapterOf = new Uint32Array(blocks.length);
   book.chapters.forEach((_, i) => chapterOf.fill(i, first[i], first[i + 1]));
+  const stable = new Float64Array(blocks.length);
+  let page = -1;
+  let k = 0;
+  blocks.forEach((b, i) => {
+    if (!book.fromPdf) { stable[i] = i; return; }
+    const pg = b.pg ?? 0;
+    k = pg === page ? k + 1 : 0;
+    page = pg;
+    stable[i] = STABLE_BASE + pg * 4096 + Math.min(k, 4095);
+  });
   const words = new Float64Array(blocks.length + 1);
   for (let i = 0; i < blocks.length; i++) {
     // A picture counts as a little reading, so a book of pictures still moves.
     words[i + 1] = words[i] + (blocks[i].t === 'i' ? 40 : countWords(blockText(blocks[i])));
   }
-  return { blocks, chapterOf, first, words, total: words[blocks.length] };
+  return { blocks, chapterOf, first, words, total: words[blocks.length], stable };
 }
 
 /** How far through the book (0–1) a place is. */
@@ -144,3 +163,19 @@ export function sliceText(ix: BookIndex, from: Pos, to: Pos, limit = 280): strin
 export function chapterTitle(book: Book, ix: BookIndex, b: number) {
   return book.chapters[ix.chapterOf[Math.min(b, ix.chapterOf.length - 1)] ?? 0]?.title ?? '';
 }
+
+/** The block number a kept place refers to now (or the next block, if that one is gone). */
+export function fromStable(ix: BookIndex, id: number): number {
+  const last = ix.blocks.length - 1;
+  if (last < 0) return 0;
+  if (id < STABLE_BASE) return Math.min(Math.max(0, id), last);
+  let lo = 0;
+  let hi = last;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (ix.stable[mid] >= id) hi = mid; else lo = mid + 1;
+  }
+  return lo;
+}
+
+export const toStable = (ix: BookIndex, b: number) => ix.stable[Math.min(Math.max(0, b), ix.stable.length - 1)] ?? b;

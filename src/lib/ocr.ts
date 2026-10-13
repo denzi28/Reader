@@ -101,6 +101,41 @@ function readers(): number {
   return n;
 }
 
+// ---- how long it takes -----------------------------------------------------------
+const PACE_KEY = 'reader.ocrpace';
+
+/** Seconds per page for the whole team of readers: what the last run measured, else a guess from the device. */
+export function ocrPace(): number {
+  try {
+    const kept = Number(localStorage.getItem(PACE_KEY));
+    if (kept > 0.2 && kept < 120) return kept;
+  } catch { /* storage unavailable */ }
+  return 5.2 / Math.max(1, readers() * 0.8);
+}
+
+function keepPace(seconds: number) {
+  try {
+    const old = Number(localStorage.getItem(PACE_KEY));
+    localStorage.setItem(PACE_KEY, String(old > 0 ? old * 0.5 + seconds * 0.5 : seconds));
+  } catch { /* ignore */ }
+}
+
+/** About how long reading this many pages takes, in seconds (the readers take a few seconds to start). */
+export const ocrSeconds = (pages: number) => (pages > 0 ? 6 + pages * ocrPace() : 0);
+
+/** "about 3 min", for showing before anything is started. */
+export function ocrEstimate(pages: number): string {
+  const s = ocrSeconds(pages);
+  if (s < 45) return 'under a minute';
+  if (s < 95) return 'about a minute';
+  const m = Math.round(s / 60);
+  if (m < 10) return `about ${m} min`;
+  if (m < 60) return `about ${Math.round(m / 5) * 5} min`;
+  const h = Math.floor(m / 60);
+  const rest = Math.round((m % 60) / 5) * 5;
+  return rest ? `about ${h} h ${rest} min` : `about ${h} h`;
+}
+
 /**
  * Reads these pages, several at a time. `progress` is told how many are done;
  * `stop` is asked between pages. What was read is kept as it goes, so stopping
@@ -133,6 +168,7 @@ export async function recognisePages(
   let done = 0;
   let next = 0;
   const sample: string[] = [];
+  let firstAt = 0;
 
   const lane = async (worker: Reader) => {
     worker.langs = 'eng+tur';
@@ -149,12 +185,15 @@ export async function recognisePages(
         sample.push(boxes.map((b) => b.str).join(' '));
         if (sample.join(' ').length > 600 || done + 1 >= 3) { langs = guessLanguages(sample.join(' ')); decided = true; }
       }
+      if (!firstAt) firstAt = performance.now();
       progress(++done, pages.length);
     }
   };
 
   try {
     await Promise.all(team.map(lane));
+    // What this run measured (not counting the start-up), for the next estimate.
+    if (done >= 6 && firstAt) keepPace((performance.now() - firstAt) / 1000 / (done - 1));
   } finally {
     await Promise.all(team.map((w) => w.terminate().catch(() => undefined)));
   }

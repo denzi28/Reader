@@ -185,7 +185,13 @@ Keyboard: `P` pen, `L` highlighter, `E` eraser (press again to switch off), `Ctr
   paragraphs, headings, chapters from the outline; running heads and page numbers are
   dropped; a scanned PDF is read from its pictures with the OCR already described, several pages
   at a time and in the language the first pages turn out to be in: the book opens after the
-  first three pages and grows as the rest are read, then is kept).
+  first three pages and grows as the rest are read, then is kept). A scanned PDF first opens in book mode as its own pages
+  (`PageBook.tsx`: one or two at a time, the book's colours and eye comfort, contents and
+  bookmarks), view only, with nothing read. Only asking to highlight or take notes shows a small
+  question: what reading the pages is for, about how long it takes (from what the last run
+  measured), and the whole book, just the next 20 pages, or not now.
+  Places and marks in a PDF book are kept as (page, number on that page), so they stay put when
+  pages are added later.
   Tables, formulas and figures stay in the PDF, one tap away. The place (`bookPos`, kept in
   step with the PDF's page) and the marks (kept in the same log as ink, so they sync the same
   way) follow you between devices. A PDF last read as a book opens as one next time.

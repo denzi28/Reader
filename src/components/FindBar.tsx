@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { type FindMatch, Finder } from '../lib/find';
+import { ocrEstimate } from '../lib/ocr';
 import { ChevronIcon, CloseIcon, ListIcon } from './icons';
 
 /**
@@ -122,7 +123,7 @@ export function FindBar({ finder, startPage, onState, onClose }: {
           {readFailed
             ? 'Could not read the pages. '
             : `${empty} ${empty === 1 ? 'page has' : 'pages have'} no text to search. `}
-          {empty > 0 && <button className="findbar-link" onClick={() => void readPages()}>{readFailed ? 'Try again' : 'Recognise text'}</button>}
+          {empty > 0 && <button className="findbar-link" onClick={() => void readPages()}>{readFailed ? 'Try again' : `Recognise text (${ocrEstimate(empty)})`}</button>}
         </p>
       ) : null}
       {showList && matches.length > 0 && (
