@@ -498,6 +498,12 @@ function Reader({ data, docId, startPage, dark, onTheme, onClose, onPdf, scan, o
   const [tab, setTab] = useState<'contents' | 'marks' | 'search'>('contents');
   const [term, setTerm] = useState('');
   const [scrub, setScrub] = useState<number | null>(null);
+  // The bars of a phone fade away on their own a few seconds after the last touch or page turn.
+  useEffect(() => {
+    if (!phone || !chrome || panel || scrub !== null) return;
+    const t = window.setTimeout(() => setChrome(false), 3500);
+    return () => window.clearTimeout(t);
+  }, [phone, chrome, panel, scrub, pos, screen, chapter]);
   const open = (p: 'aa' | 'contents', t?: 'contents' | 'marks' | 'search') => {
     setPanel((cur) => (cur === p && (!t || t === tab) ? null : p));
     if (t) setTab(t);

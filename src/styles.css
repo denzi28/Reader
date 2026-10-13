@@ -3199,8 +3199,9 @@ html.reading, html.reading body { touch-action: pan-x pan-y; }
 .bk-status span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .bk-phone { --bk-top: 48px; --bk-foot: 40px; }
-.bk-phone.bk-quiet .bk-top { transform: translateY(-100%); opacity: 0; pointer-events: none; }
-.bk-phone.bk-quiet .bk-bottom { transform: translateY(100%); opacity: 0; pointer-events: none; }
+/* the bars of a phone fade away (rather than slide) when they are not wanted any more */
+.bk-phone .bk-top, .bk-phone .bk-bottom { transition: opacity 0.7s ease, visibility 0s linear 0s; }
+.bk-phone.bk-quiet .bk-top, .bk-phone.bk-quiet .bk-bottom { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 0.7s ease, visibility 0s linear 0.7s; }
 .bk-phone .bk-bottom { background: linear-gradient(to top, var(--bk-bg) 82%, transparent); padding-top: 10px; }
 .bk-phone .bk-top { background: linear-gradient(to bottom, var(--bk-bg) 82%, transparent); }
 
