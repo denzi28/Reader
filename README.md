@@ -75,6 +75,16 @@ Keyboard: `P` pen, `L` highlighter, `E` eraser (press again to switch off), `Ctr
   6 px wobble allowed, lines within 6° of flat snap level, short haptic tick
   when it engages; see `PageView.tsx`).
 
+## Why the web app comes first
+
+The web app is where everything is built and tried first because it can be
+updated instantly, while Google Play's review and update cycle is slow and
+costly to iterate against. The plan: once the mobile app is ready, publish it
+on Google Play and retire the web version, with the web address redirecting
+to the Play listing. Until then, keep the web app as the single source of
+truth for features, and keep it easy to port (no browser-only tricks that a
+native/wrapped app could not reproduce).
+
 ## Google Drive sync
 
 Sync uses Google Identity Services in the browser and the `drive.appdata`
