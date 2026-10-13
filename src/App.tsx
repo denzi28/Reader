@@ -61,6 +61,13 @@ export function App() {
   const [guestTools, setGuestTools] = useState<boolean>(() => !!history.state?.tools);
   const sync = useSyncStatus();
 
+  // While a document is open the browser must not zoom the whole site (a pinch that
+  // starts on a dialog or the bars); the pages have their own zoom.
+  useEffect(() => {
+    document.documentElement.classList.toggle('reading', docId !== null);
+    return () => document.documentElement.classList.remove('reading');
+  }, [docId]);
+
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
     document.querySelector('meta[name="theme-color"]')

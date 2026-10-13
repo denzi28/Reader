@@ -2809,3 +2809,6 @@ button.page-tile:active .page-tile-img { transform: scale(0.97); }
   cursor: pointer;
 }
 .findbar-link:hover { background: rgba(0, 0, 0, 0.06); }
+
+/* Reading: a pinch or double-tap on a dialog or a bar never zooms the site itself (the pages have their own zoom). */
+html.reading, html.reading body { touch-action: pan-x pan-y; }
