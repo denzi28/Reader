@@ -75,7 +75,11 @@ function Preview({ id, page, hasFile }: { id: string; page: number; hasFile: boo
         const strokes = (ink[page] ?? []).map((st) => ({ ...st, size: Math.max(st.size, 2 / c.width) }));
         drawStrokes(ctx, strokes, c.width, false);
       });
-    }, { rootMargin: '300px' });
+    }, {
+      // Within the sideways row of pages: draw those in view and the next one along.
+      root: c.closest('.note-grid'),
+      rootMargin: '0px 160px',
+    });
     seen.observe(c);
     return () => { gone = true; seen.disconnect(); };
   }, [id, page, hasFile]);
@@ -278,7 +282,7 @@ export function Notes({ docs, folderName, onOpen }: Props) {
             key={d.id}
             className={`note-doc${isOpen ? ' open' : ''}`}
             // Room kept for it while off screen (where it is not drawn), so scrolling doesn't jump.
-            style={{ ['--i' as string]: i, containIntrinsicSize: `auto ${isOpen ? 90 + Math.ceil((l?.notes.length ?? 1) / 5) * 230 : 72}px` }}
+            style={{ ['--i' as string]: i, containIntrinsicSize: `auto ${isOpen ? 330 : 72}px` }}
           >
             <button className="note-doc-head" aria-expanded={isOpen} onClick={() => toggle(d.id)}>
               <span className="note-doc-text">

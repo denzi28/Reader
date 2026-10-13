@@ -1890,15 +1890,26 @@ mark {
 }
 .note-chevron svg { width: 20px; height: 20px; }
 .note-doc.open .note-chevron { transform: rotate(180deg); background: var(--accent); color: var(--accent-ink); }
-.note-doc.open .note-grid, .note-doc.open .note-loading, .note-doc.open .empty-note { margin: 0 0.7rem 1rem; animation: rise 0.3s var(--ease) both; }
+.note-doc.open .note-loading, .note-doc.open .empty-note { margin: 0 0.7rem 1rem; animation: rise 0.3s var(--ease) both; }
+.note-doc.open .note-grid { margin: 0 0 0.6rem; padding-left: 0.7rem; padding-right: 0.7rem; animation: rise 0.3s var(--ease) both; }
 .note-grid {
   list-style: none;
   margin: 0.25rem 0 0.5rem;
-  padding: 0;
+  padding: 0.2rem 0 0.6rem;
+  /* One row of pages; swipe or scroll sideways for the rest. */
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
-  gap: 0.9rem 0.75rem;
+  grid-auto-flow: column;
+  grid-auto-columns: 128px;
+  gap: 0.85rem;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  scroll-padding: 0 0.7rem;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
 }
+.note-grid > li { scroll-snap-align: start; }
+@media (hover: none) { .note-grid { scrollbar-width: none; } .note-grid::-webkit-scrollbar { display: none; } }
 .note-tile {
   display: grid;
   gap: 0.4rem;
@@ -1952,7 +1963,7 @@ mark {
   .tabs { display: flex; }
   .tabs button { flex: 1; justify-content: center; }
   .note-doc { padding: 0; }
-  .note-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.75rem 0.6rem; }
+  .note-grid { grid-auto-columns: 30%; gap: 0.65rem; } /* three pages and the edge of the next */
 }
 
 /* Printing the notes page gives a clean handout. */
