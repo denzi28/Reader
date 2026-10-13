@@ -41,16 +41,25 @@ function ago(ts: number) {
   return days === 1 ? 'yesterday' : `${days} days ago`;
 }
 
+// Each shelf refresh reads the covers afresh from storage; keeping one picture
+// address per cover means the browser decodes each cover only once.
+const coverUrls = new Map<string, string>();
+function coverUrl(meta: DocMeta) {
+  const thumb = meta.thumb;
+  if (!thumb) return undefined;
+  const key = `${meta.id}:${thumb.size}:${thumb.type}`;
+  let url = coverUrls.get(key);
+  if (!url) {
+    url = URL.createObjectURL(thumb);
+    coverUrls.set(key, url);
+  }
+  return url;
+}
+
 function Cover({ meta }: { meta: DocMeta }) {
-  const [url, setUrl] = useState<string>();
-  useEffect(() => {
-    if (!meta.thumb) return;
-    const u = URL.createObjectURL(meta.thumb);
-    setUrl(u);
-    return () => URL.revokeObjectURL(u);
-  }, [meta.thumb]);
+  const url = coverUrl(meta);
   return url ? (
-    <img src={url} alt="" draggable={false} />
+    <img src={url} alt="" draggable={false} decoding="async" loading="lazy" />
   ) : (
     <span className="cover-fallback"><FileIcon /></span>
   );
@@ -813,7 +822,6 @@ export function Library(props: Props) {
           <Notes
             docs={(docs ?? []).filter((d) => (markCounts.get(d.id) ?? 0) > 0)}
             folderName={(d) => (placeOf(d) ? folderName.get(placeOf(d)!) ?? null : null)}
-            dark={dark}
             onOpen={(id, page) => onOpen(id, page)}
           />
         </Suspense>

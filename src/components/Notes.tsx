@@ -3,70 +3,131 @@ import { useEffect, useRef, useState } from 'react';
 import { drawStrokes } from '../lib/ink';
 import { collectNotes, type PageNotes } from '../lib/notes';
 import { openPdfFile, pageTextBoxes, renderPagePreview } from '../lib/pdf';
-import { getDocFile, loadInk } from '../lib/storage';
-import type { DocInk, DocMeta } from '../lib/types';
+import { getCachedNotes, getDocFile, getInkStamps, loadInk, putCachedNotes } from '../lib/storage';
+import type { DocMeta } from '../lib/types';
 import { CopyIcon, FolderIcon, MarkIcon, PenIcon, PrintIcon } from './icons';
 
 interface Props {
   /** Documents with marks, newest opened first. */
   docs: DocMeta[];
   folderName: (doc: DocMeta) => string | null;
-  dark: boolean;
   onOpen: (id: string, page: number) => void;
 }
 
 interface Loaded {
   notes: PageNotes[];
-  ink: DocInk;
-  pdf: PDFDocumentProxy | null;
+  /** False when the PDF is only in Drive, so its text could not be read. */
+  hasFile: boolean;
 }
+
+// Open PDFs for drawing previews: a few at most, the least recently used
+// closed first. Previews are drawn one at a time.
+const MAX_OPEN = 3;
+const openDocs = new Map<string, Promise<PDFDocumentProxy | null>>();
+function docFor(id: string) {
+  let doc = openDocs.get(id);
+  if (doc) {
+    openDocs.delete(id); // most recent last
+  } else {
+    doc = getDocFile(id).then((f) => (f ? openPdfFile(f) : null)).catch(() => null);
+  }
+  openDocs.set(id, doc);
+  while (openDocs.size > MAX_OPEN) {
+    const [oldest, p] = openDocs.entries().next().value!;
+    openDocs.delete(oldest);
+    void p.then((d) => d?.loadingTask.destroy());
+  }
+  return doc;
+}
+function closeDocs() {
+  openDocs.forEach((p) => void p.then((d) => d?.loadingTask.destroy()));
+  openDocs.clear();
+}
+let previewChain: Promise<unknown> = Promise.resolve();
+const queuePreview = (job: () => Promise<void>) => {
+  previewChain = previewChain.then(job, job).catch(() => undefined);
+};
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
-/** A small picture of the page with its ink drawn on top. */
-function Preview({ pdf, page, ink, dark }: { pdf: PDFDocumentProxy | null; page: number; ink: DocInk; dark: boolean }) {
+/** A small picture of the page with its ink, drawn once it scrolls into view. */
+function Preview({ id, page, hasFile }: { id: string; page: number; hasFile: boolean }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     const c = canvas.current;
-    if (!c || !pdf) return;
+    if (!c || !hasFile) return;
     let gone = false;
-    void renderPagePreview(pdf, page, c, 180).then(() => {
-      const ctx = c.getContext('2d');
-      if (gone || !ctx) return;
-      // Thin pen lines would vanish at this size; draw every mark at least 2 px wide.
-      const strokes = (ink[page] ?? []).map((st) => ({ ...st, size: Math.max(st.size, 2 / c.width) }));
-      drawStrokes(ctx, strokes, c.width, false);
-    }).catch(() => undefined);
-    return () => { gone = true; };
-  }, [pdf, page, ink, dark]);
-  return <canvas ref={canvas} className="note-preview" aria-hidden="true" />;
+    const seen = new IntersectionObserver((entries) => {
+      if (!entries.some((e) => e.isIntersecting)) return;
+      seen.disconnect();
+      queuePreview(async () => {
+        if (gone) return;
+        const [pdf, ink] = await Promise.all([docFor(id), loadInk(id)]);
+        if (gone || !pdf) return;
+        await renderPagePreview(pdf, page, c, 180);
+        const ctx = c.getContext('2d');
+        if (gone || !ctx) return;
+        // Thin pen lines would vanish at this size; draw every mark at least 2 px wide.
+        const strokes = (ink[page] ?? []).map((st) => ({ ...st, size: Math.max(st.size, 2 / c.width) }));
+        drawStrokes(ctx, strokes, c.width, false);
+      });
+    }, { rootMargin: '300px' });
+    seen.observe(c);
+    return () => { gone = true; seen.disconnect(); };
+  }, [id, page, hasFile]);
+  return <canvas ref={canvas} className="note-preview" width={180} height={254} aria-hidden="true" />;
 }
 
-export function Notes({ docs, folderName, dark, onOpen }: Props) {
+/** Works out a document's notes from its ink and the PDF's text. */
+async function readNotes(id: string): Promise<Loaded> {
+  const [ink, file] = await Promise.all([loadInk(id), getDocFile(id)]);
+  const pdf = file ? await openPdfFile(file).catch(() => null) : null;
+  try {
+    return { notes: await collectNotes(ink, pdf ? (p) => pageTextBoxes(pdf, p) : null), hasFile: Boolean(pdf) };
+  } finally {
+    void pdf?.loadingTask.destroy();
+  }
+}
+
+export function Notes({ docs, folderName, onOpen }: Props) {
   const [loaded, setLoaded] = useState<Map<string, Loaded>>(new Map());
   const [copied, setCopied] = useState(false);
   const ids = docs.map((d) => d.id).join();
 
-  // Read each document's notes in turn; the PDFs stay open for the previews.
+  // Notes worked out before are reused until that document's ink changes;
+  // only changed documents are read again.
   useEffect(() => {
     let gone = false;
-    const opened: PDFDocumentProxy[] = [];
     (async () => {
-      for (const d of docs) {
-        const [ink, file] = await Promise.all([loadInk(d.id), getDocFile(d.id)]);
-        const pdf = file ? await openPdfFile(file).catch(() => null) : null;
-        if (pdf) opened.push(pdf);
-        if (gone) return;
-        const notes = await collectNotes(ink, pdf ? (p) => pageTextBoxes(pdf, p) : null);
-        if (gone) return;
-        setLoaded((m) => new Map(m).set(d.id, { notes, ink, pdf }));
+      const list = docs.map((d) => d.id);
+      const [stamps, cached] = await Promise.all([getInkStamps(list), getCachedNotes<Loaded>(list)]);
+      if (gone) return;
+      const ready = new Map<string, Loaded>();
+      const stale: string[] = [];
+      for (const id of list) {
+        const c = cached.get(id);
+        // Notes made while the PDF was only in Drive lack its text: redo them once it is here.
+        const usable = c && c.stamp === stamps.get(id) && (c.notes.hasFile || docs.find((d) => d.id === id)?.cloudOnly);
+        if (usable) ready.set(id, c.notes);
+        else stale.push(id);
       }
+      setLoaded(ready);
+      // Three at a time, in shelf order.
+      let next = 0;
+      await Promise.all([0, 1, 2].map(async () => {
+        while (!gone && next < stale.length) {
+          const id = stale[next++];
+          const result = await readNotes(id).catch(() => null);
+          if (gone || !result) continue;
+          void putCachedNotes(id, { stamp: stamps.get(id) ?? 0, notes: result });
+          setLoaded((m) => new Map(m).set(id, result));
+        }
+      }));
     })();
-    return () => {
-      gone = true;
-      opened.forEach((p) => void p.loadingTask.destroy());
-    };
+    return () => { gone = true; };
   }, [ids]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => closeDocs, []);
 
   const total = docs.reduce((n, d) => n + (loaded.get(d.id)?.notes.reduce((a, p) => a + p.highlights.length + p.untextedHighlights + p.pens, 0) ?? 0), 0);
 
@@ -120,7 +181,12 @@ export function Notes({ docs, folderName, dark, onOpen }: Props) {
         const l = loaded.get(d.id);
         const folder = folderName(d);
         return (
-          <article key={d.id} className="note-doc" style={{ ['--i' as string]: i }}>
+          <article
+            key={d.id}
+            className="note-doc"
+            // Room kept for it while off screen (where it is not drawn), so scrolling doesn't jump.
+            style={{ ['--i' as string]: i, containIntrinsicSize: `auto ${70 + (l?.notes.length ?? 1) * 104}px` }}
+          >
             <header className="note-doc-head">
               <h3>{d.name}</h3>
               <span className="note-doc-meta">
@@ -135,7 +201,7 @@ export function Notes({ docs, folderName, dark, onOpen }: Props) {
                 {l.notes.map((p) => (
                   <li key={p.page}>
                     <button className="note-page" onClick={() => onOpen(d.id, p.page)}>
-                      <Preview pdf={l.pdf} page={p.page} ink={l.ink} dark={dark} />
+                      <Preview id={d.id} page={p.page} hasFile={l.hasFile} />
                       <span className="note-body">
                         <span className="note-where">Page {p.page + 1}</span>
                         {p.highlights.map((h, k) => (
@@ -153,7 +219,7 @@ export function Notes({ docs, folderName, dark, onOpen }: Props) {
                 ))}
               </ol>
             )}
-            {!l?.pdf && l && <p className="empty-note">This document is in your Google Drive only. Open it once to see the highlighted text.</p>}
+            {l && !l.hasFile && <p className="empty-note">This document is in your Google Drive only. Open it once to see the highlighted text.</p>}
           </article>
         );
       })}

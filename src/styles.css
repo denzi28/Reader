@@ -196,7 +196,10 @@ button:disabled { cursor: default; }
 .book {
   position: relative;
   animation: rise 0.5s var(--ease) both;
-  animation-delay: calc(var(--i, 0) * 45ms + 120ms);
+  animation-delay: calc(min(var(--i, 0), 12) * 45ms + 120ms); /* a long shelf doesn't wait */
+  /* Books off screen are not drawn until scrolled near. */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 150px auto 260px;
 }
 .book-open {
   display: grid;
@@ -550,7 +553,7 @@ mark {
   grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
   gap: 1rem;
 }
-.folders > li { animation: rise 0.45s var(--ease) both; animation-delay: calc(var(--i, 0) * 35ms + 80ms); }
+.folders > li { animation: rise 0.45s var(--ease) both; animation-delay: calc(min(var(--i, 0), 12) * 35ms + 80ms); }
 /* Folder colours: a day and a night shade each. */
 .c-amber { --fc: #b8692f; } .c-blue { --fc: #3a67b0; } .c-green { --fc: #2f7d4c; }
 .c-red { --fc: #b0423a; } .c-purple { --fc: #7553b0; } .c-teal { --fc: #2b8285; } .c-gold { --fc: #a8841f; }
@@ -1858,7 +1861,9 @@ mark {
   background: var(--card);
   box-shadow: var(--shadow-page);
   animation: rise 0.45s var(--ease) both;
-  animation-delay: calc(var(--i, 0) * 50ms);
+  animation-delay: calc(min(var(--i, 0), 8) * 50ms);
+  content-visibility: auto;
+  contain-intrinsic-size: auto 320px;
 }
 .note-doc-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.25rem 1rem; margin-bottom: 0.5rem; }
 .note-doc-head h3 { margin: 0; font-family: var(--serif); font-size: 1.2rem; font-weight: 600; }
@@ -1930,3 +1935,4 @@ mark {
   .note-doc { break-inside: avoid; border: 0; border-bottom: 1px solid #ddd; border-radius: 0; padding: 0.5rem 0 1rem; }
   .note-page { break-inside: avoid; }
 }
+.view-list .book { contain-intrinsic-size: auto 600px auto 76px; }

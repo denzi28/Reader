@@ -115,7 +115,58 @@ function setStatus(patch: Partial<SyncStatus>) {
   statusListeners.forEach((fn) => fn(status));
 }
 
-const shelfChanged = () => setStatus({ libraryVersion: status.libraryVersion + 1 });
+// The shelf redraws when sync changes it, but not for every one of a hundred
+// documents arriving together: at once, then at most every quarter second.
+let shelfTimer = 0;
+let shelfPending = false;
+function shelfChanged() {
+  if (shelfTimer) {
+    shelfPending = true;
+    return;
+  }
+  setStatus({ libraryVersion: status.libraryVersion + 1 });
+  shelfTimer = window.setTimeout(() => {
+    shelfTimer = 0;
+    if (shelfPending) {
+      shelfPending = false;
+      shelfChanged();
+    }
+  }, 250);
+}
+
+interface Task {
+  /** Lower runs first. */
+  priority: number;
+  run: (add: (task: Task) => void) => Promise<void>;
+}
+
+/**
+ * Runs tasks `limit` at a time, the most urgent first; a task can add more.
+ * Stops starting new ones after a failure, and rejects with it.
+ */
+function runTasks(initial: Task[], limit: number) {
+  const queue = [...initial];
+  let active = 0;
+  let failed = false;
+  return new Promise<void>((resolve, reject) => {
+    const add = (task: Task) => queue.push(task);
+    const pump = () => {
+      if (failed) return;
+      if (!queue.length && !active) return resolve();
+      while (active < limit && queue.length) {
+        let best = 0;
+        for (let i = 1; i < queue.length; i++) if (queue[i].priority < queue[best].priority) best = i;
+        const [task] = queue.splice(best, 1);
+        active++;
+        task.run(add).then(
+          () => { active--; pump(); },
+          (err) => { failed = true; reject(err); },
+        );
+      }
+    };
+    pump();
+  });
+}
 
 /** Shows (and syncs) the library of this account, or the guest library. */
 function enterAccount(account: Account | null) {
@@ -293,7 +344,29 @@ async function putJson(t: string, existing: drive.RemoteFile | undefined, name: 
   return existing ? drive.updateFile(t, existing.id, json(value)) : drive.createFile(t, name, json(value));
 }
 
+/** One document's sync, in steps that can run for many documents at once. */
+interface Staged {
+  id: string;
+  rec: storage.SyncRecord;
+  g: Group;
+  meta: DocMeta;
+  forceInk: boolean;
+}
+
 async function syncOne(t: string, id: string, group: Group | undefined, local: DocMeta | undefined) {
+  const staged = await syncRecord(t, id, group, local);
+  if (!staged) return;
+  await syncCover(t, staged);
+  await syncContent(t, staged);
+}
+
+/** Step 1: the record (name, page, folder...), so the shelf can show it. */
+async function syncRecord(
+  t: string,
+  id: string,
+  group: Group | undefined,
+  local: DocMeta | undefined,
+): Promise<Staged | null> {
   const rec = await storage.getSyncRecord(id);
   const g: Group = group ?? { extras: [] };
 
@@ -326,7 +399,10 @@ async function syncOne(t: string, id: string, group: Group | undefined, local: D
       shelfChanged();
     }
   }
-  if (!meta) return storage.putSyncRecord(id, rec);
+  if (!meta) {
+    await storage.putSyncRecord(id, rec);
+    return null;
+  }
 
   if (meta.deleted) {
     for (const f of [g.pdf, g.ink, g.thumb]) if (f) await drive.deleteFile(t, f.id);
@@ -335,7 +411,8 @@ async function syncOne(t: string, id: string, group: Group | undefined, local: D
       rec.metaSeen = f.modifiedTime;
       rec.metaPushed = stamp(meta);
     }
-    return storage.putSyncRecord(id, rec);
+    await storage.putSyncRecord(id, rec);
+    return null;
   }
 
   if (!g.meta || stamp(meta) > (rec.metaPushed ?? 0)) {
@@ -343,23 +420,42 @@ async function syncOne(t: string, id: string, group: Group | undefined, local: D
     rec.metaSeen = f.modifiedTime;
     rec.metaPushed = stamp(meta);
   }
+  await storage.putSyncRecord(id, rec);
+  return { id, rec, g, meta, forceInk };
+}
 
-  // ---- the PDF and its cover ----
+/** Step 2: the cover, sent or fetched. */
+async function syncCover(t: string, s: Staged) {
+  const { id, rec, g } = s;
+  if (!g.thumb && s.meta.thumb) {
+    await drive.createFile(t, `thumb-${id}.jpg`, new Blob([s.meta.thumb], { type: 'image/jpeg' }));
+  } else if (g.thumb && !s.meta.thumb && rec.thumbSeen !== g.thumb.modifiedTime) {
+    const thumb = await drive.downloadBlob(t, g.thumb.id);
+    // Re-read the record: the reader may have changed it meanwhile.
+    const latest = (await storage.getMeta(id)) ?? s.meta;
+    s.meta = { ...latest, thumb };
+    await storage.putMeta(s.meta);
+    rec.thumbSeen = g.thumb.modifiedTime;
+    await storage.putSyncRecord(id, rec);
+    shelfChanged();
+  }
+}
+
+/** Step 3: the PDF (sent once) and the ink, merged stroke by stroke. */
+async function syncContent(t: string, s: Staged) {
+  const { id, rec, g, forceInk } = s;
   if (!g.pdf) {
     const file = await storage.getDocFile(id);
     if (file) await drive.createFile(t, `pdf-${id}.pdf`, new Blob([file], { type: 'application/pdf' }));
   }
-  if (!g.thumb && meta.thumb) {
-    await drive.createFile(t, `thumb-${id}.jpg`, new Blob([meta.thumb], { type: 'image/jpeg' }));
-  } else if (g.thumb && !meta.thumb && rec.thumbSeen !== g.thumb.modifiedTime) {
-    const thumb = await drive.downloadBlob(t, g.thumb.id);
-    meta = { ...meta, thumb };
-    await storage.putMeta(meta);
-    rec.thumbSeen = g.thumb.modifiedTime;
-    shelfChanged();
-  }
 
   // ---- ink (merged stroke by stroke) ----
+  // Nothing new on either side: leave the ink unread (most documents, most syncs).
+  const unchangedRemote = g.ink ? !forceInk && g.ink.modifiedTime === rec.inkSeen : true;
+  if (unchangedRemote) {
+    const localStamp = (await storage.getInkStamps([id])).get(id) ?? 0;
+    if (g.ink ? localStamp <= (rec.inkPushed ?? 0) : localStamp === 0) return;
+  }
   let remoteLog: InkLog | null = null;
   if (g.ink && (forceInk || g.ink.modifiedTime !== rec.inkSeen)) {
     remoteLog = await drive.downloadJson<InkLog>(t, g.ink.id);
@@ -442,10 +538,22 @@ export function syncAll() {
       const groups = groupFiles(files);
       const locals = new Map((await storage.listAllMeta()).map((m) => [m.id, m]));
       const ids = [...new Set([...groups.keys(), ...locals.keys()])];
-      for (const [i, id] of ids.entries()) {
-        if (ids.length > 1) setStatus({ message: `Syncing document ${i + 1} of ${ids.length}` });
-        await syncOne(t, id, groups.get(id), locals.get(id));
-      }
+      // Many documents at once. Every record comes first (so the shelf fills
+      // straight away), then covers, then ink and uploads.
+      let done = 0;
+      const steps: Task[] = ids.map((id) => ({
+        priority: 0,
+        run: async (add) => {
+          if (!status.connected) return;
+          const s = await syncRecord(t, id, groups.get(id), locals.get(id));
+          if (ids.length > 1) setStatus({ message: `Syncing document ${++done} of ${ids.length}` });
+          if (!s) return;
+          add({ priority: 1, run: async () => { if (status.connected) await syncCover(t, s); } });
+          add({ priority: 2, run: async () => { if (status.connected) await syncContent(t, s); } });
+        },
+      }));
+      await runTasks(steps, 12);
+      if (!status.connected) return;
       synced();
     } catch (err) {
       fail(err);

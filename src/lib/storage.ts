@@ -1,6 +1,6 @@
 import { clear, createStore, del, get, getMany, keys, set, update, type UseStore } from 'idb-keyval';
 import { cleanFolderName, FOLDER_COLORS, liveFolders, mergeFolderLogs } from './folders';
-import { applyEdit, inkFromLog, logFromInk, mergeLogs } from './inkLog';
+import { applyEdit, inkFromLog, latestChange, logFromInk, mergeLogs } from './inkLog';
 import type { DocInk, DocMeta, Folder, FolderLog, InkLog, Stroke } from './types';
 
 // ---- one separate library per account ---------------------------------
@@ -51,6 +51,8 @@ const legacyInkKey = (id: string) => `ink:${id}`;
 const logKey = (id: string) => `inklog:${id}`;
 const sizesKey = (id: string) => `sizes:${id}`;
 const marksKey = (id: string) => `marks:${id}`;
+const stampKey = (id: string) => `inkstamp:${id}`;
+const notesKey = (id: string) => `notes:${id}`;
 const FOLDERS_KEY = 'folders';
 
 // ---- change notifications (sync listens to these) ---------------------
@@ -113,7 +115,7 @@ export function putDocFile(id: string, file: Blob) {
 export async function deleteDoc(id: string) {
   const current = await getMeta(id);
   dropInkCache(id);
-  await Promise.all([fileKey(id), logKey(id), legacyInkKey(id), sizesKey(id), marksKey(id)].map((k) => del(k, store)));
+  await Promise.all([fileKey(id), logKey(id), legacyInkKey(id), sizesKey(id), marksKey(id), stampKey(id), notesKey(id)].map((k) => del(k, store)));
   if (current) {
     await set(metaKey(id), { ...current, thumb: undefined, deleted: true, updatedAt: Date.now() }, store);
     notify(id, 'meta');
@@ -123,7 +125,7 @@ export async function deleteDoc(id: string) {
 /** Applies a deletion that came from another device. */
 export async function wipeDoc(id: string, marker: DocMeta) {
   dropInkCache(id);
-  await Promise.all([fileKey(id), logKey(id), legacyInkKey(id), sizesKey(id), marksKey(id)].map((k) => del(k, store)));
+  await Promise.all([fileKey(id), logKey(id), legacyInkKey(id), sizesKey(id), marksKey(id), stampKey(id), notesKey(id)].map((k) => del(k, store)));
   await set(metaKey(id), { ...marker, thumb: undefined, deleted: true }, store);
 }
 
@@ -230,6 +232,41 @@ const countMarks = (log: InkLog) => Object.values(log).reduce((n, e) => n + (e.d
 function writeLog(id: string, entry: { log: InkLog; store: UseStore }) {
   void set(logKey(id), entry.log, entry.store);
   void set(marksKey(id), countMarks(entry.log), entry.store);
+  void set(stampKey(id), latestChange(entry.log), entry.store);
+}
+
+/**
+ * When a document's ink last changed (0 if it has none), without reading the
+ * ink itself. Lets sync and the notes page skip documents that are unchanged.
+ */
+export async function getInkStamps(ids: string[]): Promise<Map<string, number>> {
+  const known = await getMany<number | undefined>(ids.map(stampKey), store);
+  const out = new Map<string, number>();
+  await Promise.all(ids.map(async (id, i) => {
+    let stamp = inkCache.get(id) ? latestChange(inkCache.get(id)!.log) : known[i];
+    if (stamp === undefined) {
+      const log = await get<InkLog>(logKey(id), store);
+      const legacy = log ? null : await get<DocInk>(legacyInkKey(id), store);
+      stamp = log ? latestChange(log) : legacy ? 1 : 0;
+      void set(stampKey(id), stamp, store);
+    }
+    out.set(id, stamp);
+  }));
+  return out;
+}
+
+/** Notes worked out from a document's ink, and the ink stamp they belong to. */
+export interface CachedNotes<T> { stamp: number; notes: T }
+
+export async function getCachedNotes<T>(ids: string[]): Promise<Map<string, CachedNotes<T>>> {
+  const found = await getMany<CachedNotes<T> | undefined>(ids.map(notesKey), store);
+  const out = new Map<string, CachedNotes<T>>();
+  ids.forEach((id, i) => { if (found[i]) out.set(id, found[i]!); });
+  return out;
+}
+
+export function putCachedNotes<T>(id: string, value: CachedNotes<T>) {
+  return set(notesKey(id), value, store);
 }
 
 function scheduleWrite(id: string) {
