@@ -1859,43 +1859,41 @@ mark {
 .note-doc-head h3 { margin: 0; font-family: var(--serif); font-size: 1.2rem; font-weight: 600; }
 .note-doc-meta { display: inline-flex; align-items: center; gap: 0.3rem; color: var(--muted); font-size: 0.82rem; }
 .note-doc-meta svg { width: 15px; height: 15px; color: var(--accent); }
-.note-pages { list-style: none; margin: 0; padding: 0; }
-.note-pages li + li { border-top: 1px solid var(--line); }
-.note-page {
-  display: flex;
-  align-items: flex-start;
-  gap: 1rem;
+.note-grid {
+  list-style: none;
+  margin: 0.25rem 0 0.5rem;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  gap: 0.9rem 0.75rem;
+}
+.note-tile {
+  display: grid;
+  gap: 0.4rem;
   width: 100%;
-  padding: 0.8rem 0.4rem;
+  padding: 0;
   border: 0;
-  border-radius: 12px;
   background: none;
   color: var(--ink);
   text-align: left;
 }
-@media (hover: hover) { .note-page:hover { background: color-mix(in srgb, var(--ink) 5%, transparent); } }
 .note-preview {
-  flex: none;
-  width: 64px;
-  border-radius: 2px;
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 260 / 367;
+  border-radius: 3px;
   background: #fff;
   box-shadow: var(--shadow-page);
+  transition: transform 0.3s var(--ease), box-shadow 0.3s var(--ease);
 }
-.note-body { flex: 1; min-width: 0; display: grid; gap: 0.45rem; }
-.note-where { color: var(--accent); font-size: 0.78rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
-.note-quote {
-  display: block;
-  padding: 0.15rem 0 0.15rem 0.75rem;
-  border-left: 4px solid var(--hl, #ffd84d);
-  font-family: var(--serif);
-  font-size: 1.02rem;
-  line-height: 1.5;
-  quotes: '“' '”';
-}
-.note-quote::before { content: open-quote; }
-.note-quote::after { content: close-quote; }
-.note-extra { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.9rem; color: var(--muted); font-size: 0.85rem; }
-.note-extra svg { width: 16px; height: 16px; margin-right: 0.15rem; vertical-align: -3px; }
+@media (hover: hover) { .note-tile:hover .note-preview { transform: translateY(-3px); box-shadow: var(--shadow-float); } }
+.note-tile:active .note-preview { transform: scale(0.97); }
+.note-tile-foot { display: flex; align-items: center; justify-content: space-between; gap: 0.3rem; font-size: 0.78rem; }
+.note-tile-page { color: var(--accent); font-weight: 700; font-variant-numeric: tabular-nums; }
+.note-tile-marks { display: inline-flex; gap: 0.45rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.note-tile-marks span { display: inline-flex; align-items: center; gap: 0.15rem; }
+.note-tile-marks svg { width: 13px; height: 13px; }
 .note-loading {
   height: 72px;
   margin: 0.5rem 0;
@@ -1911,8 +1909,7 @@ mark {
   .tabs { display: flex; }
   .tabs button { flex: 1; justify-content: center; }
   .note-doc { padding: 0.9rem 0.8rem 0.5rem; }
-  .note-page { gap: 0.75rem; padding: 0.7rem 0.2rem; }
-  .note-preview { width: 52px; }
+  .note-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.75rem 0.6rem; }
 }
 
 /* Printing the notes page gives a clean handout. */
@@ -1923,7 +1920,7 @@ mark {
   .library { max-width: none; padding: 0; animation: none; }
   .notes, .note-doc { animation: none; }
   .note-doc { break-inside: avoid; border: 0; border-bottom: 1px solid #ddd; border-radius: 0; padding: 0.5rem 0 1rem; }
-  .note-page { break-inside: avoid; }
+  .note-tile { break-inside: avoid; }
 }
 .view-list .book { contain-intrinsic-size: auto 600px auto 76px; }
 

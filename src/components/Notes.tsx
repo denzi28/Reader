@@ -65,7 +65,7 @@ function Preview({ id, page, hasFile }: { id: string; page: number; hasFile: boo
         if (gone) return;
         const [pdf, ink] = await Promise.all([docFor(id), loadInk(id)]);
         if (gone || !pdf) return;
-        await renderPagePreview(pdf, page, c, 180);
+        await renderPagePreview(pdf, page, c, 260);
         const ctx = c.getContext('2d');
         if (gone || !ctx) return;
         // Thin pen lines would vanish at this size; draw every mark at least 2 px wide.
@@ -76,7 +76,7 @@ function Preview({ id, page, hasFile }: { id: string; page: number; hasFile: boo
     seen.observe(c);
     return () => { gone = true; seen.disconnect(); };
   }, [id, page, hasFile]);
-  return <canvas ref={canvas} className="note-preview" width={180} height={254} aria-hidden="true" />;
+  return <canvas ref={canvas} className="note-preview" width={260} height={367} aria-hidden="true" />;
 }
 
 /**
@@ -267,7 +267,7 @@ export function Notes({ docs, folderName, onOpen }: Props) {
             key={d.id}
             className="note-doc"
             // Room kept for it while off screen (where it is not drawn), so scrolling doesn't jump.
-            style={{ ['--i' as string]: i, containIntrinsicSize: `auto ${70 + (l?.notes.length ?? 1) * 104}px` }}
+            style={{ ['--i' as string]: i, containIntrinsicSize: `auto ${80 + Math.ceil((l?.notes.length ?? 1) / 5) * 190}px` }}
           >
             <header className="note-doc-head">
               <h3>{d.name}</h3>
@@ -279,34 +279,36 @@ export function Notes({ docs, folderName, onOpen }: Props) {
             {!l ? (
               <div className="note-loading" />
             ) : (
-              <ol className="note-pages">
-                {l.notes.map((p) => (
-                  <li key={p.page}>
-                    <button
-                      className="note-page"
-                      onClick={() => (l.hasFile
-                        ? setPeek(stops.findIndex((s) => s.doc.id === d.id && s.page === p.page))
-                        : onOpen(d.id, p.page))}
-                    >
-                      <Preview id={d.id} page={p.page} hasFile={l.hasFile} />
-                      <span className="note-body">
-                        <span className="note-where">Page {p.page + 1}</span>
-                        {p.highlights.map((h, k) => (
-                          <q key={k} className="note-quote" style={{ ['--hl' as string]: h.color }}>{h.text}</q>
-                        ))}
-                        {(p.untextedHighlights > 0 || p.pens > 0) && (
-                          <span className="note-extra">
-                            {p.untextedHighlights > 0 && <><MarkIcon />{plural(p.untextedHighlights, 'highlight', 'highlights')}</>}
-                            {p.pens > 0 && <><PenIcon />{plural(p.pens, 'pen mark', 'pen marks')}</>}
+              <ol className="note-grid">
+                {l.notes.map((p) => {
+                  const marked = p.highlights.length + p.untextedHighlights;
+                  return (
+                    <li key={p.page}>
+                      <button
+                        className="note-tile"
+                        aria-label={`Page ${p.page + 1}: ${[
+                          marked ? plural(marked, 'highlight', 'highlights') : '',
+                          p.pens ? plural(p.pens, 'pen mark', 'pen marks') : '',
+                        ].filter(Boolean).join(', ')}`}
+                        onClick={() => (l.hasFile
+                          ? setPeek(stops.findIndex((s) => s.doc.id === d.id && s.page === p.page))
+                          : onOpen(d.id, p.page))}
+                      >
+                        <Preview id={d.id} page={p.page} hasFile={l.hasFile} />
+                        <span className="note-tile-foot">
+                          <span className="note-tile-page">p. {p.page + 1}</span>
+                          <span className="note-tile-marks">
+                            {marked > 0 && <span><MarkIcon />{marked}</span>}
+                            {p.pens > 0 && <span><PenIcon />{p.pens}</span>}
                           </span>
-                        )}
-                      </span>
-                    </button>
-                  </li>
-                ))}
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
               </ol>
             )}
-            {l && !l.hasFile && <p className="empty-note">This document is in your Google Drive only. Open it once to see the highlighted text.</p>}
+            {l && !l.hasFile && <p className="empty-note">In your Google Drive only: open it once to see its pages here.</p>}
           </article>
         );
       })}

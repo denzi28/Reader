@@ -41,7 +41,9 @@ export function textUnder(stroke: Stroke, boxes: TextBox[]): string {
     if (text) parts.push({ top: box.top, x: box.x, text });
   }
   parts.sort((p, q) => (Math.abs(p.top - q.top) < 0.004 ? p.x - q.x : p.top - q.top));
-  return parts.map((p) => p.text).join(' ').replace(/\s+/g, ' ').replace(/(\w)- (\w)/g, '$1$2').trim();
+  return parts.map((p) => p.text).join(' ').replace(/\s+/g, ' ').replace(/(\w)- (\w)/g, '$1$2')
+    .replace(/^[^\p{L}\p{N}“"(]+/u, '') // no stray punctuation from the word before
+    .trim();
 }
 
 /** Notes for every page with ink. `textOf` reads a page's text boxes (or null when unavailable). */
