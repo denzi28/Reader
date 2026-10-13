@@ -83,6 +83,16 @@ export function App() {
     transition(() => setDocId(id));
   }, []);
 
+  /**
+   * Goes from one open document to another (a note and the page it is for) in
+   * place: the history entry is replaced, so the back arrow still leads to the
+   * shelf however many times the two have been swapped.
+   */
+  const swap = useCallback((id: string, page?: number) => {
+    history.replaceState({ doc: id, folder: history.state?.folder ?? null, page }, '');
+    transition(() => setDocId(id));
+  }, []);
+
   const openFolder = useCallback((id: string | null) => {
     if (id) {
       history.pushState({ folder: id }, '');
@@ -151,7 +161,7 @@ export function App() {
         dark={theme === 'dark'}
         onTheme={toggleTheme}
         onClose={close}
-        onOpen={open}
+        onOpen={swap}
       />
     </Suspense>
   ) : (

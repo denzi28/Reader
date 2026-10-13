@@ -10,6 +10,7 @@ import { loadPrefs, savePrefs, type ToolPrefs } from '../lib/toolPrefs';
 import { acquirePdf, pageSize, type PageSize, readPageSizes, releasePdf } from '../lib/pdf';
 import { BookLoader } from './BookLoader';
 import { LinkCard } from './LinkCard';
+import { type Corner, LinkStack, loadCorner } from './LinkStack';
 import { NewNote } from './NewNote';
 import { PALM_WINDOW_MS, type PointerHub } from '../lib/pointerHub';
 import { setRenderFocus } from '../lib/renderQueue';
@@ -124,6 +125,7 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose, onOpen }: Pro
     overlay: null,
   }).current;
   const overlay = useRef<HTMLCanvasElement>(null);
+  const root = useRef<HTMLDivElement>(null);
 
   // ---- load the document ------------------------------------------------
   const downloaded = useDownloadProgress(docId);
@@ -815,8 +817,18 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose, onOpen }: Pro
   );
 
   // ---- notes dedicated to a page ----------------------------------------
+  // The corner cards at the bottom sit above the toolbar and whatever menu it has open.
+  useEffect(() => {
+    const el = root.current;
+    const bar = el?.querySelector('.toolbar-wrap');
+    if (!el || !bar) return;
+    const ro = new ResizeObserver(() => el.style.setProperty('--bar-h', `${bar.getBoundingClientRect().height}px`));
+    ro.observe(bar);
+    return () => ro.disconnect();
+  }, [pdf]);
   const [allDocs, setAllDocs] = useState<DocMeta[]>([]);
   const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
+  const [cardCorner, setCardCorner] = useState<Corner>(loadCorner);
   const [noteDialog, setNoteDialog] = useState(false);
   const [makingNote, setMakingNote] = useState(false);
   const [noteError, setNoteError] = useState<string | null>(null);
@@ -924,7 +936,7 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose, onOpen }: Pro
   const color = tool === 'highlighter' ? prefs.hlColor : prefs.penColor;
 
   return (
-    <div className={`viewer tool-${tool}${cover === 'on' ? ' opening' : ''}`}>
+    <div ref={root} className={`viewer tool-${tool}${cover === 'on' ? ' opening' : ''}`}>
       <header className="topbar">
         <button className="icon-button" onClick={onClose} aria-label="Back to library" title="Back (Esc)">
           <BackIcon />
@@ -1010,12 +1022,12 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose, onOpen }: Pro
       <canvas ref={overlay} className="ink-overlay" aria-hidden="true" />
 
       {cover === 'off' && links.some((l) => !hidden.has(l.doc.id)) && (
-        <div className="link-stack" aria-label={meta?.attached ? 'The page this note is for' : 'Notes for this page'}>
+        <LinkStack corner={cardCorner} onCorner={setCardCorner} label={meta?.attached ? 'The page this note is for' : 'Notes for this page'}>
           {links.filter((l) => !hidden.has(l.doc.id)).map((l) => (
             <LinkCard key={`${l.doc.id}:${l.page}`} doc={l.doc} page={l.page} label={l.label} sub={l.sub}
               onOpen={() => onOpen(l.doc.id, l.page)} onHide={() => setHidden((cur) => new Set(cur).add(l.doc.id))} />
           ))}
-        </div>
+        </LinkStack>
       )}
       {noteDialog && meta && (
         <NewNote busy={makingNote} error={noteError} dedicated={{ name: meta.name, page: current + 1 }}

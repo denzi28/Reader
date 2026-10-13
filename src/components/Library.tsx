@@ -354,6 +354,14 @@ export function Library(props: Props) {
     }
   };
 
+  // A document with a note made for one of its pages is listed in Notes too, whether or not it has marks of its own.
+  const notesDocs = (() => {
+    const all = docs ?? [];
+    const marked = new Set(all.filter((d) => (markCounts.get(d.id) ?? 0) > 0).map((d) => d.id));
+    const parents = new Set(all.filter((d) => marked.has(d.id) && d.attached).map((d) => d.attached!.doc));
+    return all.filter((d) => marked.has(d.id) || parents.has(d.id));
+  })();
+
   const refresh = () =>
     Promise.all([listDocs(), getFolderLog()])
       .then(async ([d, log]) => {
@@ -869,7 +877,7 @@ export function Library(props: Props) {
       {onNotes && (
         <Suspense fallback={<div className="note-loading" />}>
           <Notes
-            docs={(docs ?? []).filter((d) => (markCounts.get(d.id) ?? 0) > 0)}
+            docs={notesDocs}
             folderName={(d) => (placeOf(d) ? folderName.get(placeOf(d)!) ?? null : null)}
             onOpen={(id, page) => onOpen(id, page)}
           />

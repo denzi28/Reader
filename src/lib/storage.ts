@@ -196,7 +196,10 @@ export async function mergeFolders(remote: FolderLog) {
 
 /** Files documents in a folder (null: back on the shelf). */
 export async function moveDocs(ids: string[], folder: string | null) {
-  for (const id of ids) await patchMeta(id, { folder: folder ?? undefined });
+  // Notes made for a page go where their document goes.
+  const moving = new Set(ids);
+  for (const d of await listDocs()) if (d.attached && moving.has(d.attached.doc)) moving.add(d.id);
+  for (const id of moving) await patchMeta(id, { folder: folder ?? undefined });
 }
 
 // ---- ink ----------------------------------------------------------------

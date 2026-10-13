@@ -238,8 +238,17 @@ export function Notes({ docs, folderName, onOpen }: Props) {
 
   useEffect(() => closeDocs, []);
 
+  // A note made for a page sits inside the document it was made for; one whose
+  // document is not here stands on its own.
+  const linkedTo = (id: string) => docs
+    .filter((x) => x.attached?.doc === id)
+    .sort((a, b) => a.attached!.page - b.attached!.page || a.addedAt - b.addedAt);
+  const top = docs.filter((d) => !(d.attached && docs.some((x) => x.id === d.attached!.doc)));
+  const ordered = top.flatMap((d) => [d, ...linkedTo(d.id)]);
+  const markCount = (id: string) => loaded.get(id)?.notes.reduce((a, p) => a + p.highlights.length + p.untextedHighlights + p.pens + (p.texts?.length ?? 0), 0) ?? 0;
+
   // Every noted page in order, for stepping through them in the large view.
-  const stops = docs.flatMap((d) => {
+  const stops = ordered.flatMap((d) => {
     const l = loaded.get(d.id);
     return l?.hasFile ? l.notes.map((p) => ({ doc: d, page: p.page })) : [];
   });
@@ -273,14 +282,15 @@ export function Notes({ docs, folderName, onOpen }: Props) {
 
   const total = docs.reduce((n, d) => n + (loaded.get(d.id)?.notes.reduce((a, p) => a + p.highlights.length + p.untextedHighlights + p.pens + (p.texts?.length ?? 0), 0) ?? 0), 0);
 
-  const asText = () => docs.map((d) => {
-    const notes = loaded.get(d.id)?.notes ?? [];
-    const lines = notes.flatMap((p) => [
-      ...p.highlights.map((h) => `- p. ${p.page + 1}: “${h.text}”`),
-      ...(p.texts ?? []).map((t) => `- p. ${p.page + 1}: note: ${t.replace(/\s*\n\s*/g, ' ')}`),
-      ...(p.pens ? [`- p. ${p.page + 1}: ${plural(p.pens, 'pen mark', 'pen marks')}`] : []),
-    ]);
-    return `## ${d.name}\n${lines.join('\n')}`;
+  const linesOf = (id: string) => (loaded.get(id)?.notes ?? []).flatMap((p) => [
+    ...p.highlights.map((h) => `- p. ${p.page + 1}: “${h.text}”`),
+    ...(p.texts ?? []).map((t) => `- p. ${p.page + 1}: note: ${t.replace(/\s*\n\s*/g, ' ')}`),
+    ...(p.pens ? [`- p. ${p.page + 1}: ${plural(p.pens, 'pen mark', 'pen marks')}`] : []),
+  ]);
+  const asText = () => top.map((d) => {
+    const own = linesOf(d.id);
+    const extra = linkedTo(d.id).map((n) => `### ${n.name} (a note for page ${n.attached!.page + 1})\n${linesOf(n.id).join('\n')}`);
+    return [`## ${d.name}`, ...(own.length ? [own.join('\n')] : []), ...extra].join('\n');
   }).join('\n\n');
 
   const copy = async () => {
@@ -290,6 +300,46 @@ export function Notes({ docs, folderName, onOpen }: Props) {
       setTimeout(() => setCopied(false), 1800);
     } catch { /* clipboard refused */ }
   };
+
+  /** A document's noted pages as small pictures, with the highlighted text. */
+  const grid = (d: DocMeta, l: Loaded) => (
+    <ol className="note-grid">
+      {l.notes.map((p) => {
+        const marked = p.highlights.length + p.untextedHighlights;
+        return (
+          <li key={p.page}>
+            <button
+              className="note-tile"
+              aria-label={`Page ${p.page + 1}: ${[
+                marked ? plural(marked, 'highlight', 'highlights') : '',
+                p.pens ? plural(p.pens, 'pen mark', 'pen marks') : '',
+                p.texts?.length ? plural(p.texts.length, 'typed note', 'typed notes') : '',
+              ].filter(Boolean).join(', ')}`}
+              onClick={() => (l.hasFile
+                ? setPeek(stops.findIndex((s) => s.doc.id === d.id && s.page === p.page))
+                : void fetchThenShow(d, p.page))}
+            >
+              <Preview id={d.id} page={p.page} hasFile={l.hasFile} starting={fetching.has(d.id)} />
+              <span className="note-tile-foot">
+                <span className="note-tile-page">p. {p.page + 1}</span>
+                <span className="note-tile-marks">
+                  {marked > 0 && <span><MarkIcon />{marked}</span>}
+                  {p.pens > 0 && <span><PenIcon />{p.pens}</span>}
+                  {!!p.texts?.length && <span><TextNoteIcon />{p.texts.length}</span>}
+                </span>
+              </span>
+              {p.highlights[0] && (
+                <span className="note-snippet" style={{ ['--hl' as string]: p.highlights[0].color }}>
+                  {p.highlights[0].text}
+                </span>
+              )}
+              {p.texts?.[0] && <span className="note-snippet typed">{p.texts[0]}</span>}
+            </button>
+          </li>
+        );
+      })}
+    </ol>
+  );
 
   if (!docs.length) {
     return (
@@ -306,7 +356,7 @@ export function Notes({ docs, folderName, onOpen }: Props) {
       <div className="notes-head">
         <div>
           <h2 className="notes-title">Your notes</h2>
-          <p className="notes-sub">{plural(total, 'mark', 'marks')} in {plural(docs.length, 'document', 'documents')}</p>
+          <p className="notes-sub">{plural(total, 'mark', 'marks')} in {plural(top.length, 'document', 'documents')}</p>
         </div>
         <span className="notes-actions">
           <button className="chip-button" onClick={() => void copy()}>
@@ -320,10 +370,13 @@ export function Notes({ docs, folderName, onOpen }: Props) {
         </span>
       </div>
 
-      {docs.map((d, i) => {
+      {top.map((d, i) => {
         const l = loaded.get(d.id);
         const isOpen = opened.has(d.id);
         const folder = folderName(d);
+        const linked = linkedTo(d.id);
+        const marks = markCount(d.id) + linked.reduce((n, x) => n + markCount(x.id), 0);
+        const notedPages = (l?.notes.length ?? 0) + linked.reduce((n, x) => n + (loaded.get(x.id)?.notes.length ?? 0), 0);
         return (
           <article
             key={d.id}
@@ -337,7 +390,7 @@ export function Notes({ docs, folderName, onOpen }: Props) {
                 <span className="note-doc-meta">
                   {folder && <><FolderIcon />{folder} · </>}
                   {l
-                    ? `${plural(l.notes.reduce((a, p) => a + p.highlights.length + p.untextedHighlights + p.pens + (p.texts?.length ?? 0), 0), 'mark', 'marks')} on ${plural(l.notes.length, 'page', 'pages')}`
+                    ? `${plural(marks, 'mark', 'marks')} on ${plural(notedPages, 'page', 'pages')}${linked.length ? ` · ${plural(linked.length, 'dedicated note', 'dedicated notes')}` : ''}`
                     : 'Reading…'}
                 </span>
               </span>
@@ -346,46 +399,26 @@ export function Notes({ docs, folderName, onOpen }: Props) {
             {!isOpen ? null : !l ? (
               <div className="note-loading" />
             ) : (
-              <ol className="note-grid">
-                {l.notes.map((p) => {
-                  const marked = p.highlights.length + p.untextedHighlights;
+              <>
+                {l.notes.length > 0 && grid(d, l)}
+                {linked.map((n) => {
+                  const nl = loaded.get(n.id);
                   return (
-                    <li key={p.page}>
-                      <button
-                        className="note-tile"
-                        aria-label={`Page ${p.page + 1}: ${[
-                          marked ? plural(marked, 'highlight', 'highlights') : '',
-                          p.pens ? plural(p.pens, 'pen mark', 'pen marks') : '',
-                          p.texts?.length ? plural(p.texts.length, 'typed note', 'typed notes') : '',
-                        ].filter(Boolean).join(', ')}`}
-                        onClick={() => (l.hasFile
-                          ? setPeek(stops.findIndex((s) => s.doc.id === d.id && s.page === p.page))
-                          : void fetchThenShow(d, p.page))}
-                      >
-                        <Preview id={d.id} page={p.page} hasFile={l.hasFile} starting={fetching.has(d.id)} />
-                        <span className="note-tile-foot">
-                          <span className="note-tile-page">p. {p.page + 1}</span>
-                          <span className="note-tile-marks">
-                            {marked > 0 && <span><MarkIcon />{marked}</span>}
-                            {p.pens > 0 && <span><PenIcon />{p.pens}</span>}
-                            {!!p.texts?.length && <span><TextNoteIcon />{p.texts.length}</span>}
-                          </span>
+                    <section key={n.id} className="note-linked" aria-label={`Note for page ${n.attached!.page + 1}`}>
+                      <div className="note-linked-head">
+                        <span className="note-linked-text">
+                          <b>Note for page {n.attached!.page + 1}</b>
+                          <span>{n.name}</span>
                         </span>
-                        {p.highlights[0] && (
-                          <span className="note-snippet" style={{ ['--hl' as string]: p.highlights[0].color }}>
-                            {p.highlights[0].text}
-                          </span>
-                        )}
-                        {p.texts?.[0] && (
-                          <span className="note-snippet typed">{p.texts[0]}</span>
-                        )}
-                      </button>
-                    </li>
+                        <button className="chip-button" onClick={() => onOpen(n.id, 0)}>Open <ArrowIcon /></button>
+                      </div>
+                      {!nl ? <div className="note-loading" /> : nl.notes.length ? grid(n, nl) : <p className="empty-note">Nothing written in it yet.</p>}
+                    </section>
                   );
                 })}
-              </ol>
+              </>
             )}
-            {isOpen && l && !l.hasFile && <p className="empty-note">In your Google Drive only: tap a page to bring the document down and see it here.</p>}
+            {isOpen && l && !l.hasFile && l.notes.length > 0 && <p className="empty-note">In your Google Drive only: tap a page to bring the document down and see it here.</p>}
           </article>
         );
       })}

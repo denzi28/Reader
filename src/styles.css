@@ -2701,7 +2701,14 @@ button.page-tile:active .page-tile-img { transform: scale(0.97); }
 .doc-head .doc-title { flex: none; }
 .doc-link { justify-self: start; max-width: 100%; padding: 0; border: 0; background: none; color: var(--accent); font-size: 0.74rem; font-weight: 700; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .doc-link:hover { text-decoration: underline; }
-.link-stack { position: absolute; z-index: 5; top: calc(max(8px, env(safe-area-inset-top)) + 64px); right: max(10px, env(safe-area-inset-right)); display: grid; gap: 10px; justify-items: end; pointer-events: none; }
+.link-stack { position: absolute; z-index: 5; display: grid; gap: 10px; pointer-events: none; touch-action: none; }
+.link-stack.corner-tr { top: calc(max(8px, env(safe-area-inset-top)) + 64px); right: max(10px, env(safe-area-inset-right)); justify-items: end; }
+.link-stack.corner-tl { top: calc(max(8px, env(safe-area-inset-top)) + 64px); left: max(10px, env(safe-area-inset-left)); justify-items: start; }
+.link-stack.corner-br { bottom: calc(max(14px, env(safe-area-inset-bottom)) + var(--bar-h, 64px) + 10px); right: max(10px, env(safe-area-inset-right)); justify-items: end; }
+.link-stack.corner-bl { bottom: calc(max(14px, env(safe-area-inset-bottom)) + var(--bar-h, 64px) + 10px); left: max(10px, env(safe-area-inset-left)); justify-items: start; }
+.link-stack.dragging { z-index: 8; }
+.link-stack.dragging .link-card-open { transform: scale(1.06) rotate(-2deg); box-shadow: 0 16px 30px -8px rgba(0, 0, 0, 0.5); cursor: grabbing; }
+.link-card-open { touch-action: none; cursor: grab; }
 .link-card { position: relative; pointer-events: auto; animation: pip-in 0.4s var(--spring) both; }
 @keyframes pip-in { from { opacity: 0; transform: translateY(-8px) scale(0.85); } }
 .link-card-open { display: grid; gap: 4px; justify-items: center; width: 92px; padding: 5px 5px 6px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow-float); color: var(--ink); transition: transform 0.25s var(--spring); }
@@ -2723,3 +2730,13 @@ button.page-tile:active .page-tile-img { transform: scale(0.97); }
 .dedicated b { color: var(--accent); font-size: 0.7rem; letter-spacing: 0.1em; text-transform: uppercase; }
 .dedicated span { font-family: var(--serif); font-size: 1.05rem; font-weight: 600; overflow-wrap: anywhere; }
 .dedicated em { color: var(--muted); font-style: normal; font-size: 0.85rem; }
+.link-stack { transition: bottom 0.25s var(--ease); }
+
+/* ---- notes made for a page, inside their document in the Notes tab ---- */
+.note-linked { margin: 0.4rem 0.7rem 0.8rem; padding: 0.7rem 0.75rem 0.85rem; border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--line)); border-radius: 14px; background: color-mix(in srgb, var(--accent) 5%, transparent); }
+.note-linked-head { display: flex; align-items: center; justify-content: space-between; gap: 0.7rem; margin-bottom: 0.6rem; }
+.note-linked-text { display: grid; min-width: 0; }
+.note-linked-text b { color: var(--accent); font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; }
+.note-linked-text span { font-family: var(--serif); font-size: 1rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.note-linked .note-grid { margin: 0; padding: 0; }
+.note-linked .empty-note { margin: 0; }

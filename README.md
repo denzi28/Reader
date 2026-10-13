@@ -35,7 +35,12 @@ your device.
   document and page it is for. While you read that page the note waits as a small
   card in the top right corner; tapping it brings the note to the screen, with the
   PDF page now in the corner (tap that to swap back). Hide a card with its ×.
-  Stored as `attached` on the note's record, so it syncs.
+  Stored as `attached` on the note's record, so it syncs. The card can be dragged
+  to any corner (it settles in the nearest and remembers it), and swapping between a
+  note and its page replaces the history entry, so the back arrow always leads to the
+  shelf. A note is filed in its document's folder and follows it when it is moved; in
+  the *Notes* tab it appears as a section inside its document, even if that document
+  has no marks of its own.
 - **Smooth zoom.** Pinching, Ctrl+wheel, the buttons and the keys scale the pages
   with a CSS transform (soft while moving, no re-layout per frame); the real size
   is set once when you stop, and the sheets are then redrawn sharp, nearest first.
