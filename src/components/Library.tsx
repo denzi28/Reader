@@ -1,3 +1,4 @@
+import { IMPORT_ACCEPT } from '../lib/fileTypes';
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { FOLDER_COLORS, folderColor, liveFolders, MAX_FOLDER_NAME } from '../lib/folders';
@@ -709,7 +710,7 @@ export function Library(props: Props) {
       <input
         ref={input}
         type="file"
-        accept="application/pdf,.pdf,.docx,.xlsx,.pptx,.docm,.xlsm,.pptm,.ppsx,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+        accept={IMPORT_ACCEPT}
         multiple
         hidden
         onChange={(e) => { take(e.target.files); e.target.value = ''; }}
@@ -902,14 +903,14 @@ export function Library(props: Props) {
             // An empty library gets a big, friendly place to start.
             <div className={`dropzone${dragging ? ' over' : ''}${busy ? ' busy' : ''}`}>
               <span className="drop-icon"><UploadIcon /></span>
-              <p className="drop-title">{busy ? 'Adding to your library…' : 'Drop PDFs, Word, Excel or PowerPoint files here'}</p>
+              <p className="drop-title">{busy ? 'Adding to your library…' : 'Drop PDFs, Office files, text or pictures here'}</p>
               <button className="button" disabled={busy} onClick={() => input.current?.click()}>
                 Choose files
               </button>
               <button className="chip-button" disabled={busy} aria-label="New note" onClick={() => { setNoteError(null); setNewNote(true); }}>
                 <PencilIcon /> Or start a blank note
               </button>
-              <p className="drop-note">You can pick several at once. Word, Excel and PowerPoint files are turned into PDFs on your device.</p>
+              <p className="drop-note">You can pick several at once. Word, Excel, PowerPoint, OpenDocument, RTF, text, CSV and pictures are turned into PDFs on your device.</p>
             </div>
           )}
 

@@ -3,7 +3,7 @@ import { makeThumbnail, openPdfFile } from './pdf';
 import { getMeta, patchMeta, putDocFile, putMeta, requestPersistence, saveDoc } from './storage';
 import type { DocMeta } from './types';
 
-export const UNSUPPORTED = 'Only PDF, Word, Excel and PowerPoint files can be added.';
+export const UNSUPPORTED = 'This kind of file cannot be added yet. PDFs, Word, Excel, PowerPoint, OpenDocument, RTF, text, CSV and pictures work.';
 
 function looksLikePdf(buf: ArrayBuffer) {
   const head = new TextDecoder('latin1').decode(buf.slice(0, 1024));

@@ -1,11 +1,10 @@
 // Excel (.xlsx) → PDF: each sheet's cells as a table, a light grid, numbers and dates shown the way
 // the sheet formats them. Wide sheets go landscape, shrink a little, and are split by columns if
 // they still do not fit.
-import { rgb } from 'pdf-lib';
-import { BLACK, hex, type RGB } from './color';
+import { hex, type RGB } from './color';
 import type { Ctx } from './ctx';
 import type { Pack } from './pack';
-import { defaultPara, paraAtoms, type Atom, type Para } from './render';
+import { type Grid, type GridCell, renderGrids } from './sheets';
 import { at, flag, kid, kids, num, relId, type El } from './xml';
 
 const MAX_ROWS = 20000;
@@ -24,7 +23,7 @@ interface Xf {
 }
 
 // ---- number formats ---------------------------------------------------------
-const BUILTIN: Record<number, string> = {
+export const BUILTIN: Record<number, string> = {
   1: '0', 2: '0.00', 3: '#,##0', 4: '#,##0.00', 9: '0%', 10: '0.00%', 11: '0.00E+00', 37: '#,##0 ;(#,##0)', 38: '#,##0 ;[Red](#,##0)',
   39: '#,##0.00;(#,##0.00)', 40: '#,##0.00;[Red](#,##0.00)', 14: 'DATE', 15: 'd-mmm-yy', 16: 'd-mmm', 17: 'mmm-yy', 18: 'h:mm AM/PM',
   19: 'h:mm:ss AM/PM', 20: 'h:mm', 21: 'h:mm:ss', 22: 'DATETIME', 45: 'mm:ss', 46: '[h]:mm:ss', 47: 'mmss.0',
@@ -33,15 +32,15 @@ const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 const stripLiterals = (code: string) => code.replace(/"[^"]*"/g, '').replace(/\[[^\]]*\]/g, '').replace(/\\./g, '').replace(/_./g, '');
-const isDateCode = (code: string) => code === 'DATE' || code === 'DATETIME' || /[ymdhs]/i.test(stripLiterals(code)) && !/^[#0?.,%\s$€£₺()+-]*$/.test(stripLiterals(code));
+export const isDateCode = (code: string) => code === 'DATE' || code === 'DATETIME' || /[ymdhs]/i.test(stripLiterals(code)) && !/^[#0?.,%\s$€£₺()+-]*$/.test(stripLiterals(code));
 
-function general(v: number): string {
+export function general(v: number): string {
   if (Number.isInteger(v)) return String(v);
   const s = String(Number(v.toPrecision(10)));
   return s.includes('e') ? v.toExponential(4).replace(/\.?0+e/, 'e') : s;
 }
 
-function dateText(serial: number, code: string, date1904: boolean): string {
+export function dateText(serial: number, code: string, date1904: boolean): string {
   const base = date1904 ? Date.UTC(1904, 0, 1) : Date.UTC(1899, 11, 30);
   const ms = Math.round(serial * 86400000);
   const d = new Date(base + ms);
@@ -92,7 +91,7 @@ function dateText(serial: number, code: string, date1904: boolean): string {
   return out;
 }
 
-function numberText(v: number, code: string): string {
+export function numberText(v: number, code: string): string {
   const sections = code.split(';');
   let sec = sections[0];
   let neg = false;
@@ -177,7 +176,7 @@ export async function xlsxToPdf(pack: Pack, ctx: Ctx): Promise<void> {
   }
   if (!sheets.length) throw new Error('This Excel file has no sheets to show.');
 
-  await ctx.fonts.load(['sans']);
+  const grids: Grid[] = [];
   const colLetters = (ref: string) => {
     const m = /^([A-Z]+)(\d+)$/.exec(ref);
     if (!m) return null;
@@ -189,8 +188,7 @@ export async function xlsxToPdf(pack: Pack, ctx: Ctx): Promise<void> {
   for (const sheet of sheets) {
     const root = pack.doc(sheet.part);
     if (!root) continue;
-    interface Cell { text: string; xf: Xf; isNum: boolean; isText: boolean }
-    const cells = new Map<number, Map<number, Cell>>();
+    const cells = new Map<number, Map<number, GridCell>>();
     let minC = Infinity, maxC = -1, minR = Infinity, maxR = -1;
     for (const row of kids(kid(root, 'sheetData'), 'row')) {
       if (at(row, 'hidden') === '1' || at(row, 'hidden') === 'true') continue;
@@ -245,8 +243,6 @@ export async function xlsxToPdf(pack: Pack, ctx: Ctx): Promise<void> {
         if (at(col, 'hidden') === '1' || at(col, 'hidden') === 'true') hiddenCol.add(c);
       }
     }
-    const colIdx: number[] = [];
-    for (let c = minC; c <= maxC; c++) if (!hiddenCol.has(c)) colIdx.push(c);
     // Merged ranges (across only; they are blank below)
     const spans = new Map<string, number>();
     const covered = new Set<string>();
@@ -263,105 +259,7 @@ export async function xlsxToPdf(pack: Pack, ctx: Ctx): Promise<void> {
       if (h && at(row, 'customHeight') !== '0') rowHeight.set((num(row, 'r') ?? 1) - 1, h);
     }
 
-    const widthPt = (c: number) => (widths[c] ?? defW) * 5.7;
-    const total = colIdx.reduce((s, c) => s + widthPt(c), 0);
-    const M = 36;
-    const portraitW = 595.28 - 2 * M;
-    const landscape = total * 0.92 > portraitW;
-    const pageW = landscape ? 841.89 : 595.28;
-    const pageH = landscape ? 595.28 : 841.89;
-    const avail = pageW - 2 * M;
-    // Shrinks to fit when it takes only a little; beyond that the columns are split over pages.
-    let scale = 0.92;
-    if (total * scale > avail) scale = Math.max(0.72, avail / total);
-    const groups: number[][] = [];
-    let cur: number[] = [];
-    let used = 0;
-    for (const c of colIdx) {
-      const w = widthPt(c) * scale;
-      if (cur.length && used + w > avail) { groups.push(cur); cur = []; used = 0; }
-      cur.push(c); used += w;
-    }
-    if (cur.length) groups.push(cur);
-
-    const padX = 3;
-    const padY = 1.8;
-    // Long runs of empty rows are cut short.
-    const rows: number[] = [];
-    let gap = 0;
-    for (let r = minR; r <= maxR; r++) {
-      gap = cells.get(r)?.size ? 0 : gap + 1;
-      if (gap <= 3) rows.push(r);
-    }
-
-    for (const group of groups) {
-      let page = ctx.doc.addPage([pageW, pageH]);
-      let y = M;
-      if (sheets.length > 1 || groups.length > 1) {
-        const title = defaultPara({ size: 12, color: BLACK, runs: [{ text: groups.length > 1 ? `${sheet.name} (columns ${groups.indexOf(group) + 1} of ${groups.length})` : sheet.name, bold: true }] });
-        const atom = paraAtoms(title, avail, ctx.fonts)[0];
-        atom.draw({ page, pageH }, M, y);
-        y += atom.h + 8;
-      }
-      const xs: number[] = [];
-      group.reduce((acc, c) => { xs.push(acc); return acc + widthPt(c) * scale; }, 0);
-      for (const r of rows) {
-        const line = cells.get(r);
-        // What goes in each cell of this row, measured.
-        interface Placed { x: number; w: number; cell: Cell | undefined; atoms: Atom[]; h: number }
-        const placed: Placed[] = [];
-        for (let gi = 0; gi < group.length; gi++) {
-          const c = group[gi];
-          const cell = line?.get(c);
-          if (covered.has(`${r}:${c}`)) continue;
-          let w = widthPt(c) * scale;
-          const colSpan = spans.get(`${r}:${c}`) ?? 1;
-          for (let k = 1; k < colSpan && gi + k < group.length; k++) w += widthPt(group[gi + k]) * scale;
-          const align = cell?.xf.align && cell.xf.align !== 'general' ? cell.xf.align : cell?.isNum ? 'right' : 'left';
-          const para: Para = defaultPara({
-            size: Math.min(14, Math.max(6, (cell?.xf.size ?? 11) * scale * 0.95)), color: cell?.xf.color ?? BLACK,
-            align: align === 'center' ? 'c' : align === 'right' ? 'r' : 'l',
-            runs: cell?.text ? [{ text: cell.text, bold: cell.xf.bold, italic: cell.xf.italic }] : [],
-          });
-          // A number or date that is too wide for its column is shown smaller rather than broken up.
-          if (cell?.text && cell.isNum) {
-            const face = ctx.fonts.get('sans', !!cell.xf.bold, !!cell.xf.italic);
-            const need = face.font.widthOfTextAtSize(ctx.fonts.clean(cell.text, face), para.size);
-            const room = w - 2 * padX;
-            if (need > room) para.size = Math.max(5, (para.size * room) / need);
-          }
-          // Text that is not set to wrap runs on into the empty cells beside it.
-          if (cell?.text && !cell.xf.wrap && !cell.isNum && para.align === 'l') {
-            const face = ctx.fonts.get('sans', !!cell.xf.bold, !!cell.xf.italic);
-            const need = face.font.widthOfTextAtSize(ctx.fonts.clean(cell.text, face).replace(/\n/g, ' '), para.size) + 2 * padX;
-            let k = 1;
-            while (w < need && gi + k < group.length && !line?.get(group[gi + k])?.text && !covered.has(`${r}:${group[gi + k]}`)) { w += widthPt(group[gi + k]) * scale; k++; }
-            gi += k - 1;
-          }
-          const atoms = cell?.text ? paraAtoms(para, Math.max(w - 2 * padX, 8), ctx.fonts) : [];
-          placed.push({ x: xs[group.indexOf(c)] ?? 0, w, cell, atoms, h: atoms.reduce((s, a) => s + a.h, 0) });
-        }
-        const custom = (rowHeight.get(r) ?? 0) * scale;
-        const rowH = Math.max(custom, 12 * scale + 2 * padY, ...placed.map((p) => p.h + 2 * padY));
-        if (y + rowH > pageH - M && y > M + 1) {
-          page = ctx.doc.addPage([pageW, pageH]);
-          y = M;
-        }
-        for (const p of placed) {
-          const x = M + p.x;
-          if (p.cell?.xf.fill) page.drawRectangle({ x, y: pageH - y - rowH, width: p.w, height: rowH, color: rgb(...p.cell.xf.fill) });
-          page.drawRectangle({ x, y: pageH - y - rowH, width: p.w, height: rowH, borderColor: rgb(0.82, 0.82, 0.82), borderWidth: 0.35 });
-          let yy = y + padY;
-          const free = rowH - 2 * padY - p.h;
-          if (p.cell?.xf.vAlign === 'center') yy += free / 2;
-          else if (!p.cell?.xf.vAlign || p.cell.xf.vAlign === 'bottom') yy += Math.max(0, free);
-          for (const a of p.atoms) {
-            a.draw({ page, pageH }, x + padX, yy);
-            yy += a.h;
-          }
-        }
-        y += rowH;
-      }
-    }
+    grids.push({ name: sheet.name, cells, minC, maxC, minR, maxR, widths, defW, hiddenCol, spans, covered, rowHeight });
   }
+  await renderGrids(grids, ctx);
 }

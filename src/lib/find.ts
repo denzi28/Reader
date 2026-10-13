@@ -42,7 +42,7 @@ function assemble(boxes: TextBox[], recognised: boolean): PageText {
       const prev = boxes[i - 1];
       const height = Math.max(box.bottom - box.top, 0.001);
       const sameLine = Math.abs(box.bottom - prev.bottom) < height * 0.5;
-      const joined = sameLine && box.x - prev.right < height * 0.25 && box.x - prev.right > -height;
+      const joined = sameLine && box.x - prev.right < height * 0.12 && box.x - prev.right > -height;
       if (!joined) text += ' ';
     }
     parts.push({ start: text.length, end: text.length + box.str.length, box });

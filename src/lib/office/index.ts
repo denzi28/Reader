@@ -1,47 +1,82 @@
-// Word, Excel and PowerPoint files are turned into PDFs right on the device, so the rest of the
-// app (reading, ink, notes, sync) treats them like any other document.
+// Documents of other kinds (Word, Excel, PowerPoint, OpenDocument, RTF, text, CSV, pictures, and the
+// old Office formats) are turned into PDFs right on the device, so the rest of the app (reading,
+// ink, notes, sync) treats them like any other document.
 import { Pack } from './pack';
 
-export type OfficeKind = 'docx' | 'xlsx' | 'pptx';
+import { EXT, type OfficeKind } from '../fileTypes';
 
-const MODERN: Record<string, OfficeKind> = {
-  docx: 'docx', docm: 'docx', dotx: 'docx', dotm: 'docx',
-  xlsx: 'xlsx', xlsm: 'xlsx', xltx: 'xlsx', xltm: 'xlsx',
-  pptx: 'pptx', pptm: 'pptx', potx: 'pptx', potm: 'pptx', ppsx: 'pptx', ppsm: 'pptx',
-};
-const OLD: Record<string, string> = { doc: 'Word', xls: 'Excel', ppt: 'PowerPoint', odt: 'OpenDocument', ods: 'OpenDocument', odp: 'OpenDocument', rtf: 'Rich Text' };
+export type { OfficeKind };
+
+const NOT_YET: Record<string, string> = { heic: 'HEIC pictures', heif: 'HEIC pictures', epub: 'EPUB books', pages: 'Pages documents', numbers: 'Numbers sheets', key: 'Keynote presentations', xlsb: 'Excel binary workbooks', html: 'Web pages', htm: 'Web pages' };
 
 const extension = (name: string) => /\.([a-z0-9]+)$/i.exec(name)?.[1].toLowerCase() ?? '';
 
-/** What kind of Office file this is, going by its name. */
-export function officeKind(file: { name: string }): OfficeKind | null {
-  return MODERN[extension(file.name)] ?? null;
+/** What kind of document this is, going by its name (and, for pictures, its type). */
+export function officeKind(file: { name: string; type?: string }): OfficeKind | null {
+  const k = EXT[extension(file.name)];
+  if (k) return k;
+  if (file.type?.startsWith('image/') && /^image\/(jpeg|png|webp|gif|bmp|avif)$/.test(file.type)) return 'image';
+  return null;
 }
 
 /** A readable explanation when the file is a format that cannot be opened (null when it is just unknown). */
 export function unsupportedReason(file: { name: string }): string | null {
-  const old = OLD[extension(file.name)];
-  if (!old) return null;
-  return old === 'OpenDocument' || old === 'Rich Text'
-    ? `${old} files cannot be opened yet. Save it as a PDF or as a Word, Excel or PowerPoint file (.docx, .xlsx, .pptx) and add that instead.`
-    : `This is an old ${old} format. Open it in ${old} and use Save As to keep it as a ${extension(file.name) === 'doc' ? '.docx' : extension(file.name) === 'xls' ? '.xlsx' : '.pptx'} file, then add that.`;
+  const what = NOT_YET[extension(file.name)];
+  if (!what) return null;
+  return `${what} cannot be opened yet. Save or export it as a PDF (or a Word, Excel or PowerPoint file) and add that instead.`;
 }
 
-/** Makes a PDF out of an Office file. The same file always gives the same PDF. */
+const LABEL: Partial<Record<OfficeKind, string>> = {
+  docx: 'Word', xlsx: 'Excel', pptx: 'PowerPoint', odt: 'OpenDocument text', ods: 'OpenDocument spreadsheet', odp: 'OpenDocument presentation',
+  rtf: 'RTF', doc: 'Word', xls: 'Excel', ppt: 'PowerPoint',
+};
+
+const isZip = (b: Uint8Array) => b[0] === 0x50 && b[1] === 0x4b;
+const isCfb = (b: Uint8Array) => b[0] === 0xd0 && b[1] === 0xcf && b[2] === 0x11 && b[3] === 0xe0;
+
+/** Makes a PDF out of the file. The same file always gives the same PDF. */
 export async function convertOffice(file: File): Promise<File> {
   const kind = officeKind(file);
   if (!kind) throw new Error('This kind of file cannot be opened.');
   const base = file.name.replace(/\.[^.]+$/, '') || 'Document';
-  const bytes = new Uint8Array(await file.arrayBuffer());
-  if (bytes[0] !== 0x50 || bytes[1] !== 0x4b) {
-    throw new Error(`This does not look like a valid ${kind === 'docx' ? 'Word' : kind === 'xlsx' ? 'Excel' : 'PowerPoint'} file.`);
-  }
-  const pack = new Pack(bytes);
   const { makeCtx } = await import('./ctx');
   const ctx = await makeCtx(base);
-  if (kind === 'docx') await (await import('./docx')).docxToPdf(pack, ctx);
-  else if (kind === 'xlsx') await (await import('./xlsx')).xlsxToPdf(pack, ctx);
-  else await (await import('./pptx')).pptxToPdf(pack, ctx);
+  const invalid = () => new Error(`This does not look like a valid ${LABEL[kind] ?? ''} file.`.replace('  ', ' '));
+
+  if (kind === 'image') {
+    await (await import('./images')).imageToPdf(file, ctx);
+  } else if (kind === 'text' || kind === 'code' || kind === 'markdown' || kind === 'csv' || kind === 'tsv') {
+    const t = await import('./text');
+    const text = await t.readText(file);
+    if (!text.trim()) throw new Error('This file has nothing in it.');
+    if (kind === 'markdown') await t.markdownToPdf(text, ctx);
+    else if (kind === 'csv' || kind === 'tsv') await t.csvToPdf(text, base, ctx, kind === 'tsv');
+    else await t.plainToPdf(text, ctx, kind === 'code');
+  } else {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    if (kind === 'rtf') {
+      if (!new TextDecoder('latin1').decode(bytes.slice(0, 8)).startsWith('{\\rtf')) throw invalid();
+      await (await import('./rtf')).rtfToPdf(bytes, ctx);
+    } else if (kind === 'doc' || kind === 'xls' || kind === 'ppt') {
+      if (!isCfb(bytes)) throw invalid();
+      const legacy = await import('./legacy');
+      if (kind === 'doc') await legacy.docToPdf(bytes, ctx);
+      else if (kind === 'xls') await legacy.xlsToPdf(bytes, ctx);
+      else await legacy.pptToPdf(bytes, ctx);
+    } else {
+      if (!isZip(bytes)) throw invalid();
+      const pack = new Pack(bytes);
+      if (kind === 'docx') await (await import('./docx')).docxToPdf(pack, ctx);
+      else if (kind === 'xlsx') await (await import('./xlsx')).xlsxToPdf(pack, ctx);
+      else if (kind === 'pptx') await (await import('./pptx')).pptxToPdf(pack, ctx);
+      else {
+        const odf = await import('./odf');
+        if (kind === 'odt') await odf.odtToPdf(pack, ctx);
+        else if (kind === 'ods') await odf.odsToPdf(pack, ctx);
+        else await odf.odpToPdf(pack, ctx);
+      }
+    }
+  }
   if (ctx.doc.getPageCount() === 0) ctx.doc.addPage([595.28, 841.89]);
   const out = await ctx.doc.save({ useObjectStreams: true });
   return new File([out as BlobPart], `${base}.pdf`, { type: 'application/pdf' });
