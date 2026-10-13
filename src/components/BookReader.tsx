@@ -8,7 +8,7 @@ import {
   HIGHLIGHT_NAMES, LINE_HEIGHT, MARGIN, useBookSettings, FONT_STACKS, type HighlightColor,
 } from '../lib/book/settings';
 import { acquirePdf, releasePdf } from '../lib/pdf';
-import { recognisePages, recognisedPages } from '../lib/ocr';
+import { ocrEstimate, recognisePages, recognisedPages } from '../lib/ocr';
 import { getBookMarks, getDocFile, patchMeta, recordBookMark } from '../lib/storage';
 import { onRemoteInk, syncDoc } from '../lib/sync/engine';
 import type { BookMark } from '../lib/types';
@@ -145,7 +145,7 @@ export function BookReader(props: Props) {
   startRef.current = startScan;
   const scanFn = useCallback((only?: ScanOnly) => { void startRef.current(only); }, []);
 
-  if (data) return <Reader data={data} {...props} scan={scan} />;
+  if (data) return <Reader data={data} {...props} scan={scan} onScan={() => scanFn()} />;
   const error = state && 'error' in state ? state : null;
   // A scanned PDF opens as its own pages; reading them into text is only offered when something needs text.
   if (error?.scanned) {
@@ -173,12 +173,20 @@ export function BookReader(props: Props) {
   );
 }
 
-function Reader({ data, docId, startPage, dark, onTheme, onClose, onPdf, scan }: Props & { data: Loaded; scan: ScanState | null }) {
+function Reader({ data, docId, startPage, dark, onTheme, onClose, onPdf, scan, onScan }: Props & { data: Loaded; scan: ScanState | null; onScan: () => void }) {
   const { meta, book, ix, image } = data;
   const phone = usePhone();
   const [settings, change] = useBookSettings();
   const themeNow = settings.theme === 'auto' ? (dark ? 'night' : 'paper') : settings.theme;
   const reduced = useMemo(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches, []);
+
+  // The browser's own bars (the status bar, Safari's toolbar) take the colour of the paper.
+  useEffect(() => {
+    const meta = document.querySelector('meta[name="theme-color"]');
+    const was = meta?.getAttribute('content');
+    meta?.setAttribute('content', { paper: '#e9dfc8', sepia: '#d9c6a0', mist: '#cfd3d4', night: '#1b1712' }[themeNow] ?? '#1b1712');
+    return () => { if (was) meta?.setAttribute('content', was); };
+  }, [themeNow]);
 
   // ---- where the reader is --------------------------------------------------
   const lastBlock = ix.blocks.length - 1;
@@ -498,7 +506,18 @@ function Reader({ data, docId, startPage, dark, onTheme, onClose, onPdf, scan }:
   };
 
   // ---- reading the room ----------------------------------------------------------------
-  const frac = fractionAt(ix, pos);
+  // A PDF with many pages not read yet counts its progress in PDF pages, so the bar does not say "100%" at the
+  // end of the pages read so far.
+  const unread = book.fromPdf ? (book.blank?.length ?? 0) : 0;
+  const byPages = unread > meta.pages * 0.05;
+  const pageFrac = useCallback((p: Pos) => Math.min(1, ((ix.blocks[Math.min(p.b, lastBlock)]?.pg ?? 0)) / Math.max(1, meta.pages)), [ix, lastBlock, meta.pages]);
+  const posAtSlider = useCallback((f: number): Pos => {
+    if (!byPages) return posAtFraction(ix, f);
+    const page = Math.floor(f * meta.pages);
+    const b = ix.blocks.findIndex((x) => (x.pg ?? 0) >= page);
+    return { b: b < 0 ? lastBlock : b, o: 0 };
+  }, [byPages, ix, lastBlock, meta.pages]);
+  const frac = byPages ? pageFrac(pos) : fractionAt(ix, pos);
   const shownFrac = scrub ?? frac;
   const toc = book.toc;
   const currentToc = useMemo(() => {
@@ -510,14 +529,17 @@ function Reader({ data, docId, startPage, dark, onTheme, onClose, onPdf, scan }:
   const title = toc[currentToc]?.title ?? chapterTitle(book, ix, pos.b);
   const wordsHere = ix.words[Math.min(pos.b, lastBlock)] ?? 0;
   const chapterLeft = Math.max(0, (ix.words[ix.first[chapterIdx + 1]] ?? ix.total) - wordsHere) / WORDS_PER_MINUTE;
-  const bookLeft = Math.max(0, ix.total * (1 - shownFrac)) / WORDS_PER_MINUTE;
+  const textPages = Math.max(1, meta.pages - (book.blank?.length ?? 0));
+  const bookLeft = byPages
+    ? (Math.max(0, ix.total * (1 - fractionAt(ix, scrub !== null ? posAtSlider(scrub) : pos))) + unread * (ix.total / textPages)) / WORDS_PER_MINUTE
+    : Math.max(0, ix.total * (1 - shownFrac)) / WORDS_PER_MINUTE;
   // Pages: counted by the screen being read, with the rest of the book estimated by words per screen.
   const chapterWords = (ix.words[ix.first[chapter + 1]] ?? ix.total) - (ix.words[ix.first[chapter]] ?? 0);
   const perScreen = paged && screens > 1 && chapterWords > 150 ? chapterWords / screens : 220 * dims.cols;
   const totalScreens = Math.max(1, Math.round(ix.total / perScreen));
   const screenNow = clamp(Math.floor(shownFrac * totalScreens) + 1, 1, totalScreens);
   // A book made from a PDF says which page of the PDF it is on (steady while the rest is still being read).
-  const pdfPage = book.fromPdf ? (ix.blocks[Math.min((scrub !== null ? posAtFraction(ix, scrub) : pos).b, lastBlock)]?.pg ?? 0) + 1 : 0;
+  const pdfPage = book.fromPdf ? (ix.blocks[Math.min((scrub !== null ? posAtSlider(scrub) : pos).b, lastBlock)]?.pg ?? 0) + 1 : 0;
   const pageLabel = !paged ? `${Math.round(shownFrac * 100)}%`
     : book.fromPdf ? `Page ${Math.min(pdfPage, meta.pages)} of ${meta.pages}`
     : dims.cols === 2 ? `Pages ${screenNow * 2 - 1}–${screenNow * 2} of ${totalScreens * 2}` : `Page ${screenNow} of ${totalScreens}`;
@@ -675,8 +697,8 @@ function Reader({ data, docId, startPage, dark, onTheme, onClose, onPdf, scan }:
       type="range" className="bk-slider" min={0} max={1000} value={Math.round(shownFrac * 1000)} aria-label="Position in the book"
       aria-valuetext={`${Math.round(shownFrac * 100)} percent`}
       onChange={(e) => setScrub(Number(e.target.value) / 1000)}
-      onPointerUp={() => { if (scrub !== null) { const f = scrub; setScrub(null); goTo(posAtFraction(ix, f)); } }}
-      onKeyUp={() => { if (scrub !== null) { const f = scrub; setScrub(null); goTo(posAtFraction(ix, f)); } }}
+      onPointerUp={() => { if (scrub !== null) { const f = scrub; setScrub(null); goTo(posAtSlider(f)); } }}
+      onKeyUp={() => { if (scrub !== null) { const f = scrub; setScrub(null); goTo(posAtSlider(f)); } }}
       onBlur={() => setScrub(null)}
       style={{ ['--p' as string]: `${shownFrac * 100}%` }}
     />
@@ -710,6 +732,7 @@ function Reader({ data, docId, startPage, dark, onTheme, onClose, onPdf, scan }:
                 <div className="bk-menu" role="menu">
                   <button role="menuitem" onClick={() => { setPanel(null); onTheme(); change({ theme: 'auto' }); }}>{dark ? <SunIcon /> : <MoonIcon />}{dark ? 'Day paper' : 'Night paper'}</button>
                   <button role="menuitem" onClick={() => { setPanel('contents'); setTab('marks'); }}><BookmarkIcon />Highlights and notes</button>
+                  {unread > 0 && !scan && <button role="menuitem" onClick={() => { setPanel(null); onScan(); }}><SearchIcon />Read the other {unread} pages · {ocrEstimate(unread)}</button>}
                   {onPdf && <button role="menuitem" onClick={onPdf}><BookOpenIcon />Original PDF</button>}
                 </div>
               </>

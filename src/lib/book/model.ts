@@ -175,6 +175,9 @@ export function fromStable(ix: BookIndex, id: number): number {
     const mid = (lo + hi) >> 1;
     if (ix.stable[mid] >= id) hi = mid; else lo = mid + 1;
   }
+  // A block that is gone (the pages around it were read again and came out split differently): take the one
+  // before it on the same page, so the reader is never carried on past text it has not read.
+  if (ix.stable[lo] !== id && lo > 0 && Math.floor((ix.stable[lo - 1] - STABLE_BASE) / 4096) === Math.floor((id - STABLE_BASE) / 4096)) return lo - 1;
   return lo;
 }
 

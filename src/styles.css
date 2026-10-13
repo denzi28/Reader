@@ -3337,8 +3337,9 @@ html.reading, html.reading body { touch-action: pan-x pan-y; }
 .view-list .cover-book:hover { transform: translateY(-50%); }
 .library.phone .view-list .cover-book { right: 2.8rem; }
 
-/* eye comfort: a warm tint over the whole screen */
-.bk-shield { position: fixed; inset: 0; z-index: 100; pointer-events: none; background: #ff9a3c; mix-blend-mode: multiply; }
+/* eye comfort: a warm tint over the whole screen. (Absolute inside the book, not fixed: iPhone Safari colours its
+   own bars from the fixed layers at the screen edges, and a fixed orange one turned them orange.) */
+.bk-shield { position: absolute; inset: 0; z-index: 100; pointer-events: none; background: #ff9a3c; mix-blend-mode: multiply; }
 .bk-comfort { display: grid; gap: 10px; }
 .bk-switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; border-radius: 14px; background: var(--bk-card); border: 1px solid var(--bk-line); cursor: pointer; }
 .bk-panel-pop .bk-switch { background: var(--bk-bg); }
