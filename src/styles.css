@@ -1836,16 +1836,6 @@ mark {
 .tabs button svg { width: 18px; height: 18px; }
 .tabs button.on { background: var(--accent); color: var(--accent-ink); box-shadow: 0 6px 14px -8px var(--accent); }
 @media (hover: hover) { .tabs button:not(.on):hover { color: var(--ink); background: var(--line); } }
-.tab-count {
-  min-width: 20px;
-  padding: 0 6px;
-  border-radius: 999px;
-  background: color-mix(in srgb, currentColor 18%, transparent);
-  font-size: 0.75rem;
-  line-height: 20px;
-  text-align: center;
-  font-variant-numeric: tabular-nums;
-}
 
 /* ---------- notes ---------- */
 .notes { animation: rise 0.4s var(--ease) both; }
@@ -1936,3 +1926,60 @@ mark {
   .note-page { break-inside: avoid; }
 }
 .view-list .book { contain-intrinsic-size: auto 600px auto 76px; }
+
+/* ---------- a noted page, large ---------- */
+.peek { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: max(12px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom)); }
+.peek-backdrop { position: absolute; inset: 0; background: rgba(20, 14, 6, 0.55); backdrop-filter: blur(4px); animation: fade-in 0.2s both; }
+.peek-sheet {
+  position: relative;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  width: min(820px, 100%);
+  height: min(100%, 1100px);
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--card);
+  box-shadow: var(--shadow-float);
+  animation: menu-pop 0.25s var(--spring) both;
+}
+.peek-head { display: flex; align-items: center; gap: 0.75rem; padding: 0.6rem 0.6rem 0.6rem 1.1rem; border-bottom: 1px solid var(--line); }
+.peek-title { flex: 1; min-width: 0; display: grid; }
+.peek-title strong { font-family: var(--serif); font-size: 1.05rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.peek-title span { color: var(--muted); font-size: 0.82rem; }
+.peek-page { position: relative; overflow: auto; padding: 14px; background: var(--desk); }
+.peek-page canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin: 0 auto;
+  border-radius: 2px;
+  background: #fff;
+  box-shadow: var(--shadow-page);
+  opacity: 0;
+  transition: opacity 0.25s var(--ease);
+}
+.peek-page.ready canvas { opacity: 1; }
+.peek-loading {
+  position: absolute;
+  top: 40%;
+  left: 50%;
+  width: 34px;
+  height: 34px;
+  margin: -17px 0 0 -17px;
+  border: 3px solid var(--line);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+.peek-foot { display: flex; align-items: center; gap: 0.25rem; padding: 0.55rem 0.7rem; border-top: 1px solid var(--line); }
+.peek-next svg { transform: rotate(180deg); }
+.peek-count { min-width: 3.5rem; color: var(--muted); font-size: 0.85rem; text-align: center; font-variant-numeric: tabular-nums; }
+.peek-open { display: inline-flex; align-items: center; gap: 0.4rem; margin-left: auto; }
+.peek-open svg { width: 17px; height: 17px; }
+.icon-button:disabled { opacity: 0.35; }
+@media (max-width: 520px) {
+  .peek { padding: 0; }
+  .peek-sheet { width: 100%; height: 100%; border-radius: 0; border: 0; }
+  .peek-page { padding: 8px; }
+}

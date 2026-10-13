@@ -4,8 +4,11 @@
 
 interface Job {
   index: number;
+  /** Sharpening a page already shown: after every page still to be shown. */
+  later: boolean;
   run: () => Promise<unknown>;
 }
+const rank = (job: Job) => Math.abs(job.index - focus) + (job.later ? 1e6 : 0);
 
 const waiting = new Set<Job>();
 let running = 0;
@@ -21,7 +24,7 @@ function pump() {
   while (running < LIMIT && waiting.size) {
     let next: Job | null = null;
     for (const job of waiting) {
-      if (!next || Math.abs(job.index - focus) < Math.abs(next.index - focus)) next = job;
+      if (!next || rank(job) < rank(next)) next = job;
     }
     waiting.delete(next!);
     running++;
@@ -35,8 +38,8 @@ function pump() {
 }
 
 /** Queues drawing page `index`. `cancel` drops it if it has not started yet. */
-export function queueRender(index: number, run: () => Promise<unknown>) {
-  const job: Job = { index, run };
+export function queueRender(index: number, run: () => Promise<unknown>, later = false) {
+  const job: Job = { index, later, run };
   waiting.add(job);
   queueMicrotask(pump); // let every page that appears this frame join first
   return { cancel: () => waiting.delete(job) };

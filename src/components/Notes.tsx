@@ -1,11 +1,12 @@
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { drawStrokes } from '../lib/ink';
 import { collectNotes, type PageNotes } from '../lib/notes';
-import { openPdfFile, pageTextBoxes, renderPagePreview } from '../lib/pdf';
+import { acquirePdf, pageTextBoxes, releasePdf, renderPagePreview } from '../lib/pdf';
 import { getCachedNotes, getDocFile, getInkStamps, loadInk, putCachedNotes } from '../lib/storage';
 import type { DocMeta } from '../lib/types';
-import { CopyIcon, FolderIcon, MarkIcon, PenIcon, PrintIcon } from './icons';
+import { ArrowIcon, BackIcon, CloseIcon, CopyIcon, FolderIcon, MarkIcon, PenIcon, PrintIcon } from './icons';
 
 interface Props {
   /** Documents with marks, newest opened first. */
@@ -29,18 +30,18 @@ function docFor(id: string) {
   if (doc) {
     openDocs.delete(id); // most recent last
   } else {
-    doc = getDocFile(id).then((f) => (f ? openPdfFile(f) : null)).catch(() => null);
+    doc = acquirePdf(id, () => getDocFile(id));
   }
   openDocs.set(id, doc);
   while (openDocs.size > MAX_OPEN) {
-    const [oldest, p] = openDocs.entries().next().value!;
+    const [oldest] = openDocs.keys();
     openDocs.delete(oldest);
-    void p.then((d) => d?.loadingTask.destroy());
+    releasePdf(oldest);
   }
   return doc;
 }
 function closeDocs() {
-  openDocs.forEach((p) => void p.then((d) => d?.loadingTask.destroy()));
+  openDocs.forEach((_, id) => releasePdf(id));
   openDocs.clear();
 }
 let previewChain: Promise<unknown> = Promise.resolve();
@@ -78,20 +79,95 @@ function Preview({ id, page, hasFile }: { id: string; page: number; hasFile: boo
   return <canvas ref={canvas} className="note-preview" width={180} height={254} aria-hidden="true" />;
 }
 
+/**
+ * One noted page, large: only that page is read and drawn, so it shows in a
+ * moment however big the document. Steps through every noted page.
+ */
+function Peek({ stops, at, onMove, onOpen, onClose }: {
+  stops: { doc: DocMeta; page: number }[];
+  at: number;
+  onMove: (i: number) => void;
+  onOpen: (id: string, page: number) => void;
+  onClose: () => void;
+}) {
+  const { doc, page } = stops[at];
+  const canvas = useRef<HTMLCanvasElement>(null);
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    const c = canvas.current;
+    if (!c) return;
+    let gone = false;
+    setReady(false);
+    (async () => {
+      const [pdf, ink] = await Promise.all([docFor(doc.id), loadInk(doc.id)]);
+      if (gone || !pdf) return;
+      const box = c.parentElement!.getBoundingClientRect();
+      const width = Math.round(Math.min(box.width, 900) * Math.min(window.devicePixelRatio || 1, 2));
+      const off = document.createElement('canvas');
+      await renderPagePreview(pdf, page, off, width);
+      if (gone) return;
+      drawStrokes(off.getContext('2d')!, ink[page] ?? [], off.width, false);
+      c.width = off.width;
+      c.height = off.height;
+      c.getContext('2d')!.drawImage(off, 0, 0);
+      setReady(true);
+    })().catch(() => undefined);
+    return () => { gone = true; };
+  }, [doc.id, page]);
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+      if (e.key === 'ArrowLeft' && at > 0) onMove(at - 1);
+      if (e.key === 'ArrowRight' && at < stops.length - 1) onMove(at + 1);
+    };
+    window.addEventListener('keydown', key);
+    return () => window.removeEventListener('keydown', key);
+  }, [at, stops.length, onMove, onClose]);
+  // At the top of the page, clear of the animated notes list.
+  return createPortal(
+    <div className="peek" role="dialog" aria-modal="true" aria-label={`${doc.name}, page ${page + 1}`}>
+      <div className="peek-backdrop" onClick={onClose} />
+      <div className="peek-sheet">
+        <header className="peek-head">
+          <div className="peek-title">
+            <strong>{doc.name}</strong>
+            <span>Page {page + 1} of {doc.pages}</span>
+          </div>
+          <button className="icon-button" onClick={onClose} aria-label="Close"><CloseIcon /></button>
+        </header>
+        <div className={`peek-page${ready ? ' ready' : ''}`}>
+          <canvas ref={canvas} />
+          {!ready && <span className="peek-loading" />}
+        </div>
+        <footer className="peek-foot">
+          <button className="icon-button" disabled={at === 0} onClick={() => onMove(at - 1)} aria-label="Previous note"><BackIcon /></button>
+          <span className="peek-count">{at + 1} / {stops.length}</span>
+          <button className="icon-button peek-next" disabled={at === stops.length - 1} onClick={() => onMove(at + 1)} aria-label="Next note"><BackIcon /></button>
+          <button className="button button-small peek-open" onClick={() => onOpen(doc.id, page)}>
+            Open in document
+            <ArrowIcon />
+          </button>
+        </footer>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
 /** Works out a document's notes from its ink and the PDF's text. */
 async function readNotes(id: string): Promise<Loaded> {
-  const [ink, file] = await Promise.all([loadInk(id), getDocFile(id)]);
-  const pdf = file ? await openPdfFile(file).catch(() => null) : null;
+  const [ink, pdf] = await Promise.all([loadInk(id), acquirePdf(id, () => getDocFile(id))]);
   try {
     return { notes: await collectNotes(ink, pdf ? (p) => pageTextBoxes(pdf, p) : null), hasFile: Boolean(pdf) };
   } finally {
-    void pdf?.loadingTask.destroy();
+    releasePdf(id);
   }
 }
 
 export function Notes({ docs, folderName, onOpen }: Props) {
   const [loaded, setLoaded] = useState<Map<string, Loaded>>(new Map());
   const [copied, setCopied] = useState(false);
+  const [peek, setPeek] = useState<number | null>(null);
   const ids = docs.map((d) => d.id).join();
 
   // Notes worked out before are reused until that document's ink changes;
@@ -128,6 +204,12 @@ export function Notes({ docs, folderName, onOpen }: Props) {
   }, [ids]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => closeDocs, []);
+
+  // Every noted page in order, for stepping through them in the large view.
+  const stops = docs.flatMap((d) => {
+    const l = loaded.get(d.id);
+    return l?.hasFile ? l.notes.map((p) => ({ doc: d, page: p.page })) : [];
+  });
 
   const total = docs.reduce((n, d) => n + (loaded.get(d.id)?.notes.reduce((a, p) => a + p.highlights.length + p.untextedHighlights + p.pens, 0) ?? 0), 0);
 
@@ -200,7 +282,12 @@ export function Notes({ docs, folderName, onOpen }: Props) {
               <ol className="note-pages">
                 {l.notes.map((p) => (
                   <li key={p.page}>
-                    <button className="note-page" onClick={() => onOpen(d.id, p.page)}>
+                    <button
+                      className="note-page"
+                      onClick={() => (l.hasFile
+                        ? setPeek(stops.findIndex((s) => s.doc.id === d.id && s.page === p.page))
+                        : onOpen(d.id, p.page))}
+                    >
                       <Preview id={d.id} page={p.page} hasFile={l.hasFile} />
                       <span className="note-body">
                         <span className="note-where">Page {p.page + 1}</span>
@@ -223,6 +310,15 @@ export function Notes({ docs, folderName, onOpen }: Props) {
           </article>
         );
       })}
+      {peek !== null && stops[peek] && (
+        <Peek
+          stops={stops}
+          at={peek}
+          onMove={setPeek}
+          onOpen={(id, page) => { setPeek(null); onOpen(id, page); }}
+          onClose={() => setPeek(null)}
+        />
+      )}
     </section>
   );
 }

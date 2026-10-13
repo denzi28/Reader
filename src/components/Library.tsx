@@ -426,7 +426,6 @@ export function Library(props: Props) {
     },
   });
 
-  const totalMarks = [...markCounts.values()].reduce((a, b) => a + b, 0);
   const reading = (docs ?? []).filter((d) => progressOf(d) > 0 && progressOf(d) < 1).length;
 
   // The document opened most recently, ready to pick up again.
@@ -662,7 +661,6 @@ export function Library(props: Props) {
           <button role="tab" aria-selected={onNotes} className={onNotes ? 'on' : ''} onClick={() => setTab('notes')}>
             <MarkIcon />
             Notes
-            {totalMarks > 0 && <span className="tab-count">{totalMarks}</span>}
           </button>
         </div>
       )}

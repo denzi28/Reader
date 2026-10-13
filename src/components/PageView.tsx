@@ -92,6 +92,10 @@ function PageViewImpl(props: Props) {
     }
     let cancelled = false;
     let task: ReturnType<Awaited<ReturnType<PDFDocumentProxy['getPage']>>['render']> | null = null;
+    let sharpJob: { cancel: () => void } | null = null;
+    const report = (err: { name?: string }) => {
+      if (err?.name !== 'RenderingCancelledException') console.error(err);
+    };
     const job = queueRender(index, () => (async () => {
       if (cancelled) return;
       const page = await pdf.getPage(index + 1);
@@ -112,8 +116,32 @@ function PageViewImpl(props: Props) {
         tint.fillStyle = PAPER;
         tint.fillRect(0, 0, c.width, c.height);
       };
+      const drawSharp = async () => {
+        if (cancelled) return;
+        // A page appearing for the first time is invisible until it is ready, so
+        // it can be drawn straight in. Re-renders (zoom, theme) go off-screen and
+        // are swapped in whole, so the page never flashes blank.
+        const direct = canvas.width === 0 && !bake;
+        const target = direct ? canvas : document.createElement('canvas');
+        target.width = w;
+        target.height = h;
+        task = page.render({ canvas: target, viewport });
+        await task.promise;
+        if (cancelled) return;
+        tintPaper(target);
+        if (!direct) {
+          canvas.width = w;
+          canvas.height = h;
+          const out = canvas.getContext('2d');
+          if (bake && out) out.filter = NIGHT_FILTER;
+          out?.drawImage(target, 0, 0);
+        }
+        setBaked(dark && CAN_BAKE_FILTER);
+        setReady(true);
+      };
       // On sharp screens a page first appears from a quick, plain-resolution
-      // drawing (a fraction of the pixels), then the sharp one replaces it.
+      // drawing (a fraction of the pixels). The sharp one is drawn after every
+      // page on screen has its quick one, so neighbours don't wait.
       if (canvas.width === 0 && dpr > 1.5) {
         const quick = page.getViewport({ scale: scale / dpr });
         canvas.width = Math.floor(quick.width);
@@ -124,33 +152,15 @@ function PageViewImpl(props: Props) {
         tintPaper(canvas);
         setBaked(false); // night paper comes from the CSS filter until then
         setReady(true);
+        sharpJob = queueRender(index, () => drawSharp().catch(report), true);
+        return;
       }
-      // A page appearing for the first time is invisible until it is ready, so
-      // it can be drawn straight in. Re-renders (zoom, theme) go off-screen and
-      // are swapped in whole, so the page never flashes blank.
-      const direct = canvas.width === 0 && !bake;
-      const target = direct ? canvas : document.createElement('canvas');
-      target.width = w;
-      target.height = h;
-      task = page.render({ canvas: target, viewport });
-      await task.promise;
-      if (cancelled) return;
-      tintPaper(target);
-      if (!direct) {
-        canvas.width = w;
-        canvas.height = h;
-        const out = canvas.getContext('2d');
-        if (bake && out) out.filter = NIGHT_FILTER;
-        out?.drawImage(target, 0, 0);
-      }
-      setBaked(dark && CAN_BAKE_FILTER);
-      setReady(true);
-    })().catch((err) => {
-      if (err?.name !== 'RenderingCancelledException') console.error(err);
-    }));
+      await drawSharp();
+    })().catch(report));
     return () => {
       cancelled = true;
       job.cancel();
+      sharpJob?.cancel();
       task?.cancel();
     };
   }, [visible, renderWidth, pdf, index, dpr, dark]);

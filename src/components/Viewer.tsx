@@ -3,7 +3,7 @@ import {
   useCallback, useEffect, useLayoutEffect, useRef, useState,
 } from 'react';
 import { BRUSH_SIZES, HIGHLIGHT_COLORS, PEN_COLORS } from '../lib/ink';
-import { openPdfFile, pageSize, type PageSize, readPageSizes } from '../lib/pdf';
+import { acquirePdf, pageSize, type PageSize, readPageSizes, releasePdf } from '../lib/pdf';
 import { PALM_WINDOW_MS, type PointerHub } from '../lib/pointerHub';
 import { setRenderFocus } from '../lib/renderQueue';
 import {
@@ -78,6 +78,7 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose }: Props) {
   useEffect(() => {
     let cancelled = false;
     let doc: PDFDocumentProxy | null = null;
+    let held = false;
     (async () => {
       const [m, saved, known] = await Promise.all([getMeta(docId), loadInk(docId), getPageSizes(docId)]);
       let file = await getDocFile(docId);
@@ -86,7 +87,10 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose }: Props) {
         file = await getDocFile(docId);
       }
       if (!m || !file || m.deleted) throw new Error('This document is no longer on this device.');
-      doc = await openPdfFile(file);
+      const stored = file;
+      held = true;
+      doc = await acquirePdf(docId, async () => stored);
+      if (!doc) throw new Error('This PDF could not be opened.');
       const start = Math.max(0, Math.min(startPage ?? m.lastPage, doc.numPages - 1));
       // Show the document straight away. Page sizes measured on an earlier
       // visit are exact; the first time, every page is assumed to match the
@@ -136,19 +140,22 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose }: Props) {
     });
     return () => {
       cancelled = true;
-      void doc?.loadingTask.destroy();
+      if (held) releasePdf(docId);
     };
   }, [docId]);
 
   // ---- measure the reading area -----------------------------------------
-  useEffect(() => {
+  // Measured before anything is drawn: pages laid out at a stand-in width
+  // would be drawn twice, and a document opened deep inside would first draw
+  // its opening pages.
+  useLayoutEffect(() => {
     const el = scroller.current;
     if (!el) return;
     const ro = new ResizeObserver(() => setContainerWidth(el.clientWidth));
     ro.observe(el);
     setContainerWidth(el.clientWidth);
     return () => ro.disconnect();
-  }, [pdf]);
+  }, []);
 
   const baseWidth = Math.max(240, Math.min(MAX_BASE, containerWidth - GUTTER * 2));
   const pageWidth = baseWidth * zoom;

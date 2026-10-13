@@ -133,3 +133,52 @@ export async function renderPagePreview(pdf: PDFDocumentProxy, index: number, ca
   canvas.height = Math.floor(viewport.height);
   await page.render({ canvas, viewport }).promise;
 }
+
+// ---- documents shared between views ---------------------------------------
+// The reader and the notes page open the same stored documents. Sharing them
+// means a page already read for one (a note's page, say) is ready in the other,
+// and going back and forth to a document doesn't read it again. A couple of
+// documents nobody is using are kept for a minute, then closed.
+interface Held {
+  pdf: Promise<PDFDocumentProxy | null>;
+  users: number;
+  idleSince: number;
+}
+const held = new Map<string, Held>();
+const KEEP_IDLE = 2;
+const IDLE_MS = 60_000;
+
+function trim() {
+  const idle = [...held.entries()].filter(([, h]) => h.users === 0).sort((a, b) => a[1].idleSince - b[1].idleSince);
+  const now = Date.now();
+  idle.forEach(([id, h], i) => {
+    if (i < idle.length - KEEP_IDLE || now - h.idleSince >= IDLE_MS) {
+      held.delete(id);
+      void h.pdf.then((d) => d?.loadingTask.destroy());
+    }
+  });
+}
+
+/** Opens (or reuses) the stored document `id`; give it back with `releasePdf`. */
+export function acquirePdf(id: string, file: () => Promise<Blob | undefined>): Promise<PDFDocumentProxy | null> {
+  let h = held.get(id);
+  if (!h) {
+    const pdf = file().then((f) => (f ? openPdfFile(f) : null)).catch(() => null);
+    h = { pdf, users: 0, idleSince: 0 };
+    held.set(id, h);
+    void pdf.then((d) => { if (!d && held.get(id) === h) held.delete(id); });
+  }
+  h.users++;
+  return h.pdf;
+}
+
+export function releasePdf(id: string) {
+  const h = held.get(id);
+  if (!h) return;
+  h.users = Math.max(0, h.users - 1);
+  if (h.users === 0) {
+    h.idleSince = Date.now();
+    trim();
+    setTimeout(trim, IDLE_MS + 100);
+  }
+}
