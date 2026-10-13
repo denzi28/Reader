@@ -18,9 +18,14 @@ export interface BookSettings {
   flow: Flow;
   /** On a wide screen: one page, or two side by side. */
   spread: Spread;
+  /** A warm, low-blue tint over the screen, like a phone's eye comfort filter. */
+  comfort: boolean;
+  /** How strong it is, in percent. */
+  warmth: number;
 }
 
-export const DEFAULTS: BookSettings = { theme: 'auto', font: 'serif', size: 18, spacing: 'normal', margins: 'medium', flow: 'pages', spread: 'two' };
+export const DEFAULTS: BookSettings = { theme: 'auto', font: 'serif', size: 18, spacing: 'normal', margins: 'medium', flow: 'pages', spread: 'two', comfort: true, warmth: 35 };
+export const WARMTH_RANGE: [number, number] = [10, 80];
 export const SIZE_RANGE: [number, number] = [14, 32];
 
 const KEY = 'reader.book';
@@ -30,6 +35,7 @@ function read(): BookSettings {
     const raw = JSON.parse(localStorage.getItem(KEY) ?? '{}') as Partial<BookSettings>;
     const out = { ...DEFAULTS, ...raw };
     out.size = Math.min(SIZE_RANGE[1], Math.max(SIZE_RANGE[0], Number(out.size) || DEFAULTS.size));
+    out.warmth = Math.min(WARMTH_RANGE[1], Math.max(WARMTH_RANGE[0], Number(out.warmth) || DEFAULTS.warmth));
     return out;
   } catch {
     return DEFAULTS;

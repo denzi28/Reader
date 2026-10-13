@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { searchBook } from '../lib/book/search';
 import { chapterTitle, sliceText, type Book, type BookIndex, type Pos } from '../lib/book/model';
 import {
-  FONT_STACKS, HIGHLIGHT_NAMES, HIGHLIGHTS, SIZE_RANGE, type BookFont, type BookSettings, type BookTheme, type HighlightColor,
+  FONT_STACKS, HIGHLIGHT_NAMES, HIGHLIGHTS, SIZE_RANGE, WARMTH_RANGE, type BookFont, type BookSettings, type BookTheme, type HighlightColor,
 } from '../lib/book/settings';
 import type { BookMark } from '../lib/types';
 import { CheckIcon, FileIcon, SearchIcon, TrashIcon, CloseIcon } from './icons';
@@ -86,6 +86,20 @@ export function ReadingPanel({ settings, change, themeNow, wide, onPdf }: {
       ) : (
         <Seg label="Turning pages" value={settings.flow} options={[['pages', 'Pages'], ['scroll', 'Scroll']]} onPick={(flow) => change({ flow })} />
       )}
+      <div className="bk-lab">Eye comfort</div>
+      <div className="bk-comfort">
+        <label className="bk-switch">
+          <span>Warm filter<small>Less blue light for night reading</small></span>
+          <input type="checkbox" role="switch" checked={settings.comfort} onChange={(e) => change({ comfort: e.target.checked })} />
+          <i aria-hidden="true" />
+        </label>
+        <div className="bk-sizer">
+          <span className="bk-a1" aria-hidden="true">Soft</span>
+          <input type="range" className="bk-range" min={WARMTH_RANGE[0]} max={WARMTH_RANGE[1]} step={1} value={settings.warmth} disabled={!settings.comfort}
+            aria-label="Filter strength" onChange={(e) => change({ warmth: Number(e.target.value) })} />
+          <span className="bk-a1" aria-hidden="true">Warm</span>
+        </div>
+      </div>
       {onPdf && (
         <button className="bk-tog" onClick={onPdf}>
           <span>Back to the original PDF<small>Keeps the layout, figures and your pen marks</small></span>

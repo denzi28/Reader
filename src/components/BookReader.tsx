@@ -677,6 +677,8 @@ function Reader({ data, docId, startPage, dark, onTheme, onClose, onPdf }: Props
           onSave={(n) => { putMark(noteFor.id, { ...editedMark, n: n || undefined }); setNoteFor(null); }} />
       )}
 
+      {settings.comfort && <div className="bk-shield" style={{ opacity: settings.warmth / 100 }} aria-hidden="true" />}
+
       {panel === 'aa' && (
         <BookSheet kind="pop" label="Reading settings" onClose={() => setPanel(null)}>
           <ReadingPanel settings={settings} change={change} themeNow={themeNow} wide={!phone} onPdf={onPdf} />

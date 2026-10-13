@@ -187,6 +187,8 @@ Keyboard: `P` pen, `L` highlighter, `E` eraser (press again to switch off), `Ctr
   Tables, formulas and figures stay in the PDF, one tap away. The place (`bookPos`, kept in
   step with the PDF's page) and the marks (kept in the same log as ink, so they sync the same
   way) follow you between devices. A PDF last read as a book opens as one next time.
+  An eye comfort filter (a warm tint that slides down over the screen when a book opens,
+  on by default, strength adjustable in the Aa panel) cuts the blue light for night reading.
   ePub files are added like any other file and kept in the same Drive slot as PDFs; the
   record says which it is (`kind: 'epub'`).
 
