@@ -34,9 +34,11 @@ export async function recognisedPages(id: string) {
   return new Set(Object.keys(await savedFor(id)).map(Number));
 }
 
-/** About this wide, in pixels, is sharp enough for print without being slow. */
-const TARGET_WIDTH = 1700;
-const MAX_HEIGHT = 3200;
+/** About this wide, in pixels, is sharp enough to read without being slow. */
+const TARGET_WIDTH = (() => {
+  try { return Number(localStorage.getItem('reader.ocrwidth')) || 1500; } catch { return 1500; }
+})();
+const MAX_HEIGHT = 2800;
 
 async function pictureOf(pdf: PDFDocumentProxy, index: number): Promise<{ blob: Blob; width: number }> {
   const page = await pdf.getPage(index + 1);
@@ -56,7 +58,7 @@ async function pictureOf(pdf: PDFDocumentProxy, index: number): Promise<{ blob: 
 }
 
 interface Word { text: string; confidence: number; bbox: { x0: number; y0: number; x1: number; y1: number } }
-interface Result { data: { blocks?: { paragraphs: { lines: { words: Word[] }[] }[] }[] | null } }
+interface Result { data: { text?: string; blocks?: { paragraphs: { lines: { words: Word[] }[] }[] }[] | null } }
 
 /** The words found on a picture, boxed in the same units as ink (fractions of page width). */
 function boxesFrom(result: Result, width: number): TextBox[] {
@@ -72,10 +74,38 @@ function boxesFrom(result: Result, width: number): TextBox[] {
   return out;
 }
 
+export type OcrLanguages = 'eng' | 'tur' | 'eng+tur';
+
+/** Which of the two languages a sample of text is in (or both, when it cannot tell). */
+export function guessLanguages(sample: string): OcrLanguages {
+  const words = sample.toLowerCase().match(/\p{L}+/gu) ?? [];
+  if (words.length < 25) return 'eng+tur';
+  const tr = new Set(['ve', 'bir', 'bu', 'için', 'ile', 'da', 'de', 'olarak', 'çok', 'daha', 'gibi', 'kadar', 'ama', 'her', 'olan', 'ne', 'ki', 'mi']);
+  const en = new Set(['the', 'and', 'of', 'to', 'in', 'is', 'that', 'for', 'with', 'as', 'was', 'it', 'on', 'are', 'he', 'she', 'his', 'her']);
+  let a = 0;
+  let b = 0;
+  for (const w of words) { if (tr.has(w)) a++; if (en.has(w)) b++; }
+  const accents = (sample.match(/[çğışöüÇĞİŞÖÜ]/g) ?? []).length / Math.max(1, sample.length);
+  if (a > b * 2 + 2 || (accents > 0.02 && a >= b)) return 'tur';
+  if (b > a * 2 + 2 && accents < 0.005) return 'eng';
+  return 'eng+tur';
+}
+
+/** How many pages to read at once: more is faster, but each reader holds a language model in memory. */
+function readers(): number {
+  const cores = navigator.hardwareConcurrency || 2;
+  const memory = (navigator as Navigator & { deviceMemory?: number }).deviceMemory;
+  let n = Math.min(4, Math.max(1, cores - 1));
+  if (memory !== undefined && memory <= 2) n = 1;
+  else if (memory !== undefined && memory <= 4) n = Math.min(n, 2);
+  return n;
+}
+
 /**
- * Reads these pages one after another. `progress` is told how many are done;
+ * Reads these pages, several at a time. `progress` is told how many are done;
  * `stop` is asked between pages. What was read is kept as it goes, so stopping
- * (or closing the app) loses nothing.
+ * (or closing the app) loses nothing. The language is worked out from the first
+ * pages (reading in one language is faster than in two).
  */
 export async function recognisePages(
   pdf: PDFDocumentProxy,
@@ -87,25 +117,45 @@ export async function recognisePages(
   if (!pages.length) return;
   progress(0, pages.length);
   const { createWorker } = await import('tesseract.js');
-  const worker = await createWorker('eng+tur', 1, {
+  const make = (langs: OcrLanguages) => createWorker(langs, 1, {
     workerPath: '/ocr/worker.min.js',
     corePath: '/ocr/core',
     langPath: '/ocr/lang',
     workerBlobURL: false,
     gzip: true,
   });
-  try {
-    for (let n = 0; n < pages.length; n++) {
-      if (stop()) return;
-      const i = pages[n];
-      const { blob, width } = await pictureOf(pdf, i);
+  type Reader = Awaited<ReturnType<typeof make>> & { langs?: OcrLanguages };
+  // Every reader starts at once (in both languages); the first pages say which language the book is in.
+  const count = Math.min(readers(), pages.length);
+  const team: Reader[] = await Promise.all(Array.from({ length: count }, () => make('eng+tur')));
+  let langs: OcrLanguages = 'eng+tur';
+  let decided = false;
+  let done = 0;
+  let next = 0;
+  const sample: string[] = [];
+
+  const lane = async (worker: Reader) => {
+    worker.langs = 'eng+tur';
+    while (!stop()) {
+      const k = next++;
+      if (k >= pages.length) return;
+      if (worker.langs !== langs) { await worker.reinitialize(langs); worker.langs = langs; }
+      const { blob, width } = await pictureOf(pdf, pages[k]);
       const result = (await worker.recognize(blob, {}, { blocks: true })) as unknown as Result;
       const boxes = boxesFrom(result, width);
-      await putOcrPage(id, i, boxes);
-      (await savedFor(id))[i] = boxes;
-      progress(n + 1, pages.length);
+      await putOcrPage(id, pages[k], boxes);
+      (await savedFor(id))[pages[k]] = boxes;
+      if (!decided) {
+        sample.push(boxes.map((b) => b.str).join(' '));
+        if (sample.join(' ').length > 600 || done + 1 >= 3) { langs = guessLanguages(sample.join(' ')); decided = true; }
+      }
+      progress(++done, pages.length);
     }
+  };
+
+  try {
+    await Promise.all(team.map(lane));
   } finally {
-    await worker.terminate();
+    await Promise.all(team.map((w) => w.terminate().catch(() => undefined)));
   }
 }

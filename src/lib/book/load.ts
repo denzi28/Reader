@@ -19,11 +19,15 @@ export interface Loaded {
 
 export { NoTextError };
 
-/** Makes a PDF's book fresh even if one was kept (after reading scanned pages, say). */
+/**
+ * Gets a book ready. `partial` makes it from whatever pages have been read so far
+ * (while a scan is still being read): nothing is kept, and it is made fresh.
+ */
 export async function loadBook(
   id: string,
   progress: (done: number, total: number) => void,
   stop: () => boolean,
+  options: { partial?: boolean } = {},
 ): Promise<Loaded> {
   const meta = await getMeta(id);
   let file = await getDocFile(id);
@@ -40,7 +44,7 @@ export async function loadBook(
   }
 
   const read = (await recognisedPages(id)).size;
-  const cached = await getBookCache(id);
+  const cached = options.partial ? undefined : await getBookCache(id);
   if (cached && cached.book.v === PDF_BOOK_VERSION && cached.ocr === read) {
     return { meta, book: cached.book, ix: indexBook(cached.book), image: () => undefined, dispose: () => undefined };
   }
@@ -49,7 +53,7 @@ export async function loadBook(
   if (!pdf) throw new Error('This PDF could not be opened.');
   try {
     const book = await bookFromPdf(pdf, id, meta.name, progress, stop);
-    await putBookCache(id, { book, ocr: read }).catch(() => undefined);
+    if (!options.partial) await putBookCache(id, { book, ocr: read }).catch(() => undefined);
     return { meta, book, ix: indexBook(book), image: () => undefined, dispose: () => undefined };
   } finally {
     releasePdf(id);

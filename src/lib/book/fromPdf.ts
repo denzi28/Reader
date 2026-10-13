@@ -7,7 +7,7 @@ import { pageText } from '../ocr';
 import { pageSize, type TextBox } from '../pdf';
 import type { Block, Book, Chapter, TocEntry } from './model';
 
-export const PDF_BOOK_VERSION = 7;
+export const PDF_BOOK_VERSION = 8;
 
 export class NoTextError extends Error {
   constructor() {
@@ -125,6 +125,7 @@ export async function bookFromPdf(
 ): Promise<Book> {
   const n = pdf.numPages;
   const pages: { lines: Line[]; height: number }[] = new Array(n);
+  const blank: number[] = [];
   let done = 0;
   let next = 0;
   const worker = async () => {
@@ -133,6 +134,7 @@ export async function bookFromPdf(
       const i = next++;
       const [t, size] = await Promise.all([pageText(pdf, id, i), pageSize(pdf, i).catch(() => ({ w: 1, h: 1.4 }))]);
       pages[i] = { lines: toLines(t.boxes, i), height: size.h / size.w };
+      if (!t.boxes.length) blank.push(i);
       progress(++done, n);
     }
   };
@@ -260,7 +262,9 @@ export async function bookFromPdf(
   endHeading();
   if (!blocks.length) throw new NoTextError();
 
-  return assemble(pdf, name, blocks, n);
+  const book = await assemble(pdf, name, blocks, n);
+  book.blank = blank.sort((a, b) => a - b);
+  return book;
 }
 
 // ---- chapters --------------------------------------------------------------------

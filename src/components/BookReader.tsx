@@ -34,54 +34,105 @@ const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n
 const GAP = 72;
 const before = (a: Pos, b: Pos) => a.b < b.b || (a.b === b.b && a.o < b.o);
 
+export interface ScanState { done: number; total: number }
+
 /** Loads the book (making it from a PDF the first time), then hands it to the reader. */
 export function BookReader(props: Props) {
   const { docId } = props;
   const [data, setData] = useState<Loaded | null>(null);
   const [state, setState] = useState<{ progress: number } | { error: string; scanned: boolean } | null>({ progress: 0 });
-  const [ocr, setOcr] = useState<{ done: number; total: number } | null>(null);
-  const [round, setRound] = useState(0);
+  const [scan, setScan] = useState<ScanState | null>(null);
+  const gone = useRef(false);
+  const rebuilding = useRef(false);
+  const scanning = useRef(false);
+  const current = useRef<Loaded | null>(null);
 
   useEffect(() => {
-    let cancelled = false;
-    let loaded: Loaded | null = null;
+    gone.current = false;
     let last = 0;
     setState({ progress: 0 });
     loadBook(docId, (done, total) => {
       const now = performance.now();
-      if (cancelled || (now - last < 120 && done < total)) return;
+      if (gone.current || (now - last < 120 && done < total)) return;
       last = now;
       setState({ progress: done / Math.max(1, total) });
-    }, () => cancelled).then((l) => {
-      if (cancelled) { l.dispose(); return; }
-      loaded = l;
+    }, () => gone.current).then((l) => {
+      if (gone.current) { l.dispose(); return; }
+      current.current = l;
       setData(l);
       setState(null);
     }).catch((err: unknown) => {
-      if (cancelled) return;
+      if (gone.current) return;
       setState({ error: err instanceof Error ? err.message : 'Could not open this book.', scanned: err instanceof NoTextError });
     });
-    return () => { cancelled = true; loaded?.dispose(); };
-  }, [docId, round]);
+    return () => { gone.current = true; current.current?.dispose(); };
+  }, [docId]);
 
-  const readScan = async () => {
-    const file = await getDocFile(docId);
-    if (!file) return;
-    const pdf = await acquirePdf(docId, async () => file);
-    if (!pdf) return;
+  /** Makes the book again from the pages read so far, and swaps it in under the reader. */
+  const rebuild = async (partial: boolean) => {
+    if (rebuilding.current) return false;
+    rebuilding.current = true;
     try {
-      const done = await recognisedPages(docId);
-      const todo = Array.from({ length: pdf.numPages }, (_, i) => i).filter((i) => !done.has(i));
-      setOcr({ done: 0, total: todo.length });
-      await recognisePages(pdf, docId, todo, (d, t) => setOcr({ done: d, total: t }), () => false);
+      const fresh = await loadBook(docId, () => undefined, () => gone.current, { partial });
+      if (gone.current) { fresh.dispose(); return false; }
+      current.current?.dispose();
+      current.current = fresh;
+      setData(fresh);
+      setState(null);
+      return true;
+    } catch (err) {
+      if (!(err instanceof NoTextError)) console.warn('Could not rebuild the book', err);
+      return false;
     } finally {
-      releasePdf(docId);
-      setOcr(null);
+      rebuilding.current = false;
     }
-    setRound((r) => r + 1);
   };
 
-  if (data) return <Reader key={`${docId}:${round}`} data={data} {...props} />;
+  /**
+   * Reads the pages that have no text, from their pictures. The book opens as soon as the first
+   * pages are read and grows as the rest come in, so there is no waiting for a whole scan.
+   */
+  const startScan = async () => {
+    if (scanning.current) return;
+    scanning.current = true;
+    const file = await getDocFile(docId);
+    const pdf = file ? await acquirePdf(docId, async () => file) : null;
+    if (!pdf) { scanning.current = false; return; }
+    try {
+      const read = await recognisedPages(docId);
+      const blank = current.current?.book.blank;
+      // The pages with no text (all of them, when nothing has been read yet), minus those already read.
+      const todo = (blank ?? Array.from({ length: pdf.numPages }, (_, i) => i)).filter((i) => !read.has(i));
+      if (!todo.length) return;
+      setScan({ done: 0, total: todo.length });
+      const first = Math.min(3, todo.length);
+      const step = Math.max(8, Math.ceil(todo.length / 20));
+      let built = current.current !== null;
+      let at = 0;
+      await recognisePages(pdf, docId, todo, (done, total) => {
+        setScan({ done, total });
+        if (done >= total || gone.current) return;
+        if (done - at >= (built ? step : first)) {
+          at = done;
+          void rebuild(true).then((ok) => { if (ok) built = true; });
+        }
+      }, () => gone.current);
+    } catch (err) {
+      console.warn('Reading the pages stopped', err);
+    } finally {
+      releasePdf(docId);
+      scanning.current = false;
+      setScan(null);
+    }
+    if (!gone.current) {
+      // The whole book, kept for next time. (If reading was cut short, what was read is still kept and the
+      // book is offered again with the rest to read.)
+      while (rebuilding.current) await new Promise((r) => setTimeout(r, 100));
+      await rebuild(false);
+    }
+  };
+
+  if (data) return <Reader data={data} {...props} scan={scan} onScan={() => void startScan()} />;
   const error = state && 'error' in state ? state : null;
   const progress = state && 'progress' in state ? state.progress : 0;
   return (
@@ -89,10 +140,10 @@ export function BookReader(props: Props) {
       {error ? (
         <div className="bk-problem">
           <h2>{error.scanned ? 'This looks like a scanned PDF' : 'This could not be opened as a book'}</h2>
-          <p>{error.scanned ? 'There are no letters to reflow yet. Reading the pages (on your device, nothing is sent anywhere) turns them into text.' : error.error}</p>
-          {ocr ? <p className="bk-count">Reading page {ocr.done} of {ocr.total}…</p> : (
+          <p>{error.scanned ? 'There are no letters to reflow yet. Reading the pages (on your device, nothing is sent anywhere) turns them into text. You can start reading after the first few pages.' : error.error}</p>
+          {scan ? <p className="bk-count">Reading pages… {scan.done} of {scan.total}</p> : (
             <div className="bk-problem-actions">
-              {error.scanned && <button className="button" onClick={() => void readScan()}>Read the pages</button>}
+              {error.scanned && <button className="button" onClick={() => void startScan()}>Read the pages</button>}
               {props.onPdf && <button className="chip-button" onClick={props.onPdf}>Open the PDF</button>}
               <button className="chip-button" onClick={props.onClose}>Back</button>
             </div>
@@ -108,7 +159,7 @@ export function BookReader(props: Props) {
   );
 }
 
-function Reader({ data, docId, startPage, dark, onTheme, onClose, onPdf }: Props & { data: Loaded }) {
+function Reader({ data, docId, startPage, dark, onTheme, onClose, onPdf, scan, onScan }: Props & { data: Loaded; scan: ScanState | null; onScan: () => void }) {
   const { meta, book, ix, image } = data;
   const phone = usePhone();
   const [settings, change] = useBookSettings();
@@ -290,6 +341,15 @@ function Reader({ data, docId, startPage, dark, onTheme, onClose, onPdf }: Props
 
   useLayoutEffect(() => { measure(); }, [measure, chapter, dims.clipW, dims.clipH, dims.cols, settings.font, settings.size, settings.spacing, settings.flow, box.w, box.h]);
   useEffect(() => { void document.fonts?.ready.then(measure); }, [measure]);
+
+  // The book grew (more scanned pages were read): keep the place and lay it out again.
+  const lastBook = useRef(book);
+  useLayoutEffect(() => {
+    if (lastBook.current === book) return;
+    lastBook.current = book;
+    const c = ix.chapterOf[Math.min(posRef.current.b, lastBlock)] ?? 0;
+    if (c !== chapter) { pending.current = null; setChapter(c); } else measure();
+  }, [book]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const turnTo = useCallback((s: number) => {
     setAnim(!reduced);
@@ -651,6 +711,14 @@ function Reader({ data, docId, startPage, dark, onTheme, onClose, onPdf }: Props
           </div>
         )}
       </div>
+
+      {(scan || (book.fromPdf && (book.blank?.length ?? 0) > meta.pages * 0.3)) && (
+        <div className="bk-scan" role="status">
+          {scan ? <span>Reading the pages… {scan.done} of {scan.total}</span> : (
+            <button onClick={onScan}>{book.blank!.length} pages have no text yet · Read them</button>
+          )}
+        </div>
+      )}
 
       <footer className="bk-bottom">
         <div className="bk-progress">

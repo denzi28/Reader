@@ -183,7 +183,9 @@ Keyboard: `P` pen, `L` highlighter, `E` eraser (press again to switch off), `Ctr
   selecting words offers them. An ePub is read directly (chapters, contents list, pictures
   and cover); a PDF is rebuilt from its text (`src/lib/book/fromPdf.ts`: lines, columns,
   paragraphs, headings, chapters from the outline; running heads and page numbers are
-  dropped; a scanned PDF offers to read its pages first, with the OCR already described).
+  dropped; a scanned PDF is read from its pictures with the OCR already described, several pages
+  at a time and in the language the first pages turn out to be in: the book opens after the
+  first three pages and grows as the rest are read, then is kept).
   Tables, formulas and figures stay in the PDF, one tap away. The place (`bookPos`, kept in
   step with the PDF's page) and the marks (kept in the same log as ink, so they sync the same
   way) follow you between devices. A PDF last read as a book opens as one next time.

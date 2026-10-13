@@ -3372,3 +3372,10 @@ html.reading, html.reading body { touch-action: pan-x pan-y; }
 .paywall-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .plan-note { margin: 8px 0 0; padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, var(--accent) 10%, transparent); font-size: 0.85rem; line-height: 1.4; }
 .side-foot .plan-card { margin-bottom: 0; }
+
+/* scanned pages being read while the book is open */
+.bk-scan { position: absolute; z-index: 6; left: 50%; top: calc(var(--bk-top) + env(safe-area-inset-top) + 6px); transform: translateX(-50%); max-width: calc(100% - 24px); }
+.bk-scan span, .bk-scan button { display: inline-flex; align-items: center; gap: 8px; padding: 7px 14px; border-radius: 16px; border: 1px solid var(--bk-line); background: var(--bk-card); color: var(--bk-ink); font-size: 0.8rem; box-shadow: var(--bk-shadow); cursor: default; }
+.bk-scan span::before { content: ''; width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--bk-accent); border-right-color: transparent; animation: spin 0.8s linear infinite; }
+.bk-scan button { cursor: pointer; color: var(--bk-accent); font-weight: 600; }
+@media (prefers-reduced-motion: reduce) { .bk-scan span::before { animation: none; } }

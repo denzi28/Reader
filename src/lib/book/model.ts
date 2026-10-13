@@ -49,6 +49,8 @@ export interface Book {
   toc: TocEntry[];
   /** Rebuilt from a PDF (so it can say so, and map places back to pages). */
   fromPdf?: boolean;
+  /** PDF pages (zero-based) that had no text, read or not: pictures, blanks, or scans not yet read. */
+  blank?: number[];
 }
 
 /** A place in the book: block number (counted over the whole book) and a character in it. */
