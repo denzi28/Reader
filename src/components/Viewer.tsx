@@ -5,6 +5,7 @@ import {
 } from 'react';
 import { BRUSH_SIZES, HIGHLIGHT_COLORS, PEN_COLORS } from '../lib/ink';
 import { acquirePdf, pageSize, type PageSize, readPageSizes, releasePdf } from '../lib/pdf';
+import { BookLoader } from './BookLoader';
 import { PALM_WINDOW_MS, type PointerHub } from '../lib/pointerHub';
 import { setRenderFocus } from '../lib/renderQueue';
 import {
@@ -73,6 +74,17 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose }: Props) {
   const [renderZoom, setRenderZoom] = useState(1);
   const [visible, setVisible] = useState<ReadonlySet<number>>(new Set());
   const [current, setCurrent] = useState(0);
+  // The opening cover stays up until the pages have settled where they belong, so
+  // the page counter never flickers through the places the layout passes on its way.
+  const [cover, setCover] = useState<'on' | 'fading' | 'off'>('on');
+  const settledRef = useRef(false);
+  const quietUntil = useRef(0);
+  // Until the pages' real sizes are known the layout is a guess, and what looks
+  // most visible in it is not what the reader was on: the counter keeps the page
+  // they opened at, unless they move the document themselves.
+  const finalLayout = useRef(false);
+  const afterAnchor = useRef(false);
+  const userMoved = useRef(false);
 
   const undoStack = useRef<Edit[]>([]);
   const redoStack = useRef<Edit[]>([]);
@@ -127,6 +139,7 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose }: Props) {
       setPdf(doc);
       setSizes(guess);
       setCurrent(start);
+      finalLayout.current = exact;
       void patchMeta(docId, { openedAt: Date.now() });
       void syncDoc(docId); // pick up notes made on other devices
       if (exact) return;
@@ -150,7 +163,11 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose }: Props) {
           const page = pageEls.current.get(at);
           if (page) anchor.current = { page: at, offset: page.offsetTop - el.scrollTop };
         }
+        afterAnchor.current = true; // the layout effect below marks the layout final once it has re-anchored
         setSizes(real);
+      } else {
+        finalLayout.current = true;
+        recheckCurrent.current();
       }
     })().catch((err: unknown) => {
       if (!cancelled) setError(err instanceof Error ? err.message : 'Could not open this document.');
@@ -498,12 +515,29 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose }: Props) {
   useLayoutEffect(() => {
     const a = anchor.current;
     anchor.current = null;
+    if (afterAnchor.current) {
+      afterAnchor.current = false;
+      finalLayout.current = true;
+    }
     const page = a && pageEls.current.get(a.page);
     if (page && scroller.current) scroller.current.scrollTop = page.offsetTop - a.offset;
-    if (a) recheckCurrent.current(); // the page counter follows the new layout
+    if (a) {
+      quietUntil.current = Date.now() + 500; // the counter waits for the new layout to stop moving
+      recheckCurrent.current();
+    }
   }, [sizes]);
 
   const recheckCurrent = useRef<() => void>(() => undefined);
+  useEffect(() => {
+    if (!pdf || !sizes) return;
+    const t = setTimeout(() => {
+      settledRef.current = true;
+      recheckCurrent.current();
+      setCover('fading');
+      setTimeout(() => setCover('off'), 400);
+    }, 350);
+    return () => clearTimeout(t);
+  }, [pdf, sizes]);
   useEffect(() => {
     const el = scroller.current;
     if (!el || !pdf) return;
@@ -519,8 +553,16 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose }: Props) {
       }
       pending = null;
     };
+    let wait = 0;
     const update = () => {
       raf = 0;
+      const hold = settledRef.current ? quietUntil.current - Date.now() : 0;
+      if (!settledRef.current || (!finalLayout.current && !userMoved.current) || hold > 0) {
+        if (settledRef.current && !wait) {
+          wait = window.setTimeout(() => { wait = 0; recheckCurrent.current(); }, hold + 20);
+        }
+        return;
+      }
       const box = el.getBoundingClientRect();
       let best = -1;
       let bestArea = 0;
@@ -542,10 +584,16 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose }: Props) {
     // reports, which can be after the last scroll event; check again then.
     recheckCurrent.current = onScroll;
     el.addEventListener('scroll', onScroll, { passive: true });
+    const moved = () => { userMoved.current = true; };
+    el.addEventListener('wheel', moved, { passive: true });
+    el.addEventListener('pointerdown', moved, { passive: true, capture: true });
     return () => {
       el.removeEventListener('scroll', onScroll);
+      el.removeEventListener('wheel', moved);
+      el.removeEventListener('pointerdown', moved, true);
       recheckCurrent.current = () => undefined;
       cancelAnimationFrame(raf);
+      clearTimeout(wait);
       persist(); // don't lose the page if the reader leaves right after scrolling
     };
   }, [pdf, docId]);
@@ -641,7 +689,7 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose }: Props) {
   const color = tool === 'highlighter' ? hlColor : penColor;
 
   return (
-    <div className={`viewer tool-${tool}`}>
+    <div className={`viewer tool-${tool}${cover === 'on' ? ' opening' : ''}`}>
       <header className="topbar">
         <button className="icon-button" onClick={onClose} aria-label="Back to library" title="Back (Esc)">
           <BackIcon />
@@ -680,12 +728,7 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose }: Props) {
 
       <div className="scroller" ref={scroller}>
         {!pdf || !sizes ? (
-          <div className="loading" role="status">
-            <span className="loading-page" />
-            <span>
-              {downloaded === null ? 'Opening your document…' : `Downloading from Google Drive… ${Math.round(downloaded * 100)}%`}
-            </span>
-          </div>
+          <div className="loading" role="status" />
         ) : (
           <div className="pages">
             {sizes.map((s, i) => (
@@ -712,6 +755,16 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose }: Props) {
       </div>
 
       <canvas ref={overlay} className="ink-overlay" aria-hidden="true" />
+
+      {cover !== 'off' && (
+        <div className={`opening-cover${cover === 'fading' ? ' fading' : ''}`} role="status">
+          <BookLoader size={46} label="Opening your document" />
+          <p>
+            {downloaded === null ? 'Opening your document…' : 'Bringing it down from Google Drive…'}
+            {downloaded !== null && <small>{Math.round(downloaded * 100)}%</small>}
+          </p>
+        </div>
+      )}
 
       <Toolbar
         tool={tool}

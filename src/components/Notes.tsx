@@ -6,6 +6,9 @@ import { collectNotes, type PageNotes } from '../lib/notes';
 import { acquirePdf, pageTextBoxes, releasePdf, renderPagePreview } from '../lib/pdf';
 import { getCachedNotes, getDocFile, getInkStamps, loadInk, putCachedNotes } from '../lib/storage';
 import type { DocMeta } from '../lib/types';
+import { BookLoader } from './BookLoader';
+import { downloadPdf } from '../lib/sync/engine';
+import { useDownloadProgress } from '../lib/sync/useSync';
 import { ArrowIcon, BackIcon, ChevronIcon, CloseIcon, CopyIcon, FolderIcon, MarkIcon, PenIcon, PrintIcon } from './icons';
 
 interface Props {
@@ -55,8 +58,11 @@ let openDocs_ = new Set<string>();
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
 /** A small picture of the page with its ink, drawn once it scrolls into view. */
-function Preview({ id, page, hasFile }: { id: string; page: number; hasFile: boolean }) {
+function Preview({ id, page, hasFile, starting }: { id: string; page: number; hasFile: boolean; starting: boolean }) {
   const canvas = useRef<HTMLCanvasElement>(null);
+  // Coming down from Drive: the picture becomes a book with turning pages until it is here.
+  const progress = useDownloadProgress(id);
+  const fetching = !hasFile && (starting || progress !== null);
   useEffect(() => {
     const c = canvas.current;
     if (!c || !hasFile) return;
@@ -83,7 +89,17 @@ function Preview({ id, page, hasFile }: { id: string; page: number; hasFile: boo
     seen.observe(c);
     return () => { gone = true; seen.disconnect(); };
   }, [id, page, hasFile]);
-  return <canvas ref={canvas} className="note-preview" width={260} height={367} aria-hidden="true" />;
+  return (
+    <span className="note-preview-wrap">
+      <canvas ref={canvas} className="note-preview" width={260} height={367} aria-hidden="true" />
+      {fetching && (
+        <span className="note-fetching" role="status">
+          <BookLoader size={22} label="Downloading from Google Drive" />
+          {progress !== null && <span>{Math.round(progress * 100)}%</span>}
+        </span>
+      )}
+    </span>
+  );
 }
 
 /**
@@ -175,6 +191,9 @@ export function Notes({ docs, folderName, onOpen }: Props) {
   const [loaded, setLoaded] = useState<Map<string, Loaded>>(new Map());
   const [copied, setCopied] = useState(false);
   const [peek, setPeek] = useState<number | null>(null);
+  // Documents being brought down from Drive, and the note to show once one is here.
+  const [fetching, setFetching] = useState<ReadonlySet<string>>(new Set());
+  const [want, setWant] = useState<{ id: string; page: number } | null>(null);
   const [opened, setOpened] = useState(openDocs_);
   const toggle = (id: string) => setOpened((cur) => {
     const next = new Set(cur);
@@ -224,6 +243,33 @@ export function Notes({ docs, folderName, onOpen }: Props) {
     const l = loaded.get(d.id);
     return l?.hasFile ? l.notes.map((p) => ({ doc: d, page: p.page })) : [];
   });
+
+  useEffect(() => {
+    if (!want) return;
+    const i = stops.findIndex((s) => s.doc.id === want.id && s.page === want.page);
+    if (i < 0) return;
+    setWant(null);
+    setPeek(i);
+  }, [want, stops.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** A document that is only in Drive: bring it down (its notes' pictures show a turning book), then show the note. */
+  const fetchThenShow = async (doc: DocMeta, page: number) => {
+    if (fetching.has(doc.id)) return;
+    setFetching((s) => new Set(s).add(doc.id));
+    try {
+      await downloadPdf(doc.id);
+      const result = await readNotes(doc.id);
+      if (!result.hasFile) throw new Error('not here');
+      const stamps = await getInkStamps([doc.id]);
+      void putCachedNotes(doc.id, { stamp: stamps.get(doc.id) ?? 0, notes: result });
+      setLoaded((m) => new Map(m).set(doc.id, result));
+      setWant({ id: doc.id, page });
+    } catch {
+      onOpen(doc.id, page); // the document's own screen says what went wrong
+    } finally {
+      setFetching((s) => { const n = new Set(s); n.delete(doc.id); return n; });
+    }
+  };
 
   const total = docs.reduce((n, d) => n + (loaded.get(d.id)?.notes.reduce((a, p) => a + p.highlights.length + p.untextedHighlights + p.pens, 0) ?? 0), 0);
 
@@ -312,9 +358,9 @@ export function Notes({ docs, folderName, onOpen }: Props) {
                         ].filter(Boolean).join(', ')}`}
                         onClick={() => (l.hasFile
                           ? setPeek(stops.findIndex((s) => s.doc.id === d.id && s.page === p.page))
-                          : onOpen(d.id, p.page))}
+                          : void fetchThenShow(d, p.page))}
                       >
-                        <Preview id={d.id} page={p.page} hasFile={l.hasFile} />
+                        <Preview id={d.id} page={p.page} hasFile={l.hasFile} starting={fetching.has(d.id)} />
                         <span className="note-tile-foot">
                           <span className="note-tile-page">p. {p.page + 1}</span>
                           <span className="note-tile-marks">
@@ -333,7 +379,7 @@ export function Notes({ docs, folderName, onOpen }: Props) {
                 })}
               </ol>
             )}
-            {isOpen && l && !l.hasFile && <p className="empty-note">In your Google Drive only: open it once to see its pages here.</p>}
+            {isOpen && l && !l.hasFile && <p className="empty-note">In your Google Drive only: tap a page to bring the document down and see it here.</p>}
           </article>
         );
       })}

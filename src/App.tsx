@@ -1,6 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { Library } from './components/Library';
+import { BookLoader } from './components/BookLoader';
 import { GuestTools } from './components/GuestTools';
 import type { ToolId } from './components/toolList';
 import { Welcome } from './components/Welcome';
@@ -12,7 +13,7 @@ import { useSyncStatus } from './lib/sync/useSync';
 const Viewer = lazy(() => import('./components/Viewer').then((m) => ({ default: m.Viewer })));
 const opening = (
   <div className="viewer-loading loading" role="status">
-    <span className="loading-page" />
+    <BookLoader size={46} label="Opening your document" />
     <span>Opening your document…</span>
   </div>
 );
