@@ -3,7 +3,8 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { drawStrokes } from '../lib/ink';
 import { collectNotes, type PageNotes } from '../lib/notes';
-import { acquirePdf, pageTextBoxes, releasePdf, renderPagePreview } from '../lib/pdf';
+import { pageText } from '../lib/ocr';
+import { acquirePdf, releasePdf, renderPagePreview } from '../lib/pdf';
 import { getCachedNotes, getDocFile, getInkStamps, loadInk, putCachedNotes } from '../lib/storage';
 import type { DocMeta } from '../lib/types';
 import { BookLoader } from './BookLoader';
@@ -181,7 +182,7 @@ function Peek({ stops, at, onMove, onOpen, onClose }: {
 async function readNotes(id: string): Promise<Loaded> {
   const [ink, pdf] = await Promise.all([loadInk(id), acquirePdf(id, () => getDocFile(id))]);
   try {
-    return { notes: await collectNotes(ink, pdf ? (p) => pageTextBoxes(pdf, p) : null), hasFile: Boolean(pdf) };
+    return { notes: await collectNotes(ink, pdf ? (p) => pageText(pdf, id, p).then((t) => t.boxes) : null), hasFile: Boolean(pdf) };
   } finally {
     releasePdf(id);
   }

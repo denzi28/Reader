@@ -24,6 +24,8 @@ interface Props {
   /** The eraser, and the letter size of a new typed note. */
   eraser: { mode: 'stroke' | 'area'; size: number; onlyHighlighter: boolean };
   textSize: number;
+  /** Words found on this page, to mark. */
+  finds?: { x: number; y: number; w: number; h: number; active: boolean }[];
   /** Ids of the strokes selected on this page, if any. */
   selection: readonly string[] | null;
   onSelect: (page: number, ids: string[] | null) => void;
@@ -68,7 +70,7 @@ function straightLine(a: InkPoint, b: InkPoint): InkPoint[] {
 function PageViewImpl(props: Props) {
   const {
     index, pdf, width, height, renderWidth, visible, strokes, tool, color,
-    brush, dark, hub, onCommit, register, eraser, textSize, selection, onSelect, selectionApi,
+    brush, dark, hub, onCommit, register, eraser, textSize, selection, onSelect, selectionApi, finds,
   } = props;
 
   const pdfCanvas = useRef<HTMLCanvasElement>(null);
@@ -558,6 +560,9 @@ function PageViewImpl(props: Props) {
     >
       <canvas ref={pdfCanvas} className={`page-pdf${baked ? ' baked' : ''}`} />
       <canvas ref={inkCanvas} className="page-ink" />
+      {finds?.map((r, i) => (
+        <span key={i} className={`find-rect${r.active ? ' on' : ''}`} style={{ left: r.x * width, top: r.y * width, width: r.w * width, height: r.h * width }} />
+      ))}
       {/* Catches pen and finger input; the stroke itself is drawn on hub.overlay. */}
       <div
         ref={surface}

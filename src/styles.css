@@ -2770,3 +2770,42 @@ button.page-tile:active .page-tile-img { transform: scale(0.97); }
 .install-chip .install-x svg { width: 14px; height: 14px; color: inherit; }
 .install-steps { margin: 0.5rem 0 0; padding-left: 1.2rem; display: grid; gap: 0.6rem; line-height: 1.5; }
 @media (max-width: 520px) { .install-chip button span { display: none; } .install-chip button:first-child { padding: 0 0.7rem; } }
+
+/* ---- finding words in a document ---- */
+.find-rect { position: absolute; z-index: 1; border-radius: 2px; background: rgba(255, 214, 0, 0.42); mix-blend-mode: multiply; pointer-events: none; }
+.find-rect.on { background: rgba(255, 120, 0, 0.5); outline: 2px solid rgba(255, 120, 0, 0.9); }
+.findbar { position: absolute; z-index: 5; top: calc(max(8px, env(safe-area-inset-top)) + 62px); left: 50%; translate: -50% 0; width: min(720px, calc(100% - 16px)); display: grid; gap: 0.35rem; padding: 6px 8px; border: 1px solid var(--line); border-radius: 16px; background: var(--card); box-shadow: var(--shadow-float); animation: drop 0.25s var(--ease) both; }
+.findbar-row { display: flex; align-items: center; gap: 2px; }
+.findbar-row input[type='search'] { flex: 1; min-width: 0; height: 40px; padding: 0 0.8rem; border: 1px solid var(--line); border-radius: 10px; background: var(--page); color: var(--ink); font: inherit; font-size: 16px; outline: none; }
+.findbar-row input[type='search']:focus { border-color: var(--accent); }
+.findbar-row .icon-button { width: 38px; height: 38px; flex: none; }
+.findbar-row .icon-button.on { background: var(--line); }
+.findbar .up svg { transform: rotate(90deg); }
+.findbar .down svg { transform: rotate(-90deg); }
+.findbar .up, .findbar .down { display: grid; }
+.findbar-count { flex: none; min-width: 4.4rem; padding: 0 0.4rem; color: var(--muted); font-size: 0.82rem; text-align: center; font-variant-numeric: tabular-nums; }
+.findbar-note { margin: 0; padding: 0 0.3rem 0.2rem; color: var(--muted); font-size: 0.76rem; }
+.findbar-list { list-style: none; margin: 0; padding: 0; max-height: min(38vh, 320px); overflow: auto; border-top: 1px solid var(--line); }
+.findbar-list button { display: flex; gap: 0.6rem; width: 100%; padding: 0.45rem 0.4rem; border: 0; border-radius: 8px; background: none; color: var(--ink); font-size: 0.82rem; text-align: left; }
+.findbar-list button:hover, .findbar-list button.on { background: var(--line); }
+.findbar-page { flex: none; min-width: 2.6rem; color: var(--accent); font-weight: 700; font-variant-numeric: tabular-nums; }
+.findbar-snippet { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.findbar-snippet mark { padding: 0 0.1em; border-radius: 3px; background: rgba(255, 214, 0, 0.55); color: inherit; }
+.findbar-more { padding: 0.4rem; color: var(--muted); font-size: 0.78rem; }
+@media (max-width: 520px) {
+  .findbar-row { flex-wrap: wrap; row-gap: 4px; }
+  .findbar-row input[type='search'] { flex: 1 1 100%; }
+  .findbar-count { flex: 1; text-align: left; }
+}
+
+.findbar-link {
+  margin-left: 8px;
+  padding: 2px 8px;
+  border: 1px solid var(--rule, currentColor);
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.findbar-link:hover { background: rgba(0, 0, 0, 0.06); }

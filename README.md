@@ -107,6 +107,16 @@ Keyboard: `P` pen, `L` highlighter, `E` eraser (press again to switch off), `Ctr
   loses nothing; erasing and undo carry over too. Documents added elsewhere
   show on the shelf marked "In Drive" and download when opened.
 
+- **Find in a document** (magnifier in the top bar, or Ctrl/Cmd+F): matches
+  ignore capitals and accents ("ceviri" finds "Çeviri"), are marked on the
+  pages, can be stepped through (Enter / Shift+Enter) or picked from a list
+  with the words around each one.
+- **Scanned pages**: when pages have no text (a scan, a photo), the find bar
+  offers "Recognise text". Words are read on the device (tesseract.js, English
+  and Turkish, files served from `/ocr/`, nothing leaves the phone), kept with
+  the document in IndexedDB, and then searchable. The same words let a
+  highlighter pick up the text of a scanned page in the Notes tab.
+
 ## Not built yet
 
 - Word, Excel and PowerPoint files (only PDF opens today).
@@ -214,6 +224,9 @@ will let the same PDF match its notes on another device later.
 
 ## Notes
 
+- `scripts/copy-ocr-assets.mjs` copies the text-recognition worker, wasm cores
+  and language data into `public/ocr/` (git-ignored, ~17 MB, not precached: it
+  is fetched the first time pages are read and cached after that).
 - `scripts/copy-pdfjs-assets.mjs` copies pdf.js fonts, cmaps and decoders into
   `public/pdfjs/` (git-ignored); `dev` and `build` run it automatically.
 - Ink is saved on the device only. Clearing site data removes it.

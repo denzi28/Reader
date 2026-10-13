@@ -11,6 +11,8 @@ import { addPage } from '../lib/addPage';
 import { acquirePdf, pageSize, type PageSize, readPageSizes, refreshPdf, releasePdf } from '../lib/pdf';
 import { BookLoader } from './BookLoader';
 import { DownloadDialog } from './DownloadDialog';
+import { FindBar } from './FindBar';
+import { type FindMatch, Finder } from '../lib/find';
 import { LinkCard } from './LinkCard';
 import { type Corner, LinkStack, loadCorner } from './LinkStack';
 import { NewNote } from './NewNote';
@@ -22,7 +24,7 @@ import {
 import { downloadPdf, onRemoteInk, onRemotePdf, syncDoc } from '../lib/sync/engine';
 import { useDownloadProgress } from '../lib/sync/useSync';
 import type { DocInk, DocMeta, Stroke, Tool } from '../lib/types';
-import { BackIcon, DownloadIcon, MoonIcon, NotePlusIcon, PlusIcon, SunIcon } from './icons';
+import { BackIcon, DownloadIcon, MoonIcon, NotePlusIcon, PlusIcon, SearchIcon, SunIcon } from './icons';
 import { SyncBadge } from './SyncControl';
 import { PageView } from './PageView';
 import type { SelectionApi } from './SelectionLayer';
@@ -820,6 +822,33 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose, onOpen }: Pro
     [prefs.eraserMode, prefs.eraserSize, prefs.eraserOnlyHl],
   );
 
+  // ---- finding words ---------------------------------------------------------
+  const [findOpen, setFindOpen] = useState(false);
+  const findOpenRef = useRef(false);
+  findOpenRef.current = findOpen;
+  const [found, setFound] = useState<{ matches: FindMatch[]; active: FindMatch | null }>({ matches: [], active: null });
+  const finder = useMemo(() => (pdf ? new Finder(pdf, docId) : null), [pdf, docId]);
+  /** For each page with matches, where they are (the shown one marked). */
+  const findRects = useMemo(() => {
+    const byPage = new Map<number, { x: number; y: number; w: number; h: number; active: boolean }[]>();
+    for (const m of found.matches) {
+      const list = byPage.get(m.page) ?? [];
+      for (const r of m.rects) list.push({ ...r, active: m === found.active });
+      byPage.set(m.page, list);
+    }
+    return byPage;
+  }, [found]);
+  // Showing a match: bring it into view.
+  useEffect(() => {
+    const m = found.active;
+    const el = m && pageEls.current.get(m.page);
+    const box = scroller.current;
+    if (!m || !el || !box) return;
+    const y = el.offsetTop + m.rects[0].y * pageWidth;
+    const visible = y > box.scrollTop + 100 && y < box.scrollTop + box.clientHeight - 160;
+    if (!visible) box.scrollTo({ top: Math.max(0, y - box.clientHeight / 3), behavior: 'smooth' });
+  }, [found.active]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ---- a notebook grows --------------------------------------------------
   const [adding, setAdding] = useState(false);
   /** Takes up the stored file again after it gained pages (here, or on another device). */
@@ -933,6 +962,9 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose, onOpen }: Pro
       } else if (mod && e.key.toLowerCase() === 'y') {
         e.preventDefault();
         redo();
+      } else if (mod && e.key.toLowerCase() === 'f') {
+        e.preventDefault();
+        setFindOpen(true);
       } else if (mod && selectionRef.current && ['c', 'x'].includes(e.key.toLowerCase())) {
         e.preventDefault();
         const { page, ids } = selectionRef.current;
@@ -947,7 +979,10 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose, onOpen }: Pro
       else if (!mod && e.key === '-') applyZoom(zoomApi.target() / 1.2);
       else if (!mod && e.key === 'Escape') {
         if (selectionRef.current) setSelection(null);
-        else onClose();
+        else if (findOpenRef.current) {
+          setFindOpen(false);
+          setFound({ matches: [], active: null });
+        } else onClose();
       } else if (!mod) {
         const map: Record<string, Tool> = { h: 'hand', p: 'pen', l: 'highlighter', e: 'eraser', s: 'select', t: 'text' };
         const next = map[e.key.toLowerCase()];
@@ -1008,6 +1043,12 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose, onOpen }: Pro
             <span>/ {pdf.numPages}</span>
           </label>
         )}
+        {finder && !meta?.notebook && (
+          <button className="icon-button" onClick={() => setFindOpen((v) => !v)} aria-pressed={findOpen}
+            aria-label="Find in this document" title="Find in this document (Ctrl+F)">
+            <SearchIcon />
+          </button>
+        )}
         {pdf && meta?.notebook && (
           <button className="icon-button" onClick={() => void addNotebookPage()} disabled={adding}
             aria-label="Add a page" title="Add a page at the end">
@@ -1063,6 +1104,7 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose, onOpen }: Pro
                 selection={selection?.page === i ? selection.ids : null}
                 onSelect={onSelect}
                 selectionApi={selectionApi}
+                finds={findRects.get(i)}
               />
             ))}
             {meta?.notebook && (
@@ -1084,6 +1126,9 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose, onOpen }: Pro
               onOpen={() => onOpen(l.doc.id, l.page)} onHide={() => setHidden((cur) => new Set(cur).add(l.doc.id))} />
           ))}
         </LinkStack>
+      )}
+      {findOpen && finder && (
+        <FindBar finder={finder} startPage={current} onState={(matches, active) => setFound({ matches, active })} onClose={() => { setFindOpen(false); setFound({ matches: [], active: null }); }} />
       )}
       {downloadOpen && meta && <DownloadDialog doc={meta} onClose={() => setDownloadOpen(false)} />}
       {noteDialog && meta && (

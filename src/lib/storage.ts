@@ -1,6 +1,7 @@
 import { clear, createStore, del, get, getMany, keys, set, update, type UseStore } from 'idb-keyval';
 import { cleanFolderName, FOLDER_COLORS, liveFolders, mergeFolderLogs } from './folders';
 import { applyEdit, inkFromLog, latestChange, logFromInk, mergeLogs } from './inkLog';
+import type { TextBox } from './pdf';
 import type { DocInk, DocMeta, Folder, FolderLog, InkLog, Stroke } from './types';
 
 // ---- one separate library per account ---------------------------------
@@ -53,6 +54,7 @@ const sizesKey = (id: string) => `sizes:${id}`;
 const marksKey = (id: string) => `marks:${id}`;
 const stampKey = (id: string) => `inkstamp:${id}`;
 const notesKey = (id: string) => `notes:${id}`;
+const ocrKey = (id: string) => `ocr:${id}`;
 const FOLDERS_KEY = 'folders';
 
 // ---- change notifications (sync listens to these) ---------------------
@@ -115,7 +117,7 @@ export function putDocFile(id: string, file: Blob) {
 export async function deleteDoc(id: string) {
   const current = await getMeta(id);
   dropInkCache(id);
-  await Promise.all([fileKey(id), logKey(id), legacyInkKey(id), sizesKey(id), marksKey(id), stampKey(id), notesKey(id)].map((k) => del(k, store)));
+  await Promise.all([fileKey(id), logKey(id), legacyInkKey(id), sizesKey(id), marksKey(id), stampKey(id), notesKey(id), ocrKey(id)].map((k) => del(k, store)));
   if (current) {
     await set(metaKey(id), { ...current, thumb: undefined, deleted: true, updatedAt: Date.now() }, store);
     notify(id, 'meta');
@@ -125,7 +127,7 @@ export async function deleteDoc(id: string) {
 /** Applies a deletion that came from another device. */
 export async function wipeDoc(id: string, marker: DocMeta) {
   dropInkCache(id);
-  await Promise.all([fileKey(id), logKey(id), legacyInkKey(id), sizesKey(id), marksKey(id), stampKey(id), notesKey(id)].map((k) => del(k, store)));
+  await Promise.all([fileKey(id), logKey(id), legacyInkKey(id), sizesKey(id), marksKey(id), stampKey(id), notesKey(id), ocrKey(id)].map((k) => del(k, store)));
   await set(metaKey(id), { ...marker, thumb: undefined, deleted: true }, store);
 }
 
@@ -427,4 +429,14 @@ export async function adoptGuestDocs() {
 /** Ask the browser not to evict our data under storage pressure. */
 export function requestPersistence() {
   void navigator.storage?.persist?.();
+}
+
+// ---- text read from scanned pages (stays on this device) -----------------
+/** Recognised text by page number; a page with nothing on it is kept as an empty list. */
+export type OcrPages = Record<number, TextBox[]>;
+
+export const getOcrPages = (id: string) => get<OcrPages>(ocrKey(id), store);
+
+export async function putOcrPage(id: string, page: number, boxes: TextBox[]) {
+  await update<OcrPages>(ocrKey(id), (old) => ({ ...(old ?? {}), [page]: boxes }), store);
 }
