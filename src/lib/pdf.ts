@@ -96,3 +96,40 @@ export async function makeThumbnail(pdf: PDFDocumentProxy, width = 360) {
     canvas.toBlob((b) => resolve(b ?? undefined), 'image/jpeg', 0.82),
   );
 }
+
+/** A run of text and its box, in the same units as ink (fractions of page width). */
+export interface TextBox {
+  str: string;
+  x: number;
+  right: number;
+  top: number;
+  bottom: number;
+}
+
+/** Where each run of text sits on a page, for finding what a highlight covers. */
+export async function pageTextBoxes(pdf: PDFDocumentProxy, index: number): Promise<TextBox[]> {
+  const page = await pdf.getPage(index + 1);
+  const viewport = page.getViewport({ scale: 1 });
+  const content = await page.getTextContent();
+  const w = viewport.width;
+  const boxes: TextBox[] = [];
+  for (const item of content.items) {
+    if (!('str' in item) || !item.str.trim()) continue;
+    const [a, b, c, d, e, f] = pdfjs.Util.transform(viewport.transform, item.transform) as number[];
+    if (Math.abs(b) > 0.01 || Math.abs(c) > 0.01) continue; // turned text: leave it out
+    const height = Math.hypot(c, d) || item.height;
+    const width = item.width * (a >= 0 ? 1 : -1) * viewport.scale;
+    boxes.push({ str: item.str, x: e / w, right: (e + width) / w, top: (f - height) / w, bottom: f / w });
+  }
+  return boxes;
+}
+
+/** A small picture of a page, `width` pixels wide. */
+export async function renderPagePreview(pdf: PDFDocumentProxy, index: number, canvas: HTMLCanvasElement, width: number) {
+  const page = await pdf.getPage(index + 1);
+  const base = page.getViewport({ scale: 1 });
+  const viewport = page.getViewport({ scale: width / base.width });
+  canvas.width = Math.floor(viewport.width);
+  canvas.height = Math.floor(viewport.height);
+  await page.render({ canvas, viewport }).promise;
+}

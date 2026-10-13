@@ -179,3 +179,22 @@ export const ListIcon = () => (
     <path d="M4.5 6h.01M4.5 12h.01M4.5 18h.01" />
   </Icon>
 );
+export const CopyIcon = () => (
+  <Icon>
+    <rect x="8" y="8" width="12" height="12" rx="2" />
+    <path d="M16 8V5.5A1.5 1.5 0 0 0 14.5 4h-9A1.5 1.5 0 0 0 4 5.5v9A1.5 1.5 0 0 0 5.5 16H8" />
+  </Icon>
+);
+export const PrintIcon = () => (
+  <Icon>
+    <path d="M7 9V4h10v5" />
+    <rect x="4" y="9" width="16" height="8" rx="2" />
+    <path d="M7 14h10v6H7z" />
+  </Icon>
+);
+export const BooksIcon = () => (
+  <Icon>
+    <path d="M5 4h3.5v16H5zM10.5 4H14v16h-3.5z" />
+    <path d="M16 5.2l3.3-.9 3 13.6-3.3.8z" transform="translate(-1.5 .4)" />
+  </Icon>
+);

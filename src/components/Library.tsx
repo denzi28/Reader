@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { FOLDER_COLORS, folderColor, liveFolders, MAX_FOLDER_NAME } from '../lib/folders';
 import { matchRanges, searchTerms } from '../lib/search';
@@ -10,7 +10,7 @@ import { downloadPdf } from '../lib/sync/engine';
 import { useDownloadProgress, useSyncStatus } from '../lib/sync/useSync';
 import type { DocMeta, Folder } from '../lib/types';
 import {
-  ArrowIcon, BackIcon, GridIcon, ListIcon, MarkIcon, StarIcon, CheckIcon, CloseIcon, CloudIcon, FileIcon, FolderIcon, FolderMoveIcon, FolderPlusIcon, MoonIcon, PencilIcon, SearchIcon, SunIcon,
+  ArrowIcon, BackIcon, BooksIcon, GridIcon, ListIcon, MarkIcon, StarIcon, CheckIcon, CloseIcon, CloudIcon, FileIcon, FolderIcon, FolderMoveIcon, FolderPlusIcon, MoonIcon, PencilIcon, SearchIcon, SunIcon,
   TrashIcon, UploadIcon,
 } from './icons';
 import { SyncControl } from './SyncControl';
@@ -18,7 +18,7 @@ import { SyncControl } from './SyncControl';
 interface Props {
   dark: boolean;
   onTheme: () => void;
-  onOpen: (id: string) => void;
+  onOpen: (id: string, page?: number) => void;
   onImport: (files: File[], into: string | null) => Promise<void>;
   /** The folder being looked at; null is the whole shelf. */
   folder: string | null;
@@ -108,6 +108,11 @@ function Progress({ doc, className = '' }: { doc: DocMeta; className?: string })
     </span>
   );
 }
+
+// The notes page reads PDFs, so it comes with the PDF engine, when first opened.
+const Notes = lazy(() => import('./Notes').then((m) => ({ default: m.Notes })));
+// The shelf's tab, kept while the app is open (coming back from a document).
+let lastTab: 'shelf' | 'notes' = 'shelf';
 
 const DOC_TYPE = 'application/x-reader-doc';
 /** When the move menu is a bottom sheet; matches the media query in styles.css. */
@@ -274,6 +279,8 @@ export function Library(props: Props) {
   const [moving, setMoving] = useState<{ id: string; anchor: DOMRect } | null>(null);
   const [dropOn, setDropOn] = useState<string | null>(null);
   const [query, setQuery] = useState(lastQuery);
+  const [tab, setTabState] = useState(lastTab);
+  const setTab = (t: 'shelf' | 'notes') => { lastTab = t; setTabState(t); };
   const [markCounts, setMarkCounts] = useState<Map<string, number>>(new Map());
   const [sortBy, setSortBy] = usePref<SortBy>('reader.sort', 'opened', SORTS.map((x) => x.id));
   const [view, setView] = usePref<'grid' | 'list'>('reader.view', 'grid', ['grid', 'list']);
@@ -324,7 +331,8 @@ export function Library(props: Props) {
   const folderName = new Map(folders.map((f) => [f.id, f.name]));
   // Searching looks through every document and folder, wherever it is filed.
   const terms = searchTerms(query);
-  const searching = !current && terms.length > 0; // the search box is on the main shelf
+  const onNotes = !current && tab === 'notes';
+  const searching = !current && !onNotes && terms.length > 0; // the search box is on the main shelf
   const docHits = searching
     ? (docs ?? []).flatMap((d) => {
       const name = matchRanges(d.name, terms);
@@ -409,10 +417,11 @@ export function Library(props: Props) {
     },
   });
 
+  const totalMarks = [...markCounts.values()].reduce((a, b) => a + b, 0);
   const reading = (docs ?? []).filter((d) => progressOf(d) > 0 && progressOf(d) < 1).length;
 
   // The document opened most recently, ready to pick up again.
-  const resume = !current && !searching ? docs?.[0] : undefined;
+  const resume = !current && !searching && !onNotes ? docs?.[0] : undefined;
 
   // Files dragged in from outside can be dropped anywhere on the page.
   const dragDepth = useRef(0);
@@ -635,6 +644,20 @@ export function Library(props: Props) {
         onChange={(e) => { take(e.target.files); e.target.value = ''; }}
       />
 
+      {!current && docs && docs.length > 0 && (
+        <div className="tabs" role="tablist" aria-label="Library or notes">
+          <button role="tab" aria-selected={!onNotes} className={onNotes ? '' : 'on'} onClick={() => setTab('shelf')}>
+            <BooksIcon />
+            Library
+          </button>
+          <button role="tab" aria-selected={onNotes} className={onNotes ? 'on' : ''} onClick={() => setTab('notes')}>
+            <MarkIcon />
+            Notes
+            {totalMarks > 0 && <span className="tab-count">{totalMarks}</span>}
+          </button>
+        </div>
+      )}
+
       {current ? (
         <nav className="folder-bar" aria-label="Folder">
           <button
@@ -702,7 +725,7 @@ export function Library(props: Props) {
             )}
           </div>
         </nav>
-      ) : docs && docs.length > 0 && (
+      ) : docs && docs.length > 0 && !onNotes && (
         <div className="shelf-bar">
           <div className={`search${query ? ' active' : ''}`} role="search">
             <SearchIcon />
@@ -785,7 +808,18 @@ export function Library(props: Props) {
         </section>
       )}
 
-      {!searching && (
+      {onNotes && (
+        <Suspense fallback={<div className="note-loading" />}>
+          <Notes
+            docs={(docs ?? []).filter((d) => (markCounts.get(d.id) ?? 0) > 0)}
+            folderName={(d) => (placeOf(d) ? folderName.get(placeOf(d)!) ?? null : null)}
+            dark={dark}
+            onOpen={(id, page) => onOpen(id, page)}
+          />
+        </Suspense>
+      )}
+
+      {!searching && !onNotes && (
         <>
           {docs?.length === 0 && (
             // An empty library gets a big, friendly place to start.

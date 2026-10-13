@@ -83,8 +83,8 @@ export function App() {
     return () => window.removeEventListener('popstate', onPop);
   }, []);
 
-  const open = useCallback((id: string) => {
-    history.pushState({ doc: id, folder: history.state?.folder ?? null }, '');
+  const open = useCallback((id: string, page?: number) => {
+    history.pushState({ doc: id, folder: history.state?.folder ?? null, page }, '');
     transition(() => setDocId(id));
   }, []);
 
@@ -140,7 +140,14 @@ export function App() {
 
   return docId ? (
     <Suspense fallback={opening}>
-      <Viewer key={docId} docId={docId} dark={theme === 'dark'} onTheme={toggleTheme} onClose={close} />
+      <Viewer
+        key={docId}
+        docId={docId}
+        startPage={history.state?.page}
+        dark={theme === 'dark'}
+        onTheme={toggleTheme}
+        onClose={close}
+      />
     </Suspense>
   ) : (
     <Library

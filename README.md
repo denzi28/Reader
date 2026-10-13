@@ -21,6 +21,14 @@ your device.
   with the folder button on its cover (or drag it onto a folder on desktop);
   PDFs added while a folder is open go straight into it. Deleting a folder
   keeps its documents and puts them back on the shelf.
+- **Shelf**: a "Continue reading" card, reading progress on every cover, the
+  number of marks on each document, starred documents, folders shown with
+  their covers in a colour of your choice, and sorting by recently opened,
+  added, name or progress in a grid or a list.
+- **Notes**: every highlight and pen mark in one place, page by page. For
+  highlights, the text under them is read from the PDF and quoted. A note
+  opens its page; "Copy all" gives the notes as text, and the page prints
+  cleanly (or saves as PDF from the print dialog).
 - **Search** across every document and folder name (`/` or `Ctrl/Cmd+K` to
   jump to it). Case, accents and the Turkish dotted/dotless i are ignored, so
   "ders notlari" finds "Ders notları".

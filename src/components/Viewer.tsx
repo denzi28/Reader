@@ -19,6 +19,8 @@ import { Toolbar } from './Toolbar';
 
 interface Props {
   docId: string;
+  /** Open at this page (zero-based) instead of where the reader left off. */
+  startPage?: number;
   dark: boolean;
   onTheme: () => void;
   onClose: () => void;
@@ -36,7 +38,7 @@ const MAX_ZOOM = 5;
 const GUTTER = 14;
 const MAX_BASE = 900;
 
-export function Viewer({ docId, dark, onTheme, onClose }: Props) {
+export function Viewer({ docId, startPage, dark, onTheme, onClose }: Props) {
   const scroller = useRef<HTMLDivElement>(null);
   const [meta, setMeta] = useState<DocMeta | null>(null);
   const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null);
@@ -85,7 +87,7 @@ export function Viewer({ docId, dark, onTheme, onClose }: Props) {
       }
       if (!m || !file || m.deleted) throw new Error('This document is no longer on this device.');
       doc = await openPdfFile(file);
-      const start = Math.min(m.lastPage, doc.numPages - 1);
+      const start = Math.max(0, Math.min(startPage ?? m.lastPage, doc.numPages - 1));
       // Show the document straight away. Page sizes measured on an earlier
       // visit are exact; the first time, every page is assumed to match the
       // first (true of most documents) and the rest are measured afterwards.
