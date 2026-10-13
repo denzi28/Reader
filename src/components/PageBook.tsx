@@ -565,7 +565,7 @@ export function PageBook({ docId, startPage, dark, onTheme, onClose, onPdf, scan
       )}
 
       {scan && (
-        <div className="bk-scan" role="status"><span>Reading the pages… {scan.done} of {scan.total}. The text opens in a moment.</span></div>
+        <div className="bk-scan" role="status" aria-label={`Reading the pages, ${scan.done} of ${scan.total}. The text opens in a moment.`}><span>{scan.done}/{scan.total}</span></div>
       )}
 
       <footer className="bk-bottom">

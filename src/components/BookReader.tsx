@@ -387,8 +387,7 @@ function Reader({ data, docId, startPage, dark, onTheme, onClose, onPdf, scan, o
     setAnim(!reduced);
     setScreen(s);
     commitPos(posOfScreen(s));
-    if (phone) setChrome(false);
-  }, [reduced, posOfScreen, commitPos, phone]);
+  }, [reduced, posOfScreen, commitPos]);
 
   const shown = useRef(0);
   useLayoutEffect(() => {
@@ -407,8 +406,7 @@ function Reader({ data, docId, startPage, dark, onTheme, onClose, onPdf, scan, o
     pending.current = where === 'last' ? 'last' : 0;
     if (where === 'first') commitPos({ b: ix.first[c], o: 0 });
     setChapter(c);
-    if (phone) setChrome(false);
-  }, [ix, commitPos, phone]);
+  }, [ix, commitPos]);
 
   const next = useCallback(() => {
     if (!paged) {
@@ -528,7 +526,9 @@ function Reader({ data, docId, startPage, dark, onTheme, onClose, onPdf, scan, o
   const chapterIdx = ix.chapterOf[Math.min(pos.b, lastBlock)] ?? 0;
   const title = toc[currentToc]?.title ?? chapterTitle(book, ix, pos.b);
   const wordsHere = ix.words[Math.min(pos.b, lastBlock)] ?? 0;
-  const chapterLeft = Math.max(0, (ix.words[ix.first[chapterIdx + 1]] ?? ix.total) - wordsHere) / WORDS_PER_MINUTE;
+  // (the last chapter also has the pages not read yet ahead of it, as the whole book's time does)
+  const afterText = chapterIdx === book.chapters.length - 1 ? unread * (ix.total / Math.max(1, meta.pages - unread)) : 0;
+  const chapterLeft = Math.max(0, (ix.words[ix.first[chapterIdx + 1]] ?? ix.total) - wordsHere + afterText) / WORDS_PER_MINUTE;
   const textPages = Math.max(1, meta.pages - (book.blank?.length ?? 0));
   const bookLeft = byPages
     ? (Math.max(0, ix.total * (1 - fractionAt(ix, scrub !== null ? posAtSlider(scrub) : pos))) + unread * (ix.total / textPages)) / WORDS_PER_MINUTE
@@ -785,7 +785,7 @@ function Reader({ data, docId, startPage, dark, onTheme, onClose, onPdf, scan, o
       </div>
 
       {scan && (
-        <div className="bk-scan" role="status"><span>Reading the pages… {scan.done} of {scan.total}</span></div>
+        <div className="bk-scan" role="status" aria-label={`Reading the pages, ${scan.done} of ${scan.total}`}><span>{scan.done}/{scan.total}</span></div>
       )}
 
       <footer className="bk-bottom">
@@ -796,7 +796,7 @@ function Reader({ data, docId, startPage, dark, onTheme, onClose, onPdf, scan, o
         </div>
         {phone && toolRow}
       </footer>
-      {phone && !showChrome && <div className="bk-status" aria-hidden="true"><span>{title}</span><span>{Math.round(frac * 100)}%</span></div>}
+      {phone && !showChrome && <div className="bk-status" aria-hidden="true"><span>{title}</span><span>{paged ? `${pageLabel} · ` : ''}{Math.round(frac * 100)}%</span></div>}
 
       {picked && !panel && (
         <MarkBar rect={picked.rect} area={{ width: box.w, height: window.innerHeight }} mode="select" onColor={(c) => highlight(c)} onNote={() => highlight('yellow', true)} onCopy={copyPicked} />
