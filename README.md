@@ -27,7 +27,7 @@ your device.
   up under *Notes* with the highlights. Edits keep a stroke's id, so moving or
   restyling merges between devices like any other change (newer wins).
 - **New note**: a blank notebook to write on (blank, lined, squared or dotted
-  paper, portrait or landscape, up to 200 pages), made on the device as an
+  paper, always upright pages so that notes line up, up to 200 pages), made on the device as an
   ordinary PDF, so the pen, typed notes and syncing all work on it. It opens
   with the pen in hand. Pages cannot be added to it afterwards.
 - **A note for one page.** The note button in a PDF's top bar makes an empty
