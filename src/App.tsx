@@ -5,6 +5,8 @@ import { DocScreen, type DocView } from './components/DocScreen';
 import { GuestTools } from './components/GuestTools';
 import type { ToolId } from './components/toolList';
 import { Welcome } from './components/Welcome';
+import { PaywallHost } from './components/Paywall';
+import { openPaywall, PlanLimit } from './lib/plan';
 import { useSyncStatus } from './lib/sync/useSync';
 
 // The readers and the PDF engine are a large download of their own; the
@@ -130,15 +132,19 @@ export function App() {
     let last: string | null = null;
     let reason = '';
     const { importPdf } = await import('./lib/importPdf');
+    let full = false;
     for (const file of files) {
       try {
         last = (await importPdf(file, into ?? undefined)).id;
       } catch (err) {
+        if (err instanceof PlanLimit) { full = true; break; } // the free plan is full: the paywall says so
+
         failed.push(file.name);
         reason = err instanceof Error ? err.message : 'Something went wrong adding that file.';
       }
     }
     setBusy(false);
+    if (full) openPaywall('docs');
     if (files.length === 1 && last) open(last);
     else if (failed.length === 1 && files.length === 1) setError(reason);
     else if (failed.length) setError(`${failed.length} of ${files.length} files could not be added (${failed.join(', ')}). ${reason}`);
@@ -164,7 +170,9 @@ export function App() {
       : <Welcome onTools={openGuestTools} dark={theme === 'dark'} onTheme={toggleTheme} />;
   }
 
-  return docId ? (
+  return (
+    <>
+      {docId ? (
     <DocScreen
       key={docId}
       docId={docId}
@@ -188,5 +196,8 @@ export function App() {
       error={error}
       onDismissError={() => setError(null)}
     />
+      )}
+      <PaywallHost />
+    </>
   );
 }

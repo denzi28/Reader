@@ -3,6 +3,7 @@ import { folderColor } from '../lib/folders';
 import type { Folder } from '../lib/types';
 import { BooksIcon, FolderPlusIcon, MarkIcon, MoonIcon, SparkIcon, SunIcon } from './icons';
 import { InstallChip } from './PwaBits';
+import { PlanCard } from './Paywall';
 import { SideProfile, SyncControl } from './SyncControl';
 
 export type SideTab = 'shelf' | 'notes' | 'tools';
@@ -77,6 +78,7 @@ export function Sidebar({
       </nav>
       <div className="side-foot">
         <InstallChip />
+        <PlanCard docCount={total} compact />
         <SideProfile />
         <div className="side-account">
           <SyncControl />

@@ -7,6 +7,7 @@ import {
   adoptGuestDocs, createFolder, currentSpace, deleteDoc, deleteFolder, getFolderLog, guestDocs,
   getMarkCounts, listDocs, moveDocs, patchMeta, renameFolder, setFolderColor,
 } from '../lib/storage';
+import { openPaywall, PlanLimit } from '../lib/plan';
 import { downloadPdf } from '../lib/sync/engine';
 import { useDownloadProgress, useSyncStatus } from '../lib/sync/useSync';
 import type { DocMeta, Folder } from '../lib/types';
@@ -354,6 +355,7 @@ export function Library(props: Props) {
       void refresh();
       onOpen(made.id);
     } catch (err) {
+      if (err instanceof PlanLimit) { setNewNote(false); openPaywall('docs'); return; }
       setNoteError(err instanceof Error ? err.message : 'The note could not be made.');
     } finally {
       setMakingNote(false);
@@ -818,7 +820,7 @@ export function Library(props: Props) {
 
       {!phone && (onTools || onNotes) && <h2 className="page-title">{onTools ? 'PDF tools' : 'Notes'}</h2>}
       {onTools && <ToolsPage onPick={pickFromTools} />}
-      {onMe && <MePage dark={dark} onTheme={onTheme} />}
+      {onMe && <MePage dark={dark} onTheme={onTheme} docCount={(docs ?? []).filter((d) => !d.attached).length} />}
 
       {resume && (
         <button

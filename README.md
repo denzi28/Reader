@@ -224,6 +224,30 @@ to the Play listing. Until then, keep the web app as the single source of
 truth for features, and keep it easy to port (no browser-only tricks that a
 native/wrapped app could not reproduce).
 
+## Premium
+
+Premium is bought **only** through Google Play or the App Store (never on the web: the paywall
+sends people to the app). Until the apps are listed nothing is limited: the limits below apply
+only when the server has `PAYWALL_ENFORCED=1` (Vercel environment variable; `TRIAL_DAYS`, default 7).
+
+- **Trial:** everything unlocked for 7 days from a person's first sign-in. The start is kept on
+  the server per Google account (`reader_plans`, keyed by an HMAC of the Google id), so clearing
+  the browser does not restart it.
+- **Free plan** afterwards: up to 5 documents in the library (existing ones stay; notes made for
+  a page are not counted; adding more opens the paywall), and Drive sync on **one device only**,
+  by itself at most every 6 hours (`FREE_AUTO_SYNC_MS`), the rest by hand with "Sync now". Another
+  device is told sync runs elsewhere and can take it over once a day. Reading, pen, highlights,
+  book mode, PDF tools and reading scanned pages stay free.
+- **Premium:** no document limit, sync on every device, automatically.
+
+How it fits together: `api/auth.ts` answers `GET /api/auth/plan?device=...` (trial start, Premium
+end, whether this device is the sync device) and `POST /api/auth/plan-move`; the database side is
+`supabase/migrations/20261013000000_reader_plans.sql` (apply it before turning enforcement on).
+`src/lib/plan.ts` holds the rules, `engine.ts` gates syncing, `importPdf.ts` the document limit,
+`Paywall.tsx` the sheet and the plan card (Me page, desktop sidebar). Still to build, with the
+apps: verifying Play Billing / App Store purchases on the server and writing `premium_until`;
+the paywall then shows the store buttons (`VITE_PLAY_URL`, `VITE_APPSTORE_URL`).
+
 ## Google Drive sync
 
 Sync uses Google Identity Services in the browser and the `drive.appdata`

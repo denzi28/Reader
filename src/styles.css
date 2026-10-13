@@ -3352,3 +3352,23 @@ html.reading, html.reading body { touch-action: pan-x pan-y; }
 .bk-switch input:checked + i::after { transform: translateX(18px); }
 .bk-switch input:focus-visible + i { outline: 2px solid var(--bk-accent); outline-offset: 2px; }
 .bk-range:disabled { opacity: 0.4; cursor: default; }
+
+/* plans and the paywall */
+.plan-card { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 16px; background: var(--card); border: 1px solid var(--line); }
+.plan-card .plan-icon { flex: none; width: 36px; height: 36px; display: grid; place-items: center; border-radius: 50%; background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); }
+.plan-text { flex: 1; min-width: 0; display: grid; line-height: 1.3; }
+.plan-text strong { font-size: 0.95rem; }
+.plan-text small { color: var(--muted); font-size: 0.8rem; }
+.plan-card.compact { display: grid; grid-template-columns: auto 1fr; gap: 6px 9px; padding: 9px 10px; border-radius: 14px; }
+.plan-card.compact .button, .plan-card.compact .chip-button { grid-column: 1 / -1; justify-content: center; }
+.plan-card.compact .plan-icon { width: 30px; height: 30px; }
+.plan-card.compact .plan-text small { font-size: 0.74rem; }
+.plan-card.compact .button, .plan-card.compact .chip-button { padding: 0 10px; height: 32px; font-size: 0.82rem; }
+.paywall .paywall-perks { list-style: none; margin: 4px 0 12px; padding: 0; display: grid; gap: 10px; }
+.paywall .paywall-perks li { display: flex; align-items: center; gap: 10px; font-size: 1rem; }
+.paywall .paywall-perks svg { color: var(--accent); }
+.paywall-trial { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, var(--accent) 12%, transparent); font-size: 0.92rem; }
+.paywall-buy, .paywall-soon { margin: 0 0 12px; color: var(--muted); font-size: 0.88rem; line-height: 1.45; }
+.paywall-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.plan-note { margin: 8px 0 0; padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, var(--accent) 10%, transparent); font-size: 0.85rem; line-height: 1.4; }
+.side-foot .plan-card { margin-bottom: 0; }

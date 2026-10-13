@@ -13,12 +13,16 @@
 //   GET  /api/auth/status    → { configured, user }
 //   POST /api/auth/token     → { access_token, expires_in, user }
 //   POST /api/auth/logout    → signs out on this device (access stays granted)
+//   GET  /api/auth/plan      → trial, Premium and free-plan sync device for this person
+//   POST /api/auth/plan-move → makes the calling device the free plan's sync device
 //
 // Environment: VITE_GOOGLE_CLIENT_ID (shared with the app) and
 // GOOGLE_CLIENT_SECRET. SESSION_SECRET (32 random bytes, base64) is optional;
 // without it the cookie key is derived from the client secret. Changing either
 // signs everyone out. SUPABASE_URL and SUPABASE_KEY (the publishable key)
-// enable remembering consent; without them each new session asks once.
+// enable remembering consent; without them each new session asks once. They
+// also keep each person's plan (trial start, Premium, sync device); the limits
+// only apply when PAYWALL_ENFORCED=1 (TRIAL_DAYS sets the trial, default 7).
 // /api/auth/:action is rewritten to this file in vercel.json.
 
 declare const process: { env: Record<string, string | undefined> };
@@ -191,6 +195,74 @@ async function loadGrant(uid: string): Promise<string | null> {
   }
 }
 
+// ---- plan: the trial, Premium, and the free plan's sync device ----------------
+const ENFORCED = process.env.PAYWALL_ENFORCED === '1';
+const TRIAL_DAYS = Math.max(1, Number(process.env.TRIAL_DAYS) || 7);
+
+let planKeyPromise: Promise<CryptoKey> | null = null;
+async function planKey(uid: string) {
+  planKeyPromise ??= (async () => {
+    const raw = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`reader-plan:${CLIENT_SECRET}`));
+    return crypto.subtle.importKey('raw', raw, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  })();
+  const mac = new Uint8Array(await crypto.subtle.sign('HMAC', await planKeyPromise, new TextEncoder().encode(uid)));
+  return Array.from(mac, (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+interface PlanRow {
+  trial_started: number;
+  premium_until: number | null;
+  sync_device: string | null;
+  sync_device_at: number | null;
+}
+
+const DEVICE = /^[A-Za-z0-9_-]{8,64}$/;
+
+/** What the app needs to know; the device id itself stays here, only whether it is this one goes out. */
+function planView(row: PlanRow, device: string | null) {
+  return {
+    enforced: ENFORCED,
+    trialDays: TRIAL_DAYS,
+    trialStarted: row.trial_started,
+    premiumUntil: row.premium_until,
+    syncHere: row.sync_device === null ? true : row.sync_device === device,
+    syncMovedAt: row.sync_device_at,
+    now: Date.now(),
+  };
+}
+
+async function plan(request: Request) {
+  // Without a database (or without enforcement) nobody is limited.
+  if (!ENFORCED || !grantsOn()) return json({ enforced: false });
+  const s = await unseal(cookies(request)[SESSION]);
+  if (!s) return json({ error: 'signed_out' }, 401);
+  if (!s.uid) return json({ enforced: false });
+  const device = new URL(request.url).searchParams.get('device');
+  try {
+    const row = (await rpc('reader_plan_get', { p_k: await planKey(s.uid), p_device: device && DEVICE.test(device) ? device : '' })) as PlanRow;
+    return json(planView(row, device));
+  } catch {
+    return json({ enforced: false }); // the database only ever helps
+  }
+}
+
+async function planMove(request: Request) {
+  const s = await unseal(cookies(request)[SESSION]);
+  if (!s?.uid) return json({ error: 'signed_out' }, 401);
+  if (!ENFORCED || !grantsOn()) return json({ moved: true, ...planView({ trial_started: Date.now(), premium_until: null, sync_device: null, sync_device_at: null }, null), enforced: false });
+  let device = '';
+  try { device = String(((await request.json()) as { device?: string }).device ?? ''); } catch { /* none */ }
+  if (!DEVICE.test(device)) return json({ error: 'bad_device' }, 400);
+  try {
+    const key = await planKey(s.uid);
+    const moved = (await rpc('reader_plan_move_sync', { p_k: key, p_device: device })) as { moved: boolean };
+    const row = (await rpc('reader_plan_get', { p_k: key, p_device: '' })) as PlanRow;
+    return json({ moved: moved.moved, ...planView(row, device) });
+  } catch {
+    return json({ error: 'unavailable' }, 503);
+  }
+}
+
 async function dropGrant(uid: string) {
   if (!grantsOn()) return;
   await rpc('reader_drop_grant', { p_k: await grantKey(uid) }).catch(() => undefined);
@@ -346,6 +418,7 @@ const action = (request: Request) => new URL(request.url).searchParams.get('acti
 export async function GET(request: Request): Promise<Response> {
   const a = action(request);
   if (a === 'status') return status(request);
+  if (a === 'plan') return plan(request);
   if (!configured()) return json({ error: 'not_configured' }, 501);
   if (a === 'start') return start(request);
   if (a === 'callback') return callback(request);
@@ -358,5 +431,6 @@ export async function POST(request: Request): Promise<Response> {
   const a = action(request);
   if (a === 'token') return token(request);
   if (a === 'logout') return logout(request);
+  if (a === 'plan-move') return planMove(request);
   return json({ error: 'not_found' }, 404);
 }

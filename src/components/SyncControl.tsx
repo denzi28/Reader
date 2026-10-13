@@ -169,7 +169,7 @@ export function SyncControl() {
             </div>
           </div>
           <p className="sync-note">
-            {status.message ?? (status.lastSyncedAt ? `Synced with Google Drive ${ago(status.lastSyncedAt)}` : 'Syncs with your Google Drive')}
+            {status.limited ? 'Free plan: sync runs on your other device.' : status.message ?? (status.lastSyncedAt ? `Synced with Google Drive ${ago(status.lastSyncedAt)}` : 'Syncs with your Google Drive')}
           </p>
           <button role="menuitem" onClick={() => { setOpen(false); void syncAll(); }}>Sync now</button>
           <button
@@ -218,7 +218,7 @@ export function AccountCard() {
           {status.name && status.email && <span>{status.email}</span>}
           <span className={`me-state state-${status.state}`}>
             <StateIcon state={status.state} />
-            {status.message ?? (status.state === 'idle' && status.lastSyncedAt ? `Synced ${ago(status.lastSyncedAt)}` : LABEL[status.state])}
+            {status.limited ? 'Free plan: sync runs on another device' : status.message ?? (status.state === 'idle' && status.lastSyncedAt ? `Synced ${ago(status.lastSyncedAt)}` : LABEL[status.state])}
           </span>
         </div>
       </div>

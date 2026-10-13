@@ -12,6 +12,7 @@
 import { foldersAhead, latestFolderChange, mergeFolderLogs } from '../folders';
 import { hasNewer, latestChange } from '../inkLog';
 import * as storage from '../storage';
+import { forgetPlan, FREE_AUTO_SYNC_MS, openPaywall, planInfo, refreshPlan } from '../plan';
 import type { DocMeta, FolderLog, InkLog } from '../types';
 import * as drive from './drive';
 import {
@@ -41,6 +42,8 @@ export interface SyncStatus {
   message?: string;
   /** Goes up whenever sync changed what is on the shelf. */
   libraryVersion: number;
+  /** The free plan syncs on another device, not this one. */
+  limited?: 'device';
 }
 
 const ACCOUNT_KEY = 'reader.drive.account';
@@ -254,6 +257,26 @@ async function token(): Promise<string | null> {
 function synced() {
   authRetried = false;
   setStatus({ state: 'idle', lastSyncedAt: Date.now(), message: undefined });
+  try { localStorage.setItem(LAST_SYNC_KEY, String(Date.now())); } catch { /* ignore */ }
+}
+
+// ---- what the plan allows -------------------------------------------------
+const LAST_SYNC_KEY = 'reader.lastsync';
+function lastSyncAt() {
+  try { return Number(localStorage.getItem(LAST_SYNC_KEY)) || 0; } catch { return 0; }
+}
+
+/**
+ * Premium and the trial sync everything, all the time. The free plan syncs on one
+ * device only, and by itself only now and then (the rest is by hand).
+ */
+function allowed(auto: boolean): boolean {
+  const info = planInfo();
+  const limited = info.state === 'free' && !info.syncHere ? 'device' : undefined;
+  if (status.limited !== limited) setStatus({ limited });
+  if (info.state !== 'free') return true;
+  if (limited) return false;
+  return !auto || Date.now() - lastSyncAt() >= FREE_AUTO_SYNC_MS;
 }
 
 // ---- connecting -------------------------------------------------------
@@ -296,7 +319,8 @@ async function reconnect() {
 export async function disconnect() {
   // Not connected any more: syncs already queued see this and stop at once,
   // then the one running is cancelled, so nothing is left to wait behind.
-  setStatus({ connected: false, state: 'off' });
+  setStatus({ connected: false, state: 'off', limited: undefined });
+  forgetPlan();
   drive.cancelAll();
   clearTimeout(retryTimer);
   if (authMode() === 'server') await signOutEverywhere();
@@ -590,9 +614,14 @@ function emitInk(id: string) {
 }
 
 /** Brings every document on this device and in Drive up to date. */
-export function syncAll() {
+export function syncAll(options: { auto?: boolean } = {}) {
   return exclusive(async () => {
     if (!status.connected) return;
+    if (!allowed(Boolean(options.auto))) {
+      // Someone pressed Sync now on a device the free plan does not sync: say why.
+      if (!options.auto && status.limited) openPaywall('sync');
+      return;
+    }
     try {
       const t = await token();
       if (!t) return;
@@ -632,6 +661,7 @@ export function syncAll() {
 export function syncDoc(id: string) {
   return exclusive(async () => {
     if (!status.connected) return;
+    if (!allowed(true)) return;
     try {
       const t = await token();
       if (!t) return;
@@ -727,12 +757,16 @@ let lastAll = 0;
 function syncAllSoon() {
   if (!status.connected || Date.now() - lastAll < 20_000) return;
   lastAll = Date.now();
-  void syncAll();
+  void syncAll({ auto: true });
 }
 
 if (typeof window !== 'undefined' && syncConfigured) {
+  let planAt = Date.now();
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') syncAllSoon();
+    if (document.visibilityState !== 'visible') return;
+    // The plan is asked for again now and then (a purchase made in the app, the trial ending).
+    if (status.connected && Date.now() - planAt > 20 * 60_000) { planAt = Date.now(); void refreshPlan(); }
+    syncAllSoon();
   });
   window.addEventListener('online', () => {
     lastAll = 0;
@@ -757,6 +791,7 @@ if (typeof window !== 'undefined' && syncConfigured) {
     } else {
       setStatus({ ready: true });
     }
+    if (account) await refreshPlan();
     syncAllSoon(); // start-up sync, if signed in
   });
 }

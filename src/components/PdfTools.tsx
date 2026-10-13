@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { importPdf } from '../lib/importPdf';
+import { openPaywall, PlanLimit } from '../lib/plan';
 import { movedStrokes, type PageMove } from '../lib/carryNotes';
 import { mergePdfs, pageCount, parseRanges, splitPdf } from '../lib/pdfOps';
 import { createFolder, getMarkCounts, loadInk, recordInkEdit } from '../lib/storage';
@@ -160,6 +161,7 @@ function Ready({ tool, finished, signedIn, guest, onClose, onChanged, onOpen }: 
       setBusy(null);
       perform(then, next);
     } catch (err) {
+      if (err instanceof PlanLimit) openPaywall('docs');
       setError(errorText(err));
       setBusy(null);
     }

@@ -7,6 +7,7 @@ import {
 } from './icons';
 import { useSyncStatus } from '../lib/sync/useSync';
 import { InstallChip } from './PwaBits';
+import { PlanCard } from './Paywall';
 import { AccountCard } from './SyncControl';
 import { TOOLS, type ToolId } from './toolList';
 
@@ -124,10 +125,11 @@ export function ToolsPage({ onPick }: { onPick: (id: ToolId) => void }) {
 }
 
 /** Account, night paper, installing the app, and the small print. */
-export function MePage({ dark, onTheme }: { dark: boolean; onTheme: () => void }) {
+export function MePage({ dark, onTheme, docCount }: { dark: boolean; onTheme: () => void; docCount: number }) {
   return (
     <section className="phone-page" aria-label="Me">
       <AccountCard />
+      <PlanCard docCount={docCount} />
       <div className="me-card me-list">
         <button className="me-row" onClick={onTheme} role="switch" aria-checked={dark}>
           <span className="me-row-icon">{dark ? <SunIcon /> : <MoonIcon />}</span>

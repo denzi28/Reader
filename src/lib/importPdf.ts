@@ -1,4 +1,5 @@
 import { fileId } from './hash';
+import { assertRoom } from './plan';
 import { makeThumbnail, openPdfFile } from './pdf';
 import { getMeta, patchMeta, putDocFile, putMeta, requestPersistence, saveDoc } from './storage';
 import type { DocMeta } from './types';
@@ -11,7 +12,7 @@ function looksLikePdf(buf: ArrayBuffer) {
 }
 
 /** Adds a PDF (or a Word, Excel or PowerPoint file, made into one) to the library, filed in `folder` when one is given. */
-export async function importPdf(original: File, folder?: string, options: { localOnly?: boolean } = {}): Promise<DocMeta> {
+export async function importPdf(original: File, folder?: string, options: { localOnly?: boolean; /** Not counted against the free plan (a note made for a page). */ unmetered?: boolean } = {}): Promise<DocMeta> {
   let file = original;
   let buf = await file.arrayBuffer();
   const { looksLikeEpub } = await import('./book/epub');
@@ -35,6 +36,8 @@ export async function importPdf(original: File, folder?: string, options: { loca
     await patchMeta(id, folder ? { openedAt: Date.now(), folder } : { openedAt: Date.now() });
     return existing;
   }
+
+  if (!options.unmetered) await assertRoom(); // the free plan keeps a few documents
 
   if (book) return importEpub(id, original, buf, folder, options);
 

@@ -9,7 +9,7 @@ export async function createNotebook(
 ): Promise<DocMeta> {
   const [{ makeNotebook }, { importPdf }] = await Promise.all([import('./blankPdf'), import('./importPdf')]);
   const file = await makeNotebook(spec);
-  const made = await importPdf(file, options.folder);
+  const made = await importPdf(file, options.folder, { unmetered: Boolean(options.attached) });
   const change: Partial<DocMeta> = { notebook: true };
   if (options.attached) change.attached = options.attached;
   await patchMeta(made.id, change);
