@@ -42,7 +42,7 @@ function Seg<T extends string>({ label, value, options, onPick }: { label: strin
   );
 }
 
-export function ReadingPanel({ settings, change, themeNow, wide, onPdf, imageOnly }: {
+export function ReadingPanel({ settings, change, themeNow, wide, onPdf, imageOnly, zoom }: {
   settings: BookSettings;
   change: (c: Partial<BookSettings>) => void;
   /** The theme in force (so "auto" shows as the one it picked). */
@@ -52,6 +52,8 @@ export function ReadingPanel({ settings, change, themeNow, wide, onPdf, imageOnl
   onPdf?: () => void;
   /** Showing the PDF's own pages (not text): only the colours, the layout and eye comfort apply. */
   imageOnly?: boolean;
+  /** The PDF's pages can be zoomed (only with `imageOnly`). */
+  zoom?: { value: number; min: number; max: number; onChange: (v: number) => void; onFitPage: () => void; onFitWidth: () => void };
 }) {
   return (
     <div className="bk-reading">
@@ -82,6 +84,21 @@ export function ReadingPanel({ settings, change, themeNow, wide, onPdf, imageOnl
       <Seg label="Line spacing" value={settings.spacing} options={[['tight', 'Tight'], ['normal', 'Normal'], ['roomy', 'Roomy']]} onPick={(spacing) => change({ spacing })} />
       <div className="bk-lab">Margins</div>
       <Seg label="Margins" value={settings.margins} options={[['narrow', 'Narrow'], ['medium', 'Medium'], ['wide', 'Wide']]} onPick={(margins) => change({ margins })} />
+        </>
+      )}
+      {imageOnly && zoom && (
+        <>
+          <div className="bk-lab">Zoom · {Math.round(zoom.value * 100)}%</div>
+          <div className="bk-sizer">
+            <span className="bk-a1" aria-hidden="true">−</span>
+            <input type="range" className="bk-range" min={Math.round(Math.log(zoom.min) * 100)} max={Math.round(Math.log(zoom.max) * 100)} step={1}
+              value={Math.round(Math.log(zoom.value) * 100)} aria-label="Zoom" onChange={(e) => zoom.onChange(Math.exp(Number(e.target.value) / 100))} />
+            <span className="bk-a1" aria-hidden="true">+</span>
+          </div>
+          <div className="bk-fits">
+            <button className="chip-button" onClick={zoom.onFitPage}>Whole page</button>
+            <button className="chip-button" onClick={zoom.onFitWidth}>Page width</button>
+          </div>
         </>
       )}
       <div className="bk-lab">{wide || imageOnly ? 'Layout' : 'Turning pages'}</div>

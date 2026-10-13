@@ -189,7 +189,9 @@ Keyboard: `P` pen, `L` highlighter, `E` eraser (press again to switch off), `Ctr
   (`PageBook.tsx`: one or two at a time, the book's colours and eye comfort, contents and
   bookmarks), view only, with nothing read. Only asking to highlight or take notes shows a small
   question: what reading the pages is for, about how long it takes (from what the last run
-  measured), and the whole book, just the next 20 pages, or not now.
+  measured), and the whole book, just the next 20 pages, or not now. The pages can be zoomed
+  as far as wanted (pinch, + and −, Ctrl and the wheel, the Aa panel's slider or "Page width");
+  dragging moves about a zoomed page, and each document keeps its own zoom, also after closing it.
   Places and marks in a PDF book are kept as (page, number on that page), so they stay put when
   pages are added later.
   Tables, formulas and figures stay in the PDF, one tap away. The place (`bookPos`, kept in

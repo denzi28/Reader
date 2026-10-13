@@ -3399,3 +3399,11 @@ html.reading, html.reading body { touch-action: pan-x pan-y; }
 .bk-ask-actions small { margin-left: 6px; font-size: 0.74rem; opacity: 0.85; font-weight: 400; }
 .bk-ask .bk-ask-alt { margin: 10px 0 0; }
 .bk-ask .link { color: var(--bk-accent); }
+
+/* zooming the pages of a scanned PDF */
+.bk-pages .bk-view { overflow: auto; display: flex; touch-action: none; overscroll-behavior: contain; }
+.bk-pages .bk-view.zoomed { touch-action: pan-x pan-y; cursor: grab; }
+.bk-pages .bk-view.zoomed:active { cursor: grabbing; }
+.bk-pages .bk-spread { position: relative; inset: auto; flex: none; margin: auto; padding: var(--bk-pad, 8px); }
+.bk-zoom { min-width: 54px; height: 32px; padding: 0 8px; border: 0; border-radius: 16px; background: color-mix(in srgb, var(--bk-ink) 8%, transparent); color: var(--bk-ink); font-size: 0.82rem; font-variant-numeric: tabular-nums; cursor: pointer; }
+.bk-fits { display: flex; gap: 8px; margin-top: 8px; }

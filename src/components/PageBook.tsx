@@ -10,7 +10,7 @@ import type { BookMark, DocMeta } from '../lib/types';
 import { usePhone } from '../lib/usePhone';
 import { BookSheet, ReadingPanel } from './BookSheets';
 import {
-  AaIcon, BackIcon, BookmarkIcon, BookOpenIcon, ListIcon, MoonIcon, MoreVIcon, PencilIcon, SunIcon,
+  AaIcon, BackIcon, BookmarkIcon, BookOpenIcon, ListIcon, MinusIcon, MoonIcon, MoreVIcon, PencilIcon, PlusIcon, SunIcon,
 } from './icons';
 
 interface Props {
@@ -28,21 +28,43 @@ interface Props {
 
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
 
+export const ZOOM_MIN = 0.5;
+export const ZOOM_MAX = 6;
+const ZOOM_KEY = 'reader.pagezoom';
+/** How close each document was last read (1 is the whole page in view), kept on this device. */
+function readZoom(id: string): number {
+  try {
+    const kept = (JSON.parse(localStorage.getItem(ZOOM_KEY) ?? '{}') as Record<string, number>)[id];
+    return kept ? clamp(kept, ZOOM_MIN, ZOOM_MAX) : 1;
+  } catch { return 1; }
+}
+function keepZoom(id: string, zoom: number) {
+  try {
+    const all = JSON.parse(localStorage.getItem(ZOOM_KEY) ?? '{}') as Record<string, number>;
+    delete all[id];
+    all[id] = Math.round(zoom * 100) / 100;
+    const ids = Object.keys(all);
+    if (ids.length > 200) for (const old of ids.slice(0, ids.length - 200)) delete all[old];
+    localStorage.setItem(ZOOM_KEY, JSON.stringify(all));
+  } catch { /* storage unavailable */ }
+}
+
 /** One page of the PDF drawn as a picture; kept drawn while it is near the page being read. */
-function PageCanvas({ pdf, index, width, ratio, shown }: { pdf: PDFDocumentProxy; index: number; width: number; ratio: number; shown: boolean }) {
+function PageCanvas({ pdf, index, width, drawn, ratio, shown }: { pdf: PDFDocumentProxy; index: number; width: number; drawn: number; ratio: number; shown: boolean }) {
   const ref = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     const canvas = ref.current;
     if (!canvas) return;
-    const px = Math.round(width * Math.min(window.devicePixelRatio || 1, 2.5));
+    // Sharp for the screen, but never bigger than a canvas can reasonably be.
+    const px = Math.min(3600, Math.round(drawn * Math.min(window.devicePixelRatio || 1, 2.5)));
     void renderPagePreview(pdf, index, canvas, px).catch(() => undefined);
-  }, [pdf, index, width]);
+  }, [pdf, index, drawn]);
   return (
     <canvas
       ref={ref}
       className="bk-pg"
-      width={Math.round(width)}
-      height={Math.round(width / ratio)}
+      width={Math.round(drawn)}
+      height={Math.round(drawn / ratio)}
       style={{ width, display: shown ? 'block' : 'none' }}
       aria-hidden={!shown}
     />
@@ -67,6 +89,9 @@ export function PageBook({ docId, startPage, dark, onTheme, onClose, onPdf, scan
   const [panel, setPanel] = useState<null | 'aa' | 'contents' | 'menu'>(null);
   const [ask, setAsk] = useState(false);
   const [scrub, setScrub] = useState<number | null>(null);
+  const [zoom, setZoomState] = useState(() => readZoom(docId));
+  // The picture is drawn again at the new size a moment after the zoom settles; until then it is stretched.
+  const [zoomDrawn, setZoomDrawn] = useState(zoom);
   const [outline, setOutline] = useState<{ title: string; level: number; page: number }[]>([]);
   const [marks, setMarks] = useState<Record<string, BookMark>>({});
   const viewRef = useRef<HTMLDivElement>(null);
@@ -106,10 +131,44 @@ export function PageBook({ docId, startPage, dark, onTheme, onClose, onPdf, scan
   }, []);
 
   const n = pdf?.numPages ?? 0;
-  const cols = !phone && settings.spread === 'two' && box.w >= 900 ? 2 : 1;
+  // Two pages side by side only while the whole pages are in view; zoomed in, one at a time.
+  const cols = !phone && settings.spread === 'two' && box.w >= 900 && zoom <= 1.25 ? 2 : 1;
   const first = cols === 2 ? cur - (cur % 2) : cur; // a spread starts on an even page
   const pad = phone ? 8 : 24;
-  const pageW = Math.max(60, Math.floor(Math.min((box.w - 2 * pad) / cols, (box.h - 2 * pad) * ratio)));
+  const fitW = Math.max(60, Math.floor(Math.min((box.w - 2 * pad) / cols, (box.h - 2 * pad) * ratio)));
+  const pageW = Math.round(fitW * zoom);
+  const drawW = Math.round(fitW * zoomDrawn);
+  /** The zoom that makes the page as wide as the screen. */
+  const fitWidthZoom = clamp(((box.w - 2 * pad) / cols) / fitW, 1, ZOOM_MAX);
+
+  // Zooming keeps the spot under the fingers (or the middle of the screen) where it is.
+  const focus = useRef<{ fx: number; fy: number; mx: number; my: number } | null>(null);
+  const setZoom = useCallback((value: number, at?: { x: number; y: number }) => {
+    const el = viewRef.current;
+    const next = clamp(value, ZOOM_MIN, ZOOM_MAX);
+    if (el) {
+      const mx = at?.x ?? el.clientWidth / 2;
+      const my = at?.y ?? el.clientHeight / 2;
+      focus.current = { fx: (el.scrollLeft + mx) / Math.max(1, el.scrollWidth), fy: (el.scrollTop + my) / Math.max(1, el.scrollHeight), mx, my };
+    }
+    setZoomState(next);
+  }, []);
+  useLayoutEffect(() => {
+    const el = viewRef.current;
+    const f = focus.current;
+    focus.current = null;
+    if (el && f) {
+      el.scrollLeft = f.fx * el.scrollWidth - f.mx;
+      el.scrollTop = f.fy * el.scrollHeight - f.my;
+    }
+  }, [zoom]);
+  useEffect(() => {
+    const t = window.setTimeout(() => setZoomDrawn(zoom), 180);
+    keepZoom(docId, zoom);
+    return () => clearTimeout(t);
+  }, [zoom, docId]);
+  // A new page starts at its top (the sideways position is kept, so the same column stays in view).
+  useLayoutEffect(() => { if (viewRef.current) viewRef.current.scrollTop = 0; }, [first]);
 
   // The place is kept as a page (the same as the PDF reader's), shortly after it stops changing.
   const saveTimer = useRef(0);
@@ -133,16 +192,59 @@ export function PageBook({ docId, startPage, dark, onTheme, onClose, onPdf, scan
   const prev = useCallback(() => { if (first > 0) go(first - cols); }, [first, cols, go]);
 
   // ---- touching the pages ---------------------------------------------------------
-  const down = useRef<{ x: number; y: number; t: number } | null>(null);
-  const onDown = (e: ReactPointer) => { down.current = { x: e.clientX, y: e.clientY, t: e.timeStamp }; };
+  const zoomed = zoom > 1.02;
+  const down = useRef<{ x: number; y: number; t: number; sl: number; st: number } | null>(null);
+  const touches = useRef(new Map<number, { x: number; y: number }>());
+  const pinch = useRef<{ dist: number; zoom: number } | null>(null);
+  const moved = useRef(false);
+  const spread = (): { dist: number; x: number; y: number } | null => {
+    const pts = [...touches.current.values()];
+    if (pts.length < 2) return null;
+    const r = viewRef.current!.getBoundingClientRect();
+    return { dist: Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y), x: (pts[0].x + pts[1].x) / 2 - r.left, y: (pts[0].y + pts[1].y) / 2 - r.top };
+  };
+  const onDown = (e: ReactPointer) => {
+    const el = viewRef.current;
+    down.current = { x: e.clientX, y: e.clientY, t: e.timeStamp, sl: el?.scrollLeft ?? 0, st: el?.scrollTop ?? 0 };
+    moved.current = false;
+    if (e.pointerType === 'touch') {
+      touches.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      const sp = spread();
+      if (sp) pinch.current = { dist: sp.dist, zoom };
+    }
+  };
+  const onMove = (e: ReactPointer) => {
+    const d = down.current;
+    if (e.pointerType === 'touch' && touches.current.has(e.pointerId)) {
+      touches.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      const sp = spread();
+      if (sp && pinch.current) {
+        moved.current = true;
+        setZoom(pinch.current.zoom * (sp.dist / Math.max(1, pinch.current.dist)), { x: sp.x, y: sp.y });
+        return;
+      }
+    }
+    // A mouse drags the page about when it is zoomed in (a finger does that by itself).
+    if (d && e.pointerType === 'mouse' && zoomed && e.buttons === 1) {
+      const dx = e.clientX - d.x;
+      const dy = e.clientY - d.y;
+      if (Math.hypot(dx, dy) > 4) {
+        moved.current = true;
+        viewRef.current!.scrollLeft = d.sl - dx;
+        viewRef.current!.scrollTop = d.st - dy;
+      }
+    }
+  };
   const onUp = (e: ReactPointer) => {
+    touches.current.delete(e.pointerId);
+    if (touches.current.size < 2) pinch.current = null;
     const d = down.current;
     down.current = null;
-    if (!d || panel || ask) return;
+    if (!d || panel || ask || moved.current) return;
     const dx = e.clientX - d.x;
     const dy = e.clientY - d.y;
     const dt = e.timeStamp - d.t;
-    if (e.pointerType !== 'mouse' && Math.abs(dx) > 48 && Math.abs(dx) > Math.abs(dy) * 1.4 && dt < 700) { if (dx < 0) next(); else prev(); return; }
+    if (!zoomed && e.pointerType !== 'mouse' && Math.abs(dx) > 48 && Math.abs(dx) > Math.abs(dy) * 1.4 && dt < 700) { if (dx < 0) next(); else prev(); return; }
     if (Math.hypot(dx, dy) > 10 || dt > 450) return;
     const r = viewRef.current!.getBoundingClientRect();
     const rel = (e.clientX - r.left) / r.width;
@@ -151,11 +253,21 @@ export function PageBook({ docId, startPage, dark, onTheme, onClose, onPdf, scan
   };
   const wheelLock = useRef(0);
   const wheel = useRef(0);
+  const zoomRef = useRef(zoom);
+  zoomRef.current = zoom;
   useEffect(() => {
     const el = viewRef.current;
     if (!el) return;
     const onWheel = (e: WheelEvent) => {
       if (panel || ask) return;
+      // Ctrl and the wheel (or a pinch on a trackpad) zoom, wherever the pointer is.
+      if (e.ctrlKey) {
+        e.preventDefault();
+        const r = el.getBoundingClientRect();
+        setZoom(zoomRef.current * Math.exp(-e.deltaY * 0.0025), { x: e.clientX - r.left, y: e.clientY - r.top });
+        return;
+      }
+      if (zoomRef.current > 1.02) return; // zoomed in, the wheel scrolls the page
       e.preventDefault();
       if (performance.now() < wheelLock.current) return;
       wheel.current += Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
@@ -166,19 +278,24 @@ export function PageBook({ docId, startPage, dark, onTheme, onClose, onPdf, scan
     };
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
-  }, [panel, ask, next, prev]);
+  }, [panel, ask, next, prev, setZoom]);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement;
-      if (panel || ask || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || e.ctrlKey || e.metaKey || e.altKey) return;
-      if (['ArrowRight', 'ArrowDown', 'PageDown'].includes(e.key) || (e.key === ' ' && !e.shiftKey)) { e.preventDefault(); next(); }
-      else if (['ArrowLeft', 'ArrowUp', 'PageUp'].includes(e.key) || (e.key === ' ' && e.shiftKey)) { e.preventDefault(); prev(); }
+      if (panel || ask || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || e.altKey) return;
+      if (e.key === '+' || e.key === '=') { e.preventDefault(); setZoom(zoomRef.current * 1.25); return; }
+      if (e.key === '-' || e.key === '_') { e.preventDefault(); setZoom(zoomRef.current / 1.25); return; }
+      if (e.key === '0') { e.preventDefault(); setZoom(1); return; }
+      if (e.ctrlKey || e.metaKey) return;
+      const sideways = zoomRef.current > 1.02;
+      if (['ArrowRight', 'PageDown'].includes(e.key) || (!sideways && e.key === 'ArrowDown') || (e.key === ' ' && !e.shiftKey)) { e.preventDefault(); next(); }
+      else if (['ArrowLeft', 'PageUp'].includes(e.key) || (!sideways && e.key === 'ArrowUp') || (e.key === ' ' && e.shiftKey)) { e.preventDefault(); prev(); }
       else if (e.key === 'Home') go(0);
       else if (e.key === 'End') go(n - 1);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [panel, ask, next, prev, go, n]);
+  }, [panel, ask, next, prev, go, n, setZoom]);
 
   // ---- bookmarks: kept like a book's, by page, so they carry over once the pages are read ----
   const here = Object.entries(marks).filter(([, m]) => m.k === 'bm' && m.a[0] >= STABLE_BASE + first * 4096 && m.a[0] < STABLE_BASE + (first + cols) * 4096);
@@ -233,6 +350,9 @@ export function PageBook({ docId, startPage, dark, onTheme, onClose, onPdf, scan
                 <div className="bk-dim bk-clear" onClick={() => setPanel(null)} aria-hidden="true" />
                 <div className="bk-menu" role="menu">
                   <button role="menuitem" onClick={() => { setPanel(null); onTheme(); change({ theme: 'auto' }); }}>{dark ? <SunIcon /> : <MoonIcon />}{dark ? 'Day paper' : 'Night paper'}</button>
+                  <button role="menuitem" onClick={() => { setPanel(null); setZoom(zoom * 1.5); }}><PlusIcon />Zoom in</button>
+                  <button role="menuitem" onClick={() => { setPanel(null); setZoom(zoom / 1.5); }}><MinusIcon />Zoom out</button>
+                  <button role="menuitem" onClick={() => { setPanel(null); setZoom(zoom > 1.02 ? 1 : fitWidthZoom); }}><AaIcon />{zoom > 1.02 ? 'Fit the whole page' : 'Fit the page width'}</button>
                   <button role="menuitem" onClick={openAsk}><PencilIcon />Highlight or take notes</button>
                   {onPdf && <button role="menuitem" onClick={onPdf}><BookOpenIcon />Original PDF</button>}
                 </div>
@@ -241,6 +361,9 @@ export function PageBook({ docId, startPage, dark, onTheme, onClose, onPdf, scan
           </div>
         ) : (
           <div className="bk-actions">
+            <button className="bk-icon" onClick={() => setZoom(zoom / 1.25)} aria-label="Zoom out" title="Zoom out (−)"><MinusIcon /></button>
+            <button className="bk-zoom" onClick={() => setZoom(1)} aria-label="Fit the whole page" title="Fit the whole page (0)">{Math.round(zoom * 100)}%</button>
+            <button className="bk-icon" onClick={() => setZoom(zoom * 1.25)} aria-label="Zoom in" title="Zoom in (+)"><PlusIcon /></button>
             <button className="bk-icon" onClick={() => setPanel((p) => (p === 'contents' ? null : 'contents'))} aria-label="Contents" aria-pressed={panel === 'contents'}><ListIcon /></button>
             <button className="bk-icon" onClick={openAsk} aria-label="Highlight or take notes" title="Highlight or take notes"><PencilIcon /></button>
             <button className={`bk-icon${marked ? ' on' : ''}`} onClick={toggleBookmark} aria-label={marked ? 'Remove bookmark' : 'Add bookmark'} aria-pressed={marked}><BookmarkIcon filled={marked} /></button>
@@ -251,11 +374,11 @@ export function PageBook({ docId, startPage, dark, onTheme, onClose, onPdf, scan
         )}
       </header>
 
-      <div className="bk-view" ref={viewRef} onPointerDown={onDown} onPointerUp={onUp} onPointerCancel={() => { down.current = null; }}>
+      <div className={`bk-view${zoomed ? ' zoomed' : ''}`} ref={viewRef} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={(e) => { down.current = null; touches.current.delete(e.pointerId); pinch.current = null; }}>
         {pdf && box.w > 0 && (
-          <div className="bk-spread" style={{ gap: cols === 2 ? 0 : undefined }}>
+          <div className="bk-spread">
             {window_.map((i) => (
-              <PageCanvas key={i} pdf={pdf} index={i} width={pageW} ratio={ratio} shown={i >= first && i < first + cols} />
+              <PageCanvas key={i} pdf={pdf} index={i} width={pageW} drawn={drawW} ratio={ratio} shown={i >= first && i < first + cols} />
             ))}
             {cols === 2 && <i className="bk-gutter" aria-hidden="true" />}
           </div>
@@ -286,7 +409,8 @@ export function PageBook({ docId, startPage, dark, onTheme, onClose, onPdf, scan
 
       {panel === 'aa' && (
         <BookSheet kind="pop" label="Reading settings" onClose={() => setPanel(null)}>
-          <ReadingPanel settings={settings} change={change} themeNow={themeNow} wide={!phone} onPdf={onPdf} imageOnly />
+          <ReadingPanel settings={settings} change={change} themeNow={themeNow} wide={!phone} onPdf={onPdf} imageOnly
+            zoom={{ value: zoom, min: ZOOM_MIN, max: ZOOM_MAX, onChange: (v) => setZoom(v), onFitPage: () => setZoom(1), onFitWidth: () => setZoom(fitWidthZoom) }} />
         </BookSheet>
       )}
       {panel === 'contents' && (
