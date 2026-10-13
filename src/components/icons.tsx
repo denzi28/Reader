@@ -318,3 +318,39 @@ export const SwapIcon = () => (
     <path d="M7 7h12l-3-3M17 17H5l3 3" />
   </Icon>
 );
+
+export const MoreVIcon = () => (
+  <Icon>
+    <circle cx="12" cy="5.5" r="1.3" fill="currentColor" />
+    <circle cx="12" cy="12" r="1.3" fill="currentColor" />
+    <circle cx="12" cy="18.5" r="1.3" fill="currentColor" />
+  </Icon>
+);
+
+export const MoreHIcon = () => (
+  <Icon>
+    <circle cx="5.5" cy="12" r="1.3" fill="currentColor" />
+    <circle cx="12" cy="12" r="1.3" fill="currentColor" />
+    <circle cx="18.5" cy="12" r="1.3" fill="currentColor" />
+  </Icon>
+);
+
+export const SortIcon = () => (
+  <Icon>
+    <path d="M7 5v14M4 16l3 3 3-3M17 19V5M14 8l3-3 3 3" />
+  </Icon>
+);
+
+export const UserIcon = () => (
+  <Icon>
+    <circle cx="12" cy="8.5" r="3.5" />
+    <path d="M5 20c.8-3.6 3.6-5.5 7-5.5s6.2 1.9 7 5.5" />
+  </Icon>
+);
+
+export const ShieldIcon = () => (
+  <Icon>
+    <path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z" />
+    <path d="M9 12l2 2 4-4" />
+  </Icon>
+);

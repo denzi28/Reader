@@ -161,6 +161,79 @@ export function SyncControl() {
   );
 }
 
+/** The account on the Me page: who is signed in, how syncing is going, sync now and sign out (or the sign-in button). */
+export function AccountCard() {
+  const status = useSyncStatus();
+  const [error, setError] = useState<string | null>(null);
+  if (!status.available || !status.ready) return null;
+  if (!status.connected) {
+    return (
+      <section className="me-card" aria-label="Account">
+        <h2 className="me-title">Keep your devices in step</h2>
+        <p className="me-sub">Sign in with Google to keep your documents and notes in your own Drive, and open them on any device.</p>
+        <GoogleButton onError={setError} />
+        {error && <p className="sync-error" role="alert">{error}</p>}
+      </section>
+    );
+  }
+  return (
+    <section className="me-card" aria-label="Account">
+      <div className="me-account">
+        <Avatar status={status} />
+        <div className="me-who">
+          <strong>{status.name || status.email}</strong>
+          {status.name && status.email && <span>{status.email}</span>}
+          <span className={`me-state state-${status.state}`}>
+            <StateIcon state={status.state} />
+            {status.message ?? (status.state === 'idle' && status.lastSyncedAt ? `Synced ${ago(status.lastSyncedAt)}` : LABEL[status.state])}
+          </span>
+        </div>
+      </div>
+      <div className="me-actions">
+        <button className="button button-small" onClick={() => (status.state === 'reauth' ? void connect().catch(() => undefined) : void syncAll())}>
+          {status.state === 'reauth' ? 'Sign in again' : 'Sync now'}
+        </button>
+        <button
+          className="link"
+          onClick={async () => {
+            await Promise.race([syncAll(), new Promise((r) => setTimeout(r, 3000))]);
+            const ok = window.confirm(
+              getStatus().state === 'idle'
+                ? 'Sign out on this device? Your documents will be removed from this device. They stay in your Google Drive and come back when you sign in again.'
+                : 'Some changes have not reached your Google Drive yet and will be lost if you sign out now. Sign out anyway?',
+            );
+            if (ok) void disconnect();
+          }}
+        >
+          Sign out
+        </button>
+      </div>
+    </section>
+  );
+}
+
+/** One row of the reading screen's menu: the sync state, and a tap to sync now. */
+export function SyncRow({ onDone }: { onDone: () => void }) {
+  const status = useSyncStatus();
+  if (!status.available || !status.connected) return null;
+  const label = status.message ?? LABEL[status.state];
+  return (
+    <button
+      role="menuitem"
+      className="vmenu-item"
+      onClick={() => {
+        onDone();
+        if (status.state === 'reauth') void connect().catch(() => undefined);
+        else void syncAll();
+      }}
+    >
+      <StateIcon state={status.state} />
+      <span>{label}</span>
+      {status.state === 'idle' && status.lastSyncedAt && <small>{ago(status.lastSyncedAt)}</small>}
+    </button>
+  );
+}
+
 /** A small status mark for the reader's top bar. */
 export function SyncBadge() {
   const status = useSyncStatus();

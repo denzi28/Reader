@@ -12,8 +12,10 @@ import { useDownloadProgress, useSyncStatus } from '../lib/sync/useSync';
 import type { DocMeta, Folder } from '../lib/types';
 import {
   ArrowIcon, BackIcon, CloudOffIcon, DownloadIcon, SparkIcon, BooksIcon, GridIcon, ListIcon, MarkIcon, StarIcon, CheckIcon, CloseIcon, CloudIcon, FileIcon, FolderIcon, FolderMoveIcon, FolderPlusIcon, MoonIcon, PencilIcon, SearchIcon, SunIcon,
-  TrashIcon, UploadIcon,
+  MoreVIcon, SortIcon, TrashIcon, UploadIcon,
 } from './icons';
+import { AddSheet, BookSheet, MePage, PhoneNav, type PhoneTab, ToolsPage } from './PhoneParts';
+import { usePhone } from '../lib/usePhone';
 import { Cover } from './Cover';
 import type { NotebookSpec } from '../lib/notebookSpec';
 import { DownloadDialog } from './DownloadDialog';
@@ -56,6 +58,7 @@ const SORTS: { id: SortBy; label: string }[] = [
   { id: 'name', label: 'Name' },
   { id: 'progress', label: 'Progress' },
 ];
+const SORT_TITLES: Record<SortBy, string> = { opened: 'Recent', added: 'Newest', name: 'A to Z', progress: 'In progress' };
 const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
 function sortDocs(list: DocMeta[], by: SortBy) {
   const out = [...list];
@@ -107,7 +110,7 @@ const Notes = lazy(() => import('./Notes').then((m) => ({ default: m.Notes })));
 // The PDF tools (merge, split, crop, edit) and their library come on first use.
 const PdfTools = lazy(() => import('./PdfTools'));
 // The shelf's tab, kept while the app is open (coming back from a document).
-let lastTab: 'shelf' | 'notes' = 'shelf';
+let lastTab: PhoneTab = 'shelf';
 
 const DOC_TYPE = 'application/x-reader-doc';
 /** When the move menu is a bottom sheet; matches the media query in styles.css. */
@@ -289,7 +292,13 @@ export function Library(props: Props) {
   const [noteError, setNoteError] = useState<string | null>(null);
   const [tool, setTool] = useState<ToolId | null>(null);
   const [tab, setTabState] = useState(lastTab);
-  const setTab = (t: 'shelf' | 'notes') => { lastTab = t; setTabState(t); };
+  const setTab = (t: PhoneTab) => { lastTab = t; setTabState(t); };
+  const phone = usePhone();
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
+  const [menuFor, setMenuFor] = useState<DocMeta | null>(null);
+  // The phone's Tools and Me pages only exist on a phone; elsewhere the shelf is shown.
+  const page: PhoneTab = !phone && (tab === 'tools' || tab === 'me') ? 'shelf' : tab;
   const [markCounts, setMarkCounts] = useState<Map<string, number>>(new Map());
   const [sortBy, setSortBy] = usePref<SortBy>('reader.sort', 'opened', SORTS.map((x) => x.id));
   const [view, setView] = usePref<'grid' | 'list'>('reader.view', 'grid', ['grid', 'list']);
@@ -297,6 +306,7 @@ export function Library(props: Props) {
   const searchBox = useRef<HTMLInputElement>(null);
   const sync = useSyncStatus();
   useEffect(() => { lastQuery = query; }, [query]);
+  useEffect(() => { if (searchOpen) searchBox.current?.focus(); }, [searchOpen]);
 
   // "/" or Ctrl/Cmd+K jumps to the search box.
   useEffect(() => {
@@ -335,6 +345,11 @@ export function Library(props: Props) {
     setTool(null);
     setToolMenu(false);
     if (history.state?.tool) history.back();
+  };
+  /** A tool picked on the phone's Tools page: a history step, so Back closes it. */
+  const pickFromTools = (id: ToolId) => {
+    history.pushState({ ...history.state, tool: 1 }, '');
+    setTool(id);
   };
   const pickTool = (id: ToolId) => {
     setToolMenu(false);
@@ -385,8 +400,10 @@ export function Library(props: Props) {
   const folderName = new Map(folders.map((f) => [f.id, f.name]));
   // Searching looks through every document and folder, wherever it is filed.
   const terms = searchTerms(query);
-  const onNotes = !current && tab === 'notes';
-  const searching = !current && !onNotes && terms.length > 0; // the search box is on the main shelf
+  const onNotes = !current && page === 'notes';
+  const onTools = !current && page === 'tools';
+  const onMe = !current && page === 'me';
+  const searching = !current && !onNotes && !onTools && !onMe && terms.length > 0; // the search box is on the main shelf
   const docHits = searching
     ? (docs ?? []).flatMap((d) => {
       const name = matchRanges(d.name, terms);
@@ -474,7 +491,7 @@ export function Library(props: Props) {
   const reading = (docs ?? []).filter((d) => progressOf(d) > 0 && progressOf(d) < 1).length;
 
   // The document opened most recently, ready to pick up again.
-  const resume = !current && !searching && !onNotes ? docs?.[0] : undefined;
+  const resume = !current && !searching && !onNotes && !onTools && !onMe ? docs?.[0] : undefined;
 
   // Files dragged in from outside can be dropped anywhere on the page.
   const dragDepth = useRef(0);
@@ -547,6 +564,7 @@ export function Library(props: Props) {
         <span className="cover">
           <Cover meta={d} />
           <Progress doc={d} className="cover-progress" />
+          {phone && d.starred && <span className="cover-star" aria-label="Starred"><StarIcon /></span>}
           {(markCounts.get(d.id) ?? 0) > 0 && (
             <span className="cover-marks" title={plural(markCounts.get(d.id)!, 'mark', 'marks')}>
               <MarkIcon />
@@ -573,7 +591,10 @@ export function Library(props: Props) {
           <span className="book-folder"><FolderIcon />{folderName.get(placeOf(d)!)}</span>
         )}
       </button>
-      <span className="book-tools">
+      {phone && (
+        <button className="book-more" aria-label={`Actions for ${d.name}`} aria-haspopup="dialog" onClick={() => setMenuFor(d)}><MoreVIcon /></button>
+      )}
+      {!phone && <span className="book-tools">
         <button
           className={`book-tool star-tool${d.starred ? ' on' : ''}`}
           aria-label={d.starred ? `Unstar ${d.name}` : `Star ${d.name}`}
@@ -616,7 +637,7 @@ export function Library(props: Props) {
         >
           <TrashIcon />
         </button>
-      </span>
+      </span>}
       {moving?.id === d.id && (
         <MoveMenu
           doc={d}
@@ -637,7 +658,7 @@ export function Library(props: Props) {
 
   return (
     <main
-      className="library"
+      className={`library${phone ? ' phone' : ''}`}
       onDragEnter={(e) => {
         if (!hasFiles(e)) return;
         dragDepth.current++;
@@ -655,6 +676,16 @@ export function Library(props: Props) {
         take(e.dataTransfer.files);
       }}
     >
+      {phone ? (
+        <header className="library-head phone-head">
+          <h1 className="brand">{onTools ? 'Tools' : onMe ? 'Me' : 'The Reader'}</h1>
+          {!onTools && !onMe && !onNotes && !current && docs && docs.length > 0 && (
+            <button className="icon-button" aria-label="Search" aria-pressed={searchOpen || Boolean(query)} onClick={() => { if (query) setQuery(''); setSearchOpen((v) => !v); }}>
+              <SearchIcon />
+            </button>
+          )}
+        </header>
+      ) : (
       <header className="library-head">
         <div>
           <h1 className="brand">The Reader</h1>
@@ -686,6 +717,7 @@ export function Library(props: Props) {
           </button>
         </div>
       </header>
+      )}
 
       {guestCount > 0 && (
         <div className="notice notice-info" role="status">
@@ -716,7 +748,7 @@ export function Library(props: Props) {
         onChange={(e) => { take(e.target.files); e.target.value = ''; }}
       />
 
-      {!current && docs && docs.length > 0 && (
+      {!phone && !current && docs && docs.length > 0 && (
         <div className="tabs" role="tablist" aria-label="Library or notes">
           <button role="tab" aria-selected={!onNotes} className={onNotes ? '' : 'on'} onClick={() => setTab('shelf')}>
             <BooksIcon />
@@ -796,7 +828,7 @@ export function Library(props: Props) {
             )}
           </div>
         </nav>
-      ) : docs && docs.length > 0 && !onNotes && (
+      ) : docs && docs.length > 0 && !onNotes && !onTools && !onMe && (!phone || searchOpen || query) && (
         <div className="shelf-bar">
           <div className={`search${query ? ' active' : ''}`} role="search">
             <SearchIcon />
@@ -838,6 +870,31 @@ export function Library(props: Props) {
           {addButton}
         </div>
       )}
+
+      {phone && page === 'shelf' && !current && !searching && docs && docs.length > 0 && (
+        <div className="chip-row">
+          <button className="folder-chip on" aria-pressed="true">All <small>{docs.length}</small></button>
+          {folders.map((f) => (
+            <button key={f.id} className={`folder-chip c-${folderColor(f.color)}`} onClick={() => { setQuery(''); setSearchOpen(false); onFolder(f.id); }}>
+              <FolderIcon />{f.name} <small>{counts.get(f.id) ?? 0}</small>
+            </button>
+          ))}
+          {creating ? (
+            <span className="folder-chip folder-chip-new">
+              <NameField
+                label="Folder name"
+                onSave={async (name) => { setCreating(false); await createFolder(name); void refresh(); }}
+                onCancel={() => setCreating(false)}
+              />
+            </span>
+          ) : (
+            <button className="folder-chip add" aria-label="New folder" onClick={() => setCreating(true)}><FolderPlusIcon /></button>
+          )}
+        </div>
+      )}
+
+      {onTools && <ToolsPage onPick={pickFromTools} />}
+      {onMe && <MePage dark={dark} onTheme={onTheme} />}
 
       {resume && (
         <button
@@ -897,7 +954,7 @@ export function Library(props: Props) {
         </Suspense>
       )}
 
-      {!searching && !onNotes && (
+      {!searching && !onNotes && !onTools && !onMe && (
         <>
           {docs?.length === 0 && (
             // An empty library gets a big, friendly place to start.
@@ -923,7 +980,7 @@ export function Library(props: Props) {
             </section>
           )}
 
-          {!current && docs && docs.length > 0 && (
+          {!phone && !current && docs && docs.length > 0 && (
             <section className="folders-section" aria-label="Folders">
               <div className="section-head">
                 <h2 className="shelf-title">Folders</h2>
@@ -956,8 +1013,21 @@ export function Library(props: Props) {
             <>
               {shown.length > 1 || (!current && shown.length > 0) ? (
                 <div className={`section-head${current ? ' bare' : ''}`}>
-                  {!current && <h2 className="shelf-title">{folders.length ? 'Not in a folder' : 'Your shelf'}</h2>}
-                  {shown.length > 1 && (
+                  {!current && <h2 className="shelf-title">{phone ? SORT_TITLES[sortBy] : folders.length ? 'Not in a folder' : 'Your shelf'}</h2>}
+                  {shown.length > 1 && phone && (
+                    <span className="shelf-controls phone-controls">
+                      <label className="icon-button sort-icon" aria-label="Sort">
+                        <SortIcon />
+                        <select value={sortBy} aria-label="Sort by" onChange={(e) => setSortBy(e.target.value as SortBy)}>
+                          {SORTS.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+                        </select>
+                      </label>
+                      <button className="icon-button" aria-label={view === 'grid' ? 'Show as a list' : 'Show as a grid'} onClick={() => setView(view === 'grid' ? 'list' : 'grid')}>
+                        {view === 'grid' ? <ListIcon /> : <GridIcon />}
+                      </button>
+                    </span>
+                  )}
+                  {shown.length > 1 && !phone && (
                     <span className="shelf-controls">
                       <label className="sort">
                         <span className="sr-only">Sort by</span>
@@ -1016,6 +1086,36 @@ export function Library(props: Props) {
             <p>{current ? `Drop to add to “${current.name}”` : 'Drop files to add them'}</p>
           </div>
         </div>
+      )}
+      {phone && addOpen && (
+        <AddSheet
+          onClose={() => setAddOpen(false)}
+          onFiles={() => { setAddOpen(false); input.current?.click(); }}
+          onNote={() => { setAddOpen(false); setNoteError(null); setNewNote(true); }}
+          onFolder={current ? undefined : () => { setAddOpen(false); setTab('shelf'); setCreating(true); }}
+        />
+      )}
+      {phone && menuFor && (
+        <BookSheet
+          doc={menuFor}
+          canMove={folders.length > 0}
+          onClose={() => setMenuFor(null)}
+          onStar={async () => { const d = menuFor; setMenuFor(null); await patchMeta(d.id, { starred: !d.starred }); void refresh(); }}
+          onMove={() => { const d = menuFor; setMenuFor(null); setMoving({ id: d.id, anchor: new DOMRect(window.innerWidth / 2, window.innerHeight, 0, 0) }); }}
+          onDownload={() => { const d = menuFor; setMenuFor(null); setDownloading(d); }}
+          onRemove={async () => {
+            const d = menuFor;
+            setMenuFor(null);
+            if (window.confirm(`Remove “${d.name}” and its notes from this device?`)) { await deleteDoc(d.id); void refresh(); }
+          }}
+        />
+      )}
+      {phone && (
+        <PhoneNav
+          tab={page}
+          onAdd={() => setAddOpen(true)}
+          onTab={(t) => { if (current) onFolder(null); setQuery(''); setSearchOpen(false); setCreating(false); setTab(t); window.scrollTo(0, 0); }}
+        />
       )}
       <footer className="library-foot">
         <a href="/privacy.html">Privacy</a>

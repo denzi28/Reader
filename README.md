@@ -150,6 +150,18 @@ Keyboard: `P` pen, `L` highlighter, `E` eraser (press again to switch off), `Ctr
     are fetched on first use so Turkish letters and the like come out right. They are
     not precached.
 
+- **Phone layout** (screens up to 640 px wide, also what an Android app wrapping the
+  site will show): the library has a slim header (name and search), folder chips,
+  a resume card and a clean shelf (each document's actions sit behind its three
+  dots; a starred one shows a star). A bottom bar holds Library, Notes, a plus in
+  the middle (Add files, New note, New folder), Tools (the four PDF tools as a
+  plain list) and Me (account and sync, night paper, install, privacy and terms; a
+  dot appears on Me when sync needs attention). The reading screen keeps only
+  back, title with page, find and a three-dot menu on top (add a page or a note,
+  download, night paper, sync), and hand, pen, highlighter, eraser, "more"
+  (select, type a note, zoom), undo and redo below. Wider screens keep the
+  desktop layout (`src/lib/usePhone.ts` decides; `PhoneParts.tsx` has the pieces).
+
 ## Not built yet
 
 - Paid unlock, app-store builds (the PWA above is the first step: a Play listing can wrap it).

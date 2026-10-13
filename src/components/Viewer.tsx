@@ -24,8 +24,9 @@ import {
 import { downloadPdf, onRemoteInk, onRemotePdf, syncDoc } from '../lib/sync/engine';
 import { useDownloadProgress } from '../lib/sync/useSync';
 import type { DocInk, DocMeta, Stroke, Tool } from '../lib/types';
-import { BackIcon, DownloadIcon, MoonIcon, NotePlusIcon, PlusIcon, SearchIcon, SunIcon } from './icons';
-import { SyncBadge } from './SyncControl';
+import { BackIcon, DownloadIcon, MoonIcon, MoreVIcon, NotePlusIcon, PlusIcon, SearchIcon, SunIcon } from './icons';
+import { SyncBadge, SyncRow } from './SyncControl';
+import { usePhone } from '../lib/usePhone';
 import { PageView } from './PageView';
 import type { SelectionApi } from './SelectionLayer';
 import { Toolbar } from './Toolbar';
@@ -826,6 +827,11 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose, onOpen }: Pro
   const [findOpen, setFindOpen] = useState(false);
   const findOpenRef = useRef(false);
   findOpenRef.current = findOpen;
+  const phone = usePhone();
+  // On a phone the less-used actions live in a menu behind the three dots.
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuOpenRef = useRef(false);
+  menuOpenRef.current = menuOpen;
   const [found, setFound] = useState<{ matches: FindMatch[]; active: FindMatch | null }>({ matches: [], active: null });
   const finder = useMemo(() => (pdf ? new Finder(pdf, docId) : null), [pdf, docId]);
   /** For each page with matches, where they are (the shown one marked). */
@@ -978,7 +984,8 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose, onOpen }: Pro
       } else if (!mod && (e.key === '+' || e.key === '=')) applyZoom(zoomApi.target() * 1.2);
       else if (!mod && e.key === '-') applyZoom(zoomApi.target() / 1.2);
       else if (!mod && e.key === 'Escape') {
-        if (selectionRef.current) setSelection(null);
+        if (menuOpenRef.current) setMenuOpen(false);
+        else if (selectionRef.current) setSelection(null);
         else if (findOpenRef.current) {
           setFindOpen(false);
           setFound({ matches: [], active: null });
@@ -1011,6 +1018,51 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose, onOpen }: Pro
 
   return (
     <div ref={root} className={`viewer tool-${tool}${cover === 'on' ? ' opening' : ''}`}>
+      {phone ? (
+        <header className="topbar phone-topbar">
+          <button className="icon-button" onClick={onClose} aria-label="Back to library" title="Back">
+            <BackIcon />
+          </button>
+          <div className="doc-head">
+            <h1 className="doc-title" title={meta?.name}>{meta?.name ?? 'Opening…'}</h1>
+            {meta?.attached ? (
+              <button className="doc-link" onClick={() => onOpen(meta.attached!.doc, meta.attached!.page)} title="Go to that page">
+                Dedicated to {links[0]?.label ?? meta.attached.name} · page {meta.attached.page + 1}
+              </button>
+            ) : pdf && (
+              <label className="page-jump page-jump-sub" title="Go to page">
+                <span>Page</span>
+                <input
+                  key={current}
+                  type="number"
+                  min={1}
+                  max={pdf.numPages}
+                  defaultValue={current + 1}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      goToPage(Number(e.currentTarget.value));
+                      e.currentTarget.blur();
+                    }
+                  }}
+                  onBlur={(e) => { e.currentTarget.value = String(current + 1); }}
+                  aria-label="Current page"
+                />
+                <span>of {pdf.numPages}</span>
+              </label>
+            )}
+          </div>
+          {finder && !meta?.notebook && (
+            <button className="icon-button" onClick={() => { setMenuOpen(false); setFindOpen((v) => !v); }} aria-pressed={findOpen}
+              aria-label="Find in this document" title="Find in this document">
+              <SearchIcon />
+            </button>
+          )}
+          <button className="icon-button" onClick={() => setMenuOpen((v) => !v)} aria-expanded={menuOpen} aria-haspopup="menu"
+            aria-label="More" title="More">
+            <MoreVIcon />
+          </button>
+        </header>
+      ) : (
       <header className="topbar">
         <button className="icon-button" onClick={onClose} aria-label="Back to library" title="Back (Esc)">
           <BackIcon />
@@ -1076,6 +1128,35 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose, onOpen }: Pro
           {dark ? <SunIcon /> : <MoonIcon />}
         </button>
       </header>
+      )}
+
+      {phone && menuOpen && (
+        <>
+          <div className="vmenu-scrim" onClick={() => setMenuOpen(false)} />
+          <div className="vmenu" role="menu" aria-label="More">
+            {pdf && meta?.notebook && (
+              <button role="menuitem" className="vmenu-item" disabled={adding} onClick={() => { setMenuOpen(false); void addNotebookPage(); }}>
+                <PlusIcon /><span>Add a page</span>
+              </button>
+            )}
+            {pdf && meta && !meta.notebook && (
+              <button role="menuitem" className="vmenu-item" onClick={() => { setMenuOpen(false); setNoteError(null); setNoteDialog(true); }}>
+                <NotePlusIcon /><span>Add a note for this page</span>
+              </button>
+            )}
+            {pdf && meta && (
+              <button role="menuitem" className="vmenu-item" onClick={() => { setMenuOpen(false); setDownloadOpen(true); }}>
+                <DownloadIcon /><span>Download</span>
+              </button>
+            )}
+            <hr />
+            <button role="menuitem" className="vmenu-item" onClick={() => { setMenuOpen(false); onTheme(); }}>
+              <MoonIcon /><span>Night paper</span><small>{dark ? 'On' : 'Off'}</small>
+            </button>
+            <SyncRow onDone={() => setMenuOpen(false)} />
+          </div>
+        </>
+      )}
 
       <div className="scroller" ref={scroller}>
         {!pdf || !sizes ? (

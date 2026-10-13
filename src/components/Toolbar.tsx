@@ -1,3 +1,5 @@
+import { useState } from 'react';
+import { usePhone } from '../lib/usePhone';
 import {
   BRUSH_RANGE, BRUSH_SIZES, displayColor, HIGHLIGHT_COLORS, PEN_COLORS, TEXT_RANGE, TEXT_SIZES,
 } from '../lib/ink';
@@ -5,7 +7,7 @@ import type { ToolPrefs } from '../lib/toolPrefs';
 import type { Tool } from '../lib/types';
 import {
   EraserIcon, HandIcon, HighlighterIcon, LassoIcon, MinusIcon,
-  PenIcon, PlusIcon, RedoIcon, SelectAllIcon, TextNoteIcon, TrashIcon, UndoIcon,
+  MoreHIcon, PenIcon, PlusIcon, RedoIcon, SelectAllIcon, TextNoteIcon, TrashIcon, UndoIcon,
 } from './icons';
 
 interface Props {
@@ -171,23 +173,49 @@ function Panel(p: Props) {
   return null;
 }
 
+/** On a phone the bar keeps the four tools in constant use; selecting, typing and zooming wait behind a "more" button. */
+const PRIMARY: Tool[] = ['hand', 'pen', 'highlighter', 'eraser'];
+
 export function Toolbar(p: Props) {
+  const phone = usePhone();
+  const [more, setMore] = useState(false);
   const open = p.panel && p.tool !== 'hand';
   const dots: Partial<Record<Tool, string>> = { pen: p.prefs.penColor, highlighter: p.prefs.hlColor, text: p.prefs.penColor };
+  const shown = phone ? TOOLS.filter((t) => PRIMARY.includes(t.id)) : TOOLS;
+  const moreActive = p.tool === 'select' || p.tool === 'text';
   return (
-    <div className="toolbar-wrap">
+    <div className={`toolbar-wrap${phone ? ' phone-tray' : ''}`}>
       <div className={`options${open ? ' open' : ''}`} aria-hidden={!open} role="group" aria-label={`${TOOLS.find((t) => t.id === p.tool)?.label} options`}>
         {open && <Panel {...p} />}
       </div>
 
+      {phone && more && (
+        <>
+          <div className="more-scrim" onClick={() => setMore(false)} />
+          <div className="morepop" role="menu" aria-label="More tools">
+            {TOOLS.filter((t) => !PRIMARY.includes(t.id)).map(({ id, icon: Ico }) => (
+              <button key={id} role="menuitemradio" aria-checked={p.tool === id} className={`morepop-item${p.tool === id ? ' on' : ''}`}
+                onClick={() => { setMore(false); p.onTool(id); }}>
+                <Ico /><span>{id === 'select' ? 'Select' : 'Type a note'}</span>
+              </button>
+            ))}
+            <div className="morepop-zoom" role="group" aria-label="Zoom">
+              <button className="tool" onClick={() => p.onZoomBy(1 / 1.2)} aria-label="Zoom out"><MinusIcon /></button>
+              <span className="zoom-label">{Math.round(p.zoom * 100)}%</span>
+              <button className="tool" onClick={() => p.onZoomBy(1.2)} aria-label="Zoom in"><PlusIcon /></button>
+            </div>
+          </div>
+        </>
+      )}
+
       <div className="toolbar" role="toolbar" aria-label="Reader tools">
         <div className="group">
-          {TOOLS.map(({ id, label, hint, icon: Ico }) => (
+          {shown.map(({ id, label, hint, icon: Ico }) => (
             <button
               key={id}
               className={`tool${p.tool === id ? ' on' : ''}`}
               // The chosen tool opens and closes its own menu; any other becomes the chosen one.
-              onClick={() => (p.tool === id && id !== 'hand' ? p.onPanel(!p.panel) : p.onTool(id))}
+              onClick={() => { setMore(false); if (p.tool === id && id !== 'hand') p.onPanel(!p.panel); else p.onTool(id); }}
               aria-pressed={p.tool === id}
               aria-label={label}
               title={hint}
@@ -196,6 +224,11 @@ export function Toolbar(p: Props) {
               {dots[id] && <span className="tool-dot" style={{ background: displayColor(dots[id]!, p.dark) }} />}
             </button>
           ))}
+          {phone && (
+            <button className={`tool${moreActive || more ? ' on' : ''}`} onClick={() => setMore((v) => !v)} aria-expanded={more} aria-haspopup="menu" aria-label="More tools" title="Select, type a note, zoom">
+              <MoreHIcon />
+            </button>
+          )}
         </div>
         <span className="sep" />
         <div className="group">
@@ -206,16 +239,20 @@ export function Toolbar(p: Props) {
             <RedoIcon />
           </button>
         </div>
-        <span className="sep zoom-sep" />
-        <div className="group zoom">
-          <button className="tool" onClick={() => p.onZoomBy(1 / 1.2)} aria-label="Zoom out" title="Zoom out">
-            <MinusIcon />
-          </button>
-          <span className="zoom-label">{Math.round(p.zoom * 100)}%</span>
-          <button className="tool" onClick={() => p.onZoomBy(1.2)} aria-label="Zoom in" title="Zoom in">
-            <PlusIcon />
-          </button>
-        </div>
+        {!phone && (
+          <>
+            <span className="sep zoom-sep" />
+            <div className="group zoom">
+              <button className="tool" onClick={() => p.onZoomBy(1 / 1.2)} aria-label="Zoom out" title="Zoom out">
+                <MinusIcon />
+              </button>
+              <span className="zoom-label">{Math.round(p.zoom * 100)}%</span>
+              <button className="tool" onClick={() => p.onZoomBy(1.2)} aria-label="Zoom in" title="Zoom in">
+                <PlusIcon />
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
