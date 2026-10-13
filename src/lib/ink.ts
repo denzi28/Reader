@@ -120,6 +120,24 @@ function drawText(ctx: CanvasRenderingContext2D, stroke: Pick<Stroke, 'color' | 
   ctx.restore();
 }
 
+/** The shape of a drawn stroke, as an outline in units of `scale` per page width. */
+export function strokeOutline(stroke: Pick<Stroke, 'tool' | 'size' | 'points'>, scale: number): number[][] {
+  const { points } = stroke;
+  const pixelPoints = points.map(([x, y, p]) => [x * scale, y * scale, p]);
+  const simulatePressure = points.every((p) => p[2] === points[0][2]);
+  const highlighter = stroke.tool === 'highlighter';
+  return getStroke(pixelPoints, {
+    size: stroke.size * scale,
+    thinning: highlighter ? 0 : 0.55,
+    smoothing: 0.55,
+    streamline: 0.45,
+    simulatePressure,
+    easing: (t) => t,
+    start: { cap: true },
+    end: { cap: true },
+  });
+}
+
 /** Draws one stroke; `scale` converts normalised units to canvas pixels. A `tint` replaces its colour (a selection). */
 export function drawStroke(
   ctx: CanvasRenderingContext2D,
@@ -134,19 +152,8 @@ export function drawStroke(
     drawText(ctx, stroke, scale, tint ?? displayColor(stroke.color, dark));
     return;
   }
-  const pixelPoints = points.map(([x, y, p]) => [x * scale, y * scale, p]);
-  const simulatePressure = points.every((p) => p[2] === points[0][2]);
+  const outline = strokeOutline(stroke, scale);
   const highlighter = stroke.tool === 'highlighter';
-  const outline = getStroke(pixelPoints, {
-    size: stroke.size * scale,
-    thinning: highlighter ? 0 : 0.55,
-    smoothing: 0.55,
-    streamline: 0.45,
-    simulatePressure,
-    easing: (t) => t,
-    start: { cap: true },
-    end: { cap: true },
-  });
   ctx.save();
   ctx.fillStyle = tint ?? displayColor(stroke.color, dark);
   ctx.globalAlpha = highlighter ? 0.38 : 1;

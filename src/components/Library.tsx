@@ -10,11 +10,12 @@ import { downloadPdf } from '../lib/sync/engine';
 import { useDownloadProgress, useSyncStatus } from '../lib/sync/useSync';
 import type { DocMeta, Folder } from '../lib/types';
 import {
-  ArrowIcon, BackIcon, CloudOffIcon, SparkIcon, BooksIcon, GridIcon, ListIcon, MarkIcon, StarIcon, CheckIcon, CloseIcon, CloudIcon, FileIcon, FolderIcon, FolderMoveIcon, FolderPlusIcon, MoonIcon, PencilIcon, SearchIcon, SunIcon,
+  ArrowIcon, BackIcon, CloudOffIcon, DownloadIcon, SparkIcon, BooksIcon, GridIcon, ListIcon, MarkIcon, StarIcon, CheckIcon, CloseIcon, CloudIcon, FileIcon, FolderIcon, FolderMoveIcon, FolderPlusIcon, MoonIcon, PencilIcon, SearchIcon, SunIcon,
   TrashIcon, UploadIcon,
 } from './icons';
 import { Cover } from './Cover';
 import type { NotebookSpec } from '../lib/notebookSpec';
+import { DownloadDialog } from './DownloadDialog';
 import { NewNote } from './NewNote';
 import { ToolMenu, type ToolId } from './toolList';
 import { SyncControl } from './SyncControl';
@@ -281,6 +282,7 @@ export function Library(props: Props) {
   const [query, setQuery] = useState(lastQuery);
   const [toolMenu, setToolMenu] = useState(false);
   const [newNote, setNewNote] = useState(false);
+  const [downloading, setDownloading] = useState<DocMeta | null>(null);
   const [makingNote, setMakingNote] = useState(false);
   const [noteError, setNoteError] = useState<string | null>(null);
   const [tool, setTool] = useState<ToolId | null>(null);
@@ -590,6 +592,14 @@ export function Library(props: Props) {
           )}
         >
           <FolderMoveIcon />
+        </button>
+        <button
+          className="book-tool"
+          aria-label={`Download ${d.name}`}
+          title="Download to this device"
+          onClick={() => setDownloading(d)}
+        >
+          <DownloadIcon />
         </button>
         <button
           className="book-tool"
@@ -975,6 +985,7 @@ export function Library(props: Props) {
       )}
 
       {toolMenu && <ToolMenu onPick={pickTool} onClose={closeTools} />}
+      {downloading && <DownloadDialog doc={downloading} onClose={() => setDownloading(null)} />}
       {newNote && <NewNote busy={makingNote} error={noteError} onCreate={(spec) => void createNote(spec)} onClose={() => setNewNote(false)} />}
       {tool && (
         <Suspense fallback={<div className="workspace"><div className="tool-backdrop" /><div className="tool-sheet"><div className="note-loading" /></div></div>}>

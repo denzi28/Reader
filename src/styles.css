@@ -2740,3 +2740,16 @@ button.page-tile:active .page-tile-img { transform: scale(0.97); }
 .note-linked-text span { font-family: var(--serif); font-size: 1rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .note-linked .note-grid { margin: 0; padding: 0; }
 .note-linked .empty-note { margin: 0; }
+
+/* ---- saving a document to the device ---- */
+.download-options { display: grid; gap: 0.6rem; }
+.download-option { display: flex; align-items: center; gap: 0.8rem; padding: 0.85rem 0.95rem; border: 1px solid var(--line); border-radius: 14px; background: var(--card); text-align: left; transition: transform 0.2s var(--spring), border-color 0.2s; }
+.download-option:hover:not(:disabled) { transform: translateY(-1px); border-color: var(--accent); }
+.download-option:disabled { opacity: 0.55; }
+.download-option strong { display: block; font-family: var(--serif); font-size: 1.05rem; }
+.download-option small { display: block; margin-top: 0.1rem; color: var(--muted); font-size: 0.82rem; line-height: 1.4; }
+.download-icon { flex: none; display: grid; place-items: center; width: 42px; height: 42px; border-radius: 12px; background: var(--accent); color: var(--accent-ink); }
+.download-icon.plain { background: var(--line); color: var(--ink); }
+.download-icon svg { width: 22px; height: 22px; }
+.download-busy { display: grid; justify-items: center; gap: 0.9rem; padding: 1.4rem 0 1rem; color: var(--muted); font-family: var(--serif); text-align: center; }
+.download-busy p { margin: 0; }

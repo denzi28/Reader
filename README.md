@@ -44,6 +44,12 @@ your device.
 - **Smooth zoom.** Pinching, Ctrl+wheel, the buttons and the keys scale the pages
   with a CSS transform (soft while moving, no re-layout per frame); the real size
   is set once when you stop, and the sheets are then redrawn sharp, nearest first.
+- **Download to the device**: a Download button on every cover and in the
+  reader's top bar. *With my notes* draws the pen, highlights and typed notes
+  onto the pages (correct on rotated and cropped pages, any alphabet) and saves
+  `<name> (with notes).pdf`; *Original PDF* saves the file exactly as it was
+  added. A note you made yourself downloads as a PDF with its writing. A document
+  that is only in Drive is brought down first.
 - **Library** of the PDFs you have opened, with covers. Your place in each
   document and all your ink are remembered across visits. Several PDFs can be
   added at once.

@@ -9,6 +9,7 @@ import type { NotebookSpec } from '../lib/notebookSpec';
 import { loadPrefs, savePrefs, type ToolPrefs } from '../lib/toolPrefs';
 import { acquirePdf, pageSize, type PageSize, readPageSizes, releasePdf } from '../lib/pdf';
 import { BookLoader } from './BookLoader';
+import { DownloadDialog } from './DownloadDialog';
 import { LinkCard } from './LinkCard';
 import { type Corner, LinkStack, loadCorner } from './LinkStack';
 import { NewNote } from './NewNote';
@@ -20,7 +21,7 @@ import {
 import { downloadPdf, onRemoteInk, syncDoc } from '../lib/sync/engine';
 import { useDownloadProgress } from '../lib/sync/useSync';
 import type { DocInk, DocMeta, Stroke, Tool } from '../lib/types';
-import { BackIcon, MoonIcon, NotePlusIcon, SunIcon } from './icons';
+import { BackIcon, DownloadIcon, MoonIcon, NotePlusIcon, SunIcon } from './icons';
 import { SyncBadge } from './SyncControl';
 import { PageView } from './PageView';
 import type { SelectionApi } from './SelectionLayer';
@@ -830,6 +831,7 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose, onOpen }: Pro
   const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
   const [cardCorner, setCardCorner] = useState<Corner>(loadCorner);
   const [noteDialog, setNoteDialog] = useState(false);
+  const [downloadOpen, setDownloadOpen] = useState(false);
   const [makingNote, setMakingNote] = useState(false);
   const [noteError, setNoteError] = useState<string | null>(null);
   useEffect(() => {
@@ -975,6 +977,11 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose, onOpen }: Pro
             <NotePlusIcon />
           </button>
         )}
+        {pdf && meta && (
+          <button className="icon-button" onClick={() => setDownloadOpen(true)} aria-label="Download this document" title="Download to this device">
+            <DownloadIcon />
+          </button>
+        )}
         <SyncBadge />
         <button
           className="icon-button"
@@ -1029,6 +1036,7 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose, onOpen }: Pro
           ))}
         </LinkStack>
       )}
+      {downloadOpen && meta && <DownloadDialog doc={meta} onClose={() => setDownloadOpen(false)} />}
       {noteDialog && meta && (
         <NewNote busy={makingNote} error={noteError} dedicated={{ name: meta.name, page: current + 1 }}
           onCreate={(spec) => void createDedicated(spec)} onClose={() => setNoteDialog(false)} />
