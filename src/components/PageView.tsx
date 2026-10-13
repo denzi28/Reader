@@ -40,8 +40,8 @@ interface Props {
 // Phones have far less memory for canvases than desktops; past these sizes a
 // zoomed-in page would freeze the browser rather than look any sharper.
 const TOUCH_DEVICE = typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0;
-const MAX_PIXELS = TOUCH_DEVICE ? 8_000_000 : 16_000_000;
-const MAX_INK_PIXELS = TOUCH_DEVICE ? 4_000_000 : 8_000_000;
+const MAX_PIXELS = TOUCH_DEVICE ? 5_000_000 : 16_000_000;
+const MAX_INK_PIXELS = TOUCH_DEVICE ? 2_500_000 : 8_000_000;
 const PAPER = '#fffaf0';
 const NIGHT_FILTER = 'invert(0.88) hue-rotate(180deg) sepia(0.28) brightness(0.96)';
 // Where canvases can filter their own pixels, night paper is baked in once;
@@ -227,6 +227,22 @@ function PageViewImpl(props: Props) {
   useEffect(() => {
     if (visible) paintInk();
   }, [visible, strokes, dark, selected, paintInk]);
+
+  // A phone short of memory may throw away a canvas's pixels while the app is in
+  // the background or busy with a big zoom. The ink is only ever a drawing of the
+  // strokes, so it is simply drawn again when the page comes back into view.
+  useEffect(() => {
+    if (!visible) return;
+    const again = () => { if (document.visibilityState === 'visible') paintInk(); };
+    document.addEventListener('visibilitychange', again);
+    window.addEventListener('pageshow', again);
+    window.addEventListener('focus', again);
+    return () => {
+      document.removeEventListener('visibilitychange', again);
+      window.removeEventListener('pageshow', again);
+      window.removeEventListener('focus', again);
+    };
+  }, [visible, paintInk]);
 
   // ---- drawing ----------------------------------------------------------
   const drawing = useRef<{
