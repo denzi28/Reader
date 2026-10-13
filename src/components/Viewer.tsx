@@ -1,9 +1,11 @@
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { flushSync } from 'react-dom';
 import {
-  useCallback, useEffect, useLayoutEffect, useRef, useState,
+  useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState,
 } from 'react';
-import { BRUSH_SIZES, HIGHLIGHT_COLORS, PEN_COLORS } from '../lib/ink';
+import { BRUSH_SIZES, TEXT_SIZES } from '../lib/ink';
+import { copies, restyle } from '../lib/inkOps';
+import { loadPrefs, savePrefs, type ToolPrefs } from '../lib/toolPrefs';
 import { acquirePdf, pageSize, type PageSize, readPageSizes, releasePdf } from '../lib/pdf';
 import { BookLoader } from './BookLoader';
 import { PALM_WINDOW_MS, type PointerHub } from '../lib/pointerHub';
@@ -13,10 +15,11 @@ import {
 } from '../lib/storage';
 import { downloadPdf, onRemoteInk, syncDoc } from '../lib/sync/engine';
 import { useDownloadProgress } from '../lib/sync/useSync';
-import type { DocInk, DocMeta, InkTool, Stroke, Tool } from '../lib/types';
+import type { DocInk, DocMeta, Stroke, Tool } from '../lib/types';
 import { BackIcon, MoonIcon, SunIcon } from './icons';
 import { SyncBadge } from './SyncControl';
 import { PageView } from './PageView';
+import type { SelectionApi } from './SelectionLayer';
 import { Toolbar } from './Toolbar';
 
 interface Props {
@@ -64,10 +67,30 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [ink, setInk] = useState<DocInk>({});
 
-  const [tool, setTool] = useState<Tool>('hand');
-  const [penColor, setPenColor] = useState(PEN_COLORS[0]);
-  const [hlColor, setHlColor] = useState(HIGHLIGHT_COLORS[0]);
-  const [sizeIdx, setSizeIdx] = useState(1);
+  const [tool, setToolRaw] = useState<Tool>('hand');
+  const toolRef = useRef<Tool>('hand');
+  toolRef.current = tool;
+  const [prefs, setPrefsState] = useState<ToolPrefs>(loadPrefs);
+  const [panel, setPanel] = useState(true);
+  const [selection, setSelection] = useState<{ page: number; ids: string[] } | null>(null);
+  const selectionRef = useRef(selection);
+  selectionRef.current = selection;
+  const clipboard = useRef<Stroke[]>([]);
+  const pasteStep = useRef(0);
+  const [canPaste, setCanPaste] = useState(false);
+  const setPrefs = useCallback((change: Partial<ToolPrefs>) => {
+    setPrefsState((cur) => {
+      const next = { ...cur, ...change };
+      savePrefs(next);
+      return next;
+    });
+  }, []);
+  /** Picks a tool and shows its menu; a selection only lives while the select tool does. */
+  const chooseTool = useCallback((t: Tool) => {
+    setToolRaw(t);
+    setPanel(t !== 'hand');
+    if (t !== 'select') setSelection(null);
+  }, []);
 
   const [containerWidth, setContainerWidth] = useState(0);
   const [zoom, setZoom] = useState(1);
@@ -609,6 +632,8 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose }: Props) {
 
   // ---- ink: commit, undo, redo (each is saved as it happens) -------------
   const commit = useCallback((page: number, prev: Stroke[], next: Stroke[]) => {
+    // On a phone the menu would cover the page you are working on: it tucks away once used.
+    if (window.matchMedia('(pointer: coarse)').matches) setPanel(false);
     void recordInkEdit(docId, page, prev, next);
     setInk((cur) => ({ ...cur, [page]: next }));
     undoStack.current.push({ page, prev, next });
@@ -634,6 +659,71 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose }: Props) {
     bump((n) => n + 1);
   }, [docId]);
 
+  // ---- selecting, moving and restyling notes ---------------------------
+  const inkRef = useRef(ink);
+  inkRef.current = ink;
+  const strokesOf = (page: number) => inkRef.current[page] ?? NO_STROKES;
+  const selectionApi = useMemo<SelectionApi>(() => {
+    const remove = (page: number, ids: string[]) => {
+      const gone = new Set(ids);
+      const prev = strokesOf(page);
+      commit(page, prev, prev.filter((st) => !gone.has(st.id)));
+      setSelection(null);
+    };
+    const copy = (page: number, ids: string[]) => {
+      const keep = new Set(ids);
+      clipboard.current = strokesOf(page).filter((st) => keep.has(st.id));
+      pasteStep.current = 0;
+      setCanPaste(clipboard.current.length > 0);
+    };
+    return {
+      canPaste,
+      remove,
+      copy,
+      cut: (page, ids) => {
+        copy(page, ids);
+        remove(page, ids);
+      },
+      paste: (page) => {
+        if (!clipboard.current.length) return;
+        pasteStep.current += 1;
+        const made = copies(clipboard.current, 0.025 * pasteStep.current, 0.025 * pasteStep.current);
+        const prev = strokesOf(page);
+        commit(page, prev, [...prev, ...made]);
+        setToolRaw('select');
+        setSelection({ page, ids: made.map((st) => st.id) });
+      },
+      style: (page, ids, change) => {
+        const set = new Set(ids);
+        const prev = strokesOf(page);
+        commit(page, prev, prev.map((st) => {
+          if (!set.has(st.id)) return st;
+          const size = change.size === undefined ? undefined : st.tool === 'text' ? TEXT_SIZES[change.size] : BRUSH_SIZES[st.tool][change.size];
+          return restyle(st, { color: change.color, size });
+        }));
+      },
+    };
+  }, [commit, canPaste]); // eslint-disable-line react-hooks/exhaustive-deps
+  const onSelect = useCallback((page: number, ids: string[] | null) => {
+    if (ids?.length && window.matchMedia('(pointer: coarse)').matches) setPanel(false);
+    setSelection(ids?.length ? { page, ids } : null);
+  }, []);
+  const clearPage = () => {
+    const page = currentRef.current;
+    const prev = strokesOf(page);
+    if (prev.length) commit(page, prev, []);
+    setSelection(null);
+  };
+  const selectAll = () => {
+    const page = currentRef.current;
+    const ids = strokesOf(page).map((st) => st.id);
+    if (ids.length) setSelection({ page, ids });
+  };
+  const eraser = useMemo(
+    () => ({ mode: prefs.eraserMode, size: prefs.eraserSize, onlyHighlighter: prefs.eraserOnlyHl }),
+    [prefs.eraserMode, prefs.eraserSize, prefs.eraserOnlyHl],
+  );
+
   // Another device's notes arrived: show them. The undo history no longer
   // matches what is on the page, so it starts afresh.
   useEffect(
@@ -653,7 +743,10 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose }: Props) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
-      if (target.tagName === 'INPUT' || target.isContentEditable) return;
+      // Typing goes to the field; a slider or switch that was just used doesn't keep the shortcuts.
+      const typing = target.tagName === 'TEXTAREA' || target.isContentEditable
+        || (target.tagName === 'INPUT' && !['range', 'checkbox', 'radio', 'button'].includes((target as HTMLInputElement).type));
+      if (typing) return;
       const mod = e.ctrlKey || e.metaKey;
       if (mod && e.key.toLowerCase() === 'z') {
         e.preventDefault();
@@ -661,18 +754,33 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose }: Props) {
       } else if (mod && e.key.toLowerCase() === 'y') {
         e.preventDefault();
         redo();
+      } else if (mod && selectionRef.current && ['c', 'x'].includes(e.key.toLowerCase())) {
+        e.preventDefault();
+        const { page, ids } = selectionRef.current;
+        if (e.key.toLowerCase() === 'c') selectionApi.copy(page, ids); else selectionApi.cut(page, ids);
+      } else if (mod && e.key.toLowerCase() === 'v' && canPaste) {
+        e.preventDefault();
+        selectionApi.paste(selectionRef.current?.page ?? currentRef.current);
+      } else if (!mod && selectionRef.current && (e.key === 'Delete' || e.key === 'Backspace')) {
+        e.preventDefault();
+        selectionApi.remove(selectionRef.current.page, selectionRef.current.ids);
       } else if (!mod && (e.key === '+' || e.key === '=')) applyZoom(zoomRef.current * 1.2);
       else if (!mod && e.key === '-') applyZoom(zoomRef.current / 1.2);
-      else if (!mod && e.key === 'Escape') onClose();
-      else if (!mod) {
-        const map: Record<string, Tool> = { h: 'hand', p: 'pen', l: 'highlighter', e: 'eraser' };
+      else if (!mod && e.key === 'Escape') {
+        if (selectionRef.current) setSelection(null);
+        else onClose();
+      } else if (!mod) {
+        const map: Record<string, Tool> = { h: 'hand', p: 'pen', l: 'highlighter', e: 'eraser', s: 'select', t: 'text' };
         const next = map[e.key.toLowerCase()];
-        if (next) setTool((cur) => (cur === next ? 'hand' : next));
+        if (next) {
+          e.preventDefault();
+          chooseTool(toolRef.current === next ? 'hand' : next);
+        }
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [undo, redo, applyZoom, onClose]);
+  }, [undo, redo, applyZoom, onClose, chooseTool, selectionApi, canPaste]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---- render -----------------------------------------------------------
   if (error) {
@@ -684,9 +792,8 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose }: Props) {
     );
   }
 
-  const inkTool: InkTool = tool === 'highlighter' ? 'highlighter' : 'pen';
-  const brush = BRUSH_SIZES[inkTool][sizeIdx];
-  const color = tool === 'highlighter' ? hlColor : penColor;
+  const brush = tool === 'highlighter' ? prefs.hlSize : prefs.penSize;
+  const color = tool === 'highlighter' ? prefs.hlColor : prefs.penColor;
 
   return (
     <div className={`viewer tool-${tool}${cover === 'on' ? ' opening' : ''}`}>
@@ -748,6 +855,11 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose }: Props) {
                 hub={hub}
                 onCommit={commit}
                 register={register}
+                eraser={eraser}
+                textSize={prefs.textSize}
+                selection={selection?.page === i ? selection.ids : null}
+                onSelect={onSelect}
+                selectionApi={selectionApi}
               />
             ))}
           </div>
@@ -768,13 +880,11 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose }: Props) {
 
       <Toolbar
         tool={tool}
-        onTool={setTool}
-        penColor={penColor}
-        hlColor={hlColor}
-        onPenColor={setPenColor}
-        onHlColor={setHlColor}
-        sizeIdx={sizeIdx}
-        onSize={setSizeIdx}
+        onTool={chooseTool}
+        prefs={prefs}
+        onPrefs={setPrefs}
+        panel={panel}
+        onPanel={setPanel}
         canUndo={undoStack.current.length > 0}
         canRedo={redoStack.current.length > 0}
         onUndo={undo}
@@ -782,6 +892,8 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose }: Props) {
         zoom={zoom}
         onZoom={applyZoom}
         dark={dark}
+        onClearPage={clearPage}
+        onSelectAll={selectAll}
       />
     </div>
   );

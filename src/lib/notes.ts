@@ -10,6 +10,8 @@ export interface PageNotes {
   /** Highlights where no text could be found (a scan, say). */
   untextedHighlights: number;
   pens: number;
+  /** Notes the reader typed on the page, top to bottom. */
+  texts?: string[];
 }
 
 /** The text a highlighter stroke passes over, read left to right, top to bottom. */
@@ -56,7 +58,14 @@ export async function collectNotes(
   for (const page of pages) {
     const strokes = ink[page];
     const marks = strokes.filter((s) => s.tool === 'highlighter');
-    const notes: PageNotes = { page, highlights: [], untextedHighlights: 0, pens: strokes.length - marks.length };
+    const typed = strokes.filter((s) => s.tool === 'text').sort((a, b) => a.points[0][1] - b.points[0][1] || a.points[0][0] - b.points[0][0]);
+    const notes: PageNotes = {
+      page,
+      highlights: [],
+      untextedHighlights: 0,
+      pens: strokes.length - marks.length - typed.length,
+      texts: typed.map((s) => s.text ?? '').filter((t) => t.trim()),
+    };
     if (marks.length) {
       const boxes = textOf ? await textOf(page).catch(() => []) : [];
       // Top to bottom, as the highlights appear on the page.

@@ -257,3 +257,51 @@ export const CloudOffIcon = () => (
     <path d="M9.5 18H17" />
   </Icon>
 );
+
+export const HandIcon = () => (
+  <Icon>
+    <path d="M8 12V5.5a1.5 1.5 0 0 1 3 0V11" />
+    <path d="M11 11V4a1.5 1.5 0 0 1 3 0v7" />
+    <path d="M14 11V5.5a1.5 1.5 0 0 1 3 0V13" />
+    <path d="M17 9.5a1.5 1.5 0 0 1 3 0V15a6 6 0 0 1-6 6h-1.5a6 6 0 0 1-4.6-2.1L4.2 14a1.6 1.6 0 0 1 2.4-2L8 13.5" />
+  </Icon>
+);
+export const LassoIcon = () => (
+  <Icon>
+    <path d="M12 4c4.6 0 8 2 8 4.8S16.6 13.6 12 13.600c-.7 0-1.4-.1-2-.2" strokeDasharray="2.6 2.4" />
+    <path d="M12 4C7.4 4 4 6 4 8.800c0 2 1.7 3.6 4.2 4.4" strokeDasharray="2.6 2.4" />
+    <path d="M9.5 14.500c-1 1.7-1.6 3.3-1.6 4.6 0 1.1.8 1.9 1.8 1.900s1.7-.7 1.7-1.6" />
+  </Icon>
+);
+export const TextNoteIcon = () => (
+  <Icon>
+    <path d="M5 6V4.500h14V6M12 4.500V19M9 19h6" />
+  </Icon>
+);
+export const ScissorsIcon = () => (
+  <Icon>
+    <circle cx="6" cy="6.5" r="2.5" />
+    <circle cx="6" cy="17.5" r="2.5" />
+    <path d="M8 8l12 9M8 16l12-9" />
+  </Icon>
+);
+export const PasteIcon = () => (
+  <Icon>
+    <rect x="5" y="5" width="14" height="16" rx="2" />
+    <path d="M9 5V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1M9 12h6M9 16h4" />
+  </Icon>
+);
+export const StyleIcon = () => (
+  <Icon>
+    <path d="M12 3.500a8.5 8.5 0 1 0 0 17c1.4 0 2-.9 2-1.8 0-1.1-.9-1.5-.9-2.5 0-1 .8-1.7 1.9-1.700H17a3.5 3.5 0 0 0 3.5-3.500C20.5 6.7 16.7 3.5 12 3.500z" />
+    <circle cx="7.5" cy="11" r="1" />
+    <circle cx="10" cy="7.5" r="1" />
+    <circle cx="14.5" cy="7.5" r="1" />
+  </Icon>
+);
+export const SelectAllIcon = () => (
+  <Icon>
+    <rect x="4" y="4" width="16" height="16" rx="2" strokeDasharray="3 2.5" />
+    <path d="M9 12l2.2 2.200L15.5 10" />
+  </Icon>
+);

@@ -16,6 +16,7 @@ const newId = () => `${Date.now().toString(36)}${Math.random().toString(36).slic
 const mapStroke = (s: Stroke, point: (p: InkPoint) => InkPoint, size: number): Stroke => ({
   ...s,
   size: s.size * size,
+  ...(s.w === undefined ? {} : { w: s.w * size }),
   points: s.points.map(point),
 });
 

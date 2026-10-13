@@ -1,16 +1,22 @@
 export type InkTool = 'pen' | 'highlighter';
-export type Tool = 'hand' | InkTool | 'eraser';
+/** What the reader's hand does: read, draw, erase, select (lasso) or type a note. */
+export type Tool = 'hand' | InkTool | 'eraser' | 'select' | 'text';
 
 /** x and y are normalised by the page's width, so ink survives any zoom level. */
 export type InkPoint = [x: number, y: number, pressure: number];
 
 export interface Stroke {
   id: string;
-  tool: InkTool;
+  /** Drawn ink, or a typed note ('text'). */
+  tool: InkTool | 'text';
   color: string;
-  /** Brush width as a fraction of the page width. */
+  /** Brush width as a fraction of the page width (for a typed note, its letter size). */
   size: number;
+  /** A typed note has one point: its top-left corner. */
   points: InkPoint[];
+  /** Typed notes: the words, and the width of the box they wrap in (fraction of page width). */
+  text?: string;
+  w?: number;
 }
 
 /** Zero-based page index -> strokes on that page. */

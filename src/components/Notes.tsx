@@ -9,7 +9,7 @@ import type { DocMeta } from '../lib/types';
 import { BookLoader } from './BookLoader';
 import { downloadPdf } from '../lib/sync/engine';
 import { useDownloadProgress } from '../lib/sync/useSync';
-import { ArrowIcon, BackIcon, ChevronIcon, CloseIcon, CopyIcon, FolderIcon, MarkIcon, PenIcon, PrintIcon } from './icons';
+import { ArrowIcon, BackIcon, ChevronIcon, CloseIcon, CopyIcon, FolderIcon, MarkIcon, PenIcon, PrintIcon, TextNoteIcon } from './icons';
 
 interface Props {
   /** Documents with marks, newest opened first. */
@@ -271,12 +271,13 @@ export function Notes({ docs, folderName, onOpen }: Props) {
     }
   };
 
-  const total = docs.reduce((n, d) => n + (loaded.get(d.id)?.notes.reduce((a, p) => a + p.highlights.length + p.untextedHighlights + p.pens, 0) ?? 0), 0);
+  const total = docs.reduce((n, d) => n + (loaded.get(d.id)?.notes.reduce((a, p) => a + p.highlights.length + p.untextedHighlights + p.pens + (p.texts?.length ?? 0), 0) ?? 0), 0);
 
   const asText = () => docs.map((d) => {
     const notes = loaded.get(d.id)?.notes ?? [];
     const lines = notes.flatMap((p) => [
       ...p.highlights.map((h) => `- p. ${p.page + 1}: “${h.text}”`),
+      ...(p.texts ?? []).map((t) => `- p. ${p.page + 1}: note: ${t.replace(/\s*\n\s*/g, ' ')}`),
       ...(p.pens ? [`- p. ${p.page + 1}: ${plural(p.pens, 'pen mark', 'pen marks')}`] : []),
     ]);
     return `## ${d.name}\n${lines.join('\n')}`;
@@ -336,7 +337,7 @@ export function Notes({ docs, folderName, onOpen }: Props) {
                 <span className="note-doc-meta">
                   {folder && <><FolderIcon />{folder} · </>}
                   {l
-                    ? `${plural(l.notes.reduce((a, p) => a + p.highlights.length + p.untextedHighlights + p.pens, 0), 'mark', 'marks')} on ${plural(l.notes.length, 'page', 'pages')}`
+                    ? `${plural(l.notes.reduce((a, p) => a + p.highlights.length + p.untextedHighlights + p.pens + (p.texts?.length ?? 0), 0), 'mark', 'marks')} on ${plural(l.notes.length, 'page', 'pages')}`
                     : 'Reading…'}
                 </span>
               </span>
@@ -355,6 +356,7 @@ export function Notes({ docs, folderName, onOpen }: Props) {
                         aria-label={`Page ${p.page + 1}: ${[
                           marked ? plural(marked, 'highlight', 'highlights') : '',
                           p.pens ? plural(p.pens, 'pen mark', 'pen marks') : '',
+                          p.texts?.length ? plural(p.texts.length, 'typed note', 'typed notes') : '',
                         ].filter(Boolean).join(', ')}`}
                         onClick={() => (l.hasFile
                           ? setPeek(stops.findIndex((s) => s.doc.id === d.id && s.page === p.page))
@@ -366,12 +368,16 @@ export function Notes({ docs, folderName, onOpen }: Props) {
                           <span className="note-tile-marks">
                             {marked > 0 && <span><MarkIcon />{marked}</span>}
                             {p.pens > 0 && <span><PenIcon />{p.pens}</span>}
+                            {!!p.texts?.length && <span><TextNoteIcon />{p.texts.length}</span>}
                           </span>
                         </span>
                         {p.highlights[0] && (
                           <span className="note-snippet" style={{ ['--hl' as string]: p.highlights[0].color }}>
                             {p.highlights[0].text}
                           </span>
+                        )}
+                        {p.texts?.[0] && (
+                          <span className="note-snippet typed">{p.texts[0]}</span>
                         )}
                       </button>
                     </li>

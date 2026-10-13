@@ -1,9 +1,11 @@
 import type { PDFDocumentProxy } from 'pdfjs-dist';
-import { memo, useCallback, useEffect, useRef, useState } from 'react';
-import { drawStroke, drawStrokes, newId, strokeHit } from '../lib/ink';
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { displayColor, drawStroke, drawStrokes, newId, SELECT_COLOR, strokeHit, TEXT_BOX } from '../lib/ink';
+import { boxOf, eraseArea, lassoPick, simStroke, type Sim } from '../lib/inkOps';
 import { PALM_WINDOW_MS, type PointerHub } from '../lib/pointerHub';
 import { queueRender } from '../lib/renderQueue';
 import type { InkPoint, InkTool, Stroke, Tool } from '../lib/types';
+import { SelectionLayer, type SelectionApi } from './SelectionLayer';
 
 interface Props {
   index: number;
@@ -19,6 +21,13 @@ interface Props {
   color: string;
   /** Brush width as a fraction of page width. */
   brush: number;
+  /** The eraser, and the letter size of a new typed note. */
+  eraser: { mode: 'stroke' | 'area'; size: number; onlyHighlighter: boolean };
+  textSize: number;
+  /** Ids of the strokes selected on this page, if any. */
+  selection: readonly string[] | null;
+  onSelect: (page: number, ids: string[] | null) => void;
+  selectionApi: SelectionApi;
   /** Night paper recolours the bitmap with a CSS filter instead of a tint. */
   dark: boolean;
   hub: PointerHub;
@@ -37,7 +46,6 @@ const NIGHT_FILTER = 'invert(0.88) hue-rotate(180deg) sepia(0.28) brightness(0.9
 // elsewhere a CSS filter on the bitmap does the job.
 const CAN_BAKE_FILTER =
   typeof CanvasRenderingContext2D !== 'undefined' && 'filter' in CanvasRenderingContext2D.prototype;
-const ERASER_RADIUS = 0.012; // fraction of page width
 // Holding the highlighter still turns the stroke into a straight line from
 // where it started to wherever the pointer goes next.
 const HOLD_MS = 350;
@@ -60,7 +68,7 @@ function straightLine(a: InkPoint, b: InkPoint): InkPoint[] {
 function PageViewImpl(props: Props) {
   const {
     index, pdf, width, height, renderWidth, visible, strokes, tool, color,
-    brush, dark, hub, onCommit, register,
+    brush, dark, hub, onCommit, register, eraser, textSize, selection, onSelect, selectionApi,
   } = props;
 
   const pdfCanvas = useRef<HTMLCanvasElement>(null);
@@ -69,10 +77,20 @@ function PageViewImpl(props: Props) {
   const [ready, setReady] = useState(false);
   const [baked, setBaked] = useState(false);
   const erased = useRef(new Set<string>());
+  /** The page as the area eraser has left it so far in this stroke. */
+  const work = useRef<Stroke[] | null>(null);
+  /** Set while the selection is being dragged: the strokes are drawn moved, over the page. */
+  const sim = useRef<Sim | null>(null);
+  const editingId = useRef<string | null>(null);
   const strokesRef = useRef(strokes);
   strokesRef.current = strokes;
   const darkRef = useRef(dark);
   darkRef.current = dark;
+  const selected = useMemo(() => new Set(selection ?? []), [selection]);
+  const selectedRef = useRef(selected);
+  selectedRef.current = selected;
+  const eraserRef = useRef(eraser);
+  eraserRef.current = eraser;
 
   const aspect = height / width;
   const dpr = Math.min(window.devicePixelRatio || 1, 3);
@@ -182,7 +200,13 @@ function PageViewImpl(props: Props) {
     const ctx = canvas?.getContext('2d');
     if (!canvas || !ctx) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    drawStrokes(ctx, strokesRef.current, canvas.width, darkRef.current, erased.current);
+    let skip = erased.current;
+    if (sim.current || editingId.current) {
+      skip = new Set(erased.current);
+      if (sim.current) selectedRef.current.forEach((id) => skip.add(id));
+      if (editingId.current) skip.add(editingId.current);
+    }
+    drawStrokes(ctx, work.current ?? strokesRef.current, canvas.width, darkRef.current, skip, selectedRef.current);
   }, []);
 
   // Resizing clears a canvas, so only touch the size when it really changes.
@@ -197,12 +221,12 @@ function PageViewImpl(props: Props) {
 
   useEffect(() => {
     if (visible) paintInk();
-  }, [visible, strokes, dark, paintInk]);
+  }, [visible, strokes, dark, selected, paintInk]);
 
   // ---- drawing ----------------------------------------------------------
   const drawing = useRef<{
     id: number;
-    kind: 'ink' | 'erase';
+    kind: 'ink' | 'erase' | 'lasso';
     points: InkPoint[];
     raf: number;
     /** Highlighter only: the hold timer and where the pointer last settled. */
@@ -223,13 +247,12 @@ function PageViewImpl(props: Props) {
     ov?.getContext('2d')?.clearRect(0, 0, ov.width, ov.height);
   };
 
-  const paintLive = () => {
-    const d = drawing.current;
+  /** Runs `draw` on the screen-sized overlay, set up so that page units are `w` pixels wide and clipped to the page. */
+  const onOverlay = (draw: (ctx: CanvasRenderingContext2D, w: number, s: number) => void) => {
     const ov = hub.overlay;
     const ctx = ov?.getContext('2d');
     const el = surface.current;
-    if (!d || !ov || !ctx || !el) return;
-    d.raf = 0;
+    if (!ov || !ctx || !el) return;
     const s = ov.width / (ov.clientWidth || 1); // canvas pixels per CSS pixel
     const page = el.getBoundingClientRect();
     const origin = ov.getBoundingClientRect();
@@ -240,26 +263,85 @@ function PageViewImpl(props: Props) {
     ctx.beginPath();
     ctx.rect(0, 0, w, page.height * s);
     ctx.clip();
-    if (d.kind === 'ink') {
-      drawStroke(ctx, { tool: tool as InkTool, color, size: brush, points: d.points }, w, darkRef.current);
-    } else {
-      const [x, y] = d.points[d.points.length - 1];
-      ctx.beginPath();
-      ctx.arc(x * w, y * w, ERASER_RADIUS * w, 0, Math.PI * 2);
-      ctx.strokeStyle = 'rgba(60,45,25,.55)';
-      ctx.fillStyle = 'rgba(255,250,235,.35)';
-      ctx.lineWidth = Math.max(1, s * 1.2);
-      ctx.fill();
-      ctx.stroke();
-    }
+    draw(ctx, w, s);
     ctx.restore();
   };
 
+  const paintLive = () => {
+    const d = drawing.current;
+    if (!d) return;
+    d.raf = 0;
+    onOverlay((ctx, w, s) => {
+      if (d.kind === 'ink') {
+        drawStroke(ctx, { tool: tool as InkTool, color, size: brush, points: d.points }, w, darkRef.current);
+      } else if (d.kind === 'lasso') {
+        ctx.beginPath();
+        d.points.forEach(([x, y], i) => (i ? ctx.lineTo(x * w, y * w) : ctx.moveTo(x * w, y * w)));
+        ctx.closePath();
+        ctx.fillStyle = 'rgba(15,138,150,.08)';
+        ctx.fill();
+        ctx.setLineDash([6 * s, 5 * s]);
+        ctx.lineWidth = Math.max(1, s * 1.6);
+        ctx.strokeStyle = SELECT_COLOR;
+        ctx.stroke();
+      } else {
+        const [x, y] = d.points[d.points.length - 1];
+        ctx.beginPath();
+        ctx.arc(x * w, y * w, eraserRef.current.size * w, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(60,45,25,.55)';
+        ctx.fillStyle = 'rgba(255,250,235,.35)';
+        ctx.lineWidth = Math.max(1, s * 1.2);
+        ctx.fill();
+        ctx.stroke();
+      }
+    });
+  };
+
+  // The selection being dragged is drawn over the page, moved, in the selection colour.
+  const liveRaf = useRef(0);
+  const onSelectionLive = (next: Sim | null) => {
+    const was = sim.current !== null;
+    sim.current = next;
+    if (was !== (next !== null)) paintInk();
+    if (!next) {
+      cancelAnimationFrame(liveRaf.current);
+      liveRaf.current = 0;
+      clearLive();
+      return;
+    }
+    if (liveRaf.current) return;
+    liveRaf.current = requestAnimationFrame(() => {
+      liveRaf.current = 0;
+      const m = sim.current;
+      if (!m) return;
+      onOverlay((ctx, w) => {
+        for (const s of strokesRef.current) {
+          if (selectedRef.current.has(s.id)) drawStroke(ctx, simStroke(s, m), w, darkRef.current, SELECT_COLOR);
+        }
+      });
+    });
+  };
+  const onSelectionDone = (m: Sim) => {
+    const prev = strokesRef.current;
+    onCommit(index, prev, prev.map((s) => (selectedRef.current.has(s.id) ? simStroke(s, m) : s)));
+  };
+
   const eraseAt = (x: number, y: number) => {
+    const { mode, size, onlyHighlighter } = eraserRef.current;
+    if (mode === 'area') {
+      const now = work.current ?? strokesRef.current;
+      const next = eraseArea(now, x, y, size, onlyHighlighter ? 'highlighter' : undefined);
+      if (next !== now) {
+        work.current = next;
+        paintInk();
+      }
+      return;
+    }
     let changed = false;
     for (const s of strokesRef.current) {
       if (erased.current.has(s.id)) continue;
-      if (strokeHit(s, x, y, ERASER_RADIUS)) {
+      if (onlyHighlighter && s.tool !== 'highlighter') continue;
+      if (strokeHit(s, x, y, size)) {
         erased.current.add(s.id);
         changed = true;
       }
@@ -291,8 +373,63 @@ function PageViewImpl(props: Props) {
     cancelAnimationFrame(d.raf);
     clearLive();
     erased.current = new Set();
+    work.current = null;
     paintInk();
   };
+
+  // ---- typed notes ------------------------------------------------------
+  interface Editor { id: string | null; x: number; y: number; w: number; size: number; color: string; text: string }
+  const [editor, setEditor] = useState<Editor | null>(null);
+  const editorRef = useRef<Editor | null>(null);
+  editorRef.current = editor;
+  const field = useRef<HTMLTextAreaElement>(null);
+
+  const startEditor = (next: Editor) => {
+    editingId.current = next.id;
+    editorRef.current = next;
+    setEditor(next);
+    paintInk();
+  };
+  const editNote = (s: Stroke) =>
+    startEditor({ id: s.id, x: s.points[0][0], y: s.points[0][1], w: s.w ?? TEXT_BOX, size: s.size, color: s.color, text: s.text ?? '' });
+
+  /** Closes the editor, keeping what was typed unless `keep` is false. */
+  const finishEditor = (keep: boolean) => {
+    const ed = editorRef.current;
+    if (!ed) return;
+    editorRef.current = null;
+    editingId.current = null;
+    setEditor(null);
+    const prev = strokesRef.current;
+    const text = ed.text.replace(/\s+$/g, '');
+    if (!keep) {
+      paintInk();
+    } else if (ed.id) {
+      const old = prev.find((s) => s.id === ed.id);
+      if (!text.trim()) onCommit(index, prev, prev.filter((s) => s.id !== ed.id));
+      else if (old && old.text !== text) onCommit(index, prev, prev.map((s) => (s.id === ed.id ? { ...s, text } : s)));
+      else paintInk();
+    } else if (text.trim()) {
+      const note: Stroke = { id: newId(), tool: 'text', color: ed.color, size: ed.size, w: ed.w, text, points: [[ed.x, ed.y, 0.5]] };
+      onCommit(index, prev, [...prev, note]);
+    } else {
+      paintInk();
+    }
+  };
+  useEffect(() => () => { if (editorRef.current) finishEditor(true); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Grow the box with what is typed.
+  useLayoutEffect(() => {
+    const el = field.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight}px`;
+  }, [editor?.text, editor?.size, width]);
+  useEffect(() => {
+    if (editor) field.current?.focus();
+  }, [editor?.id, editor !== null]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const tap = useRef<{ id: number; p: InkPoint; x: number; y: number } | null>(null);
 
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (tool === 'hand' || drawing.current || hub.gesture) return;
@@ -301,13 +438,23 @@ function PageViewImpl(props: Props) {
     if (e.pointerType === 'touch' && e.timeStamp - hub.lastPenAt < PALM_WINDOW_MS) return;
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     e.preventDefault();
-    e.currentTarget.setPointerCapture(e.pointerId);
     const rect = e.currentTarget.getBoundingClientRect();
     const first = toPoint(e, rect);
-    const kind = tool === 'eraser' ? 'erase' : 'ink';
+
+    if (tool === 'text') {
+      // A tap types a note there (or edits the note tapped). It starts on release, once
+      // the browser has finished moving focus away from a note being typed.
+      tap.current = { id: e.pointerId, p: first, x: e.clientX, y: e.clientY };
+      return;
+    }
+
+    e.currentTarget.setPointerCapture(e.pointerId);
+    if (tool === 'select') onSelect(index, null);
+    const kind = tool === 'eraser' ? 'erase' : tool === 'select' ? 'lasso' : 'ink';
     drawing.current = { id: e.pointerId, kind, points: [first], raf: 0, hold: 0, anchor: first, from: null };
     if (tool === 'highlighter') armHold(first);
     erased.current = new Set();
+    work.current = null;
     // A second finger landing turns this into a scroll; the viewer calls this.
     hub.cancelStroke = abortStroke;
     if (kind === 'erase') eraseAt(first[0], first[1]);
@@ -338,6 +485,18 @@ function PageViewImpl(props: Props) {
   };
 
   const finish = (e: React.PointerEvent<HTMLDivElement>, cancelled: boolean) => {
+    const t = tap.current;
+    if (t && t.id === e.pointerId) {
+      tap.current = null;
+      if (!cancelled && Math.hypot(e.clientX - t.x, e.clientY - t.y) < 10) {
+        if (editorRef.current) finishEditor(true);
+        const [x, y] = t.p;
+        const hit = [...strokesRef.current].reverse().find((s) => s.tool === 'text' && strokeHit(s, x, y, 0.004));
+        if (hit) editNote(hit);
+        else startEditor({ id: null, x, y, w: Math.max(0.15, Math.min(TEXT_BOX, 0.98 - x)), size: textSize, color, text: '' });
+      }
+      return;
+    }
     const d = drawing.current;
     if (!d || d.id !== e.pointerId) return;
     if (hub.cancelStroke === abortStroke) hub.cancelStroke = null;
@@ -350,7 +509,22 @@ function PageViewImpl(props: Props) {
     cancelAnimationFrame(d.raf);
     clearLive();
     const prev = strokesRef.current;
-    if (d.kind === 'ink') {
+    if (d.kind === 'lasso') {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const xs = d.points.map((q) => q[0]);
+      const ys = d.points.map((q) => q[1]);
+      const reach = Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)) * rect.width;
+      let ids: string[] = [];
+      if (reach < 8) {
+        // A tap: the note on top under it.
+        const [x, y] = d.points[0];
+        const hit = [...prev].reverse().find((s) => strokeHit(s, x, y, 0.01));
+        if (hit) ids = [hit.id];
+      } else {
+        ids = lassoPick(prev, d.points.map(([x, y]) => [x, y] as [number, number]));
+      }
+      onSelect(index, ids.length ? ids : null);
+    } else if (d.kind === 'ink') {
       const stroke: Stroke = {
         id: newId(),
         tool: tool as InkTool,
@@ -359,6 +533,10 @@ function PageViewImpl(props: Props) {
         points: d.points,
       };
       onCommit(index, prev, [...prev, stroke]);
+    } else if (work.current) {
+      const next = work.current;
+      work.current = null;
+      onCommit(index, prev, next);
     } else if (erased.current.size) {
       const gone = erased.current;
       onCommit(index, prev, prev.filter((s) => !gone.has(s.id)));
@@ -367,6 +545,9 @@ function PageViewImpl(props: Props) {
   };
 
   const interactive = tool !== 'hand';
+  const picked = useMemo(() => strokes.filter((s) => selected.has(s.id)), [strokes, selected]);
+  const selBox = picked.length ? boxOf(picked) : null;
+  const onlyText = picked.length === 1 && picked[0].tool === 'text';
 
   return (
     <div
@@ -387,6 +568,40 @@ function PageViewImpl(props: Props) {
         onPointerCancel={interactive ? (e) => finish(e, true) : undefined}
         onContextMenu={(e) => e.preventDefault()}
       />
+      {editor && (
+        <textarea
+          ref={field}
+          className="note-editor"
+          aria-label="Note text"
+          rows={1}
+          value={editor.text}
+          placeholder="Type a note"
+          style={{ left: editor.x * width, top: editor.y * width, width: editor.w * width, fontSize: editor.size * width, lineHeight: 1.3, color: displayColor(editor.color, dark) }}
+          onChange={(e) => setEditor({ ...editor, text: e.target.value })}
+          onBlur={() => finishEditor(true)}
+          onKeyDown={(e) => {
+            e.stopPropagation();
+            if (e.key === 'Escape') finishEditor(false);
+            else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) finishEditor(true);
+          }}
+        />
+      )}
+      {tool === 'select' && selBox && selection && (
+        <SelectionLayer
+          page={index}
+          ids={picked.map((s) => s.id)}
+          box={selBox}
+          width={width}
+          canTurn={!picked.some((s) => s.tool === 'text')}
+          onEdit={onlyText ? () => { onSelect(index, null); editNote(picked[0]); } : undefined}
+          highlighter={picked.length > 0 && picked.every((s) => s.tool === 'highlighter')}
+          dark={dark}
+          hub={hub}
+          api={selectionApi}
+          onLive={onSelectionLive}
+          onDone={onSelectionDone}
+        />
+      )}
       <span className="page-number">{index + 1}</span>
     </div>
   );

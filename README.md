@@ -9,11 +9,23 @@ your device.
 - **PDF reading** with continuous scrolling, zoom (buttons, `Ctrl`+wheel) and
   jump-to-page. Only the pages near the screen are drawn, so large files stay
   light on memory.
-- **Ink** on any page: pen (pressure-sensitive with a stylus), highlighter,
-  stroke eraser, undo and redo. Strokes are stored relative to the page, so
-  they stay put at every zoom level. Hold the highlighter still (at the start
-  or mid-stroke) and it draws a straight line from where the stroke began to
+- **Ink and notes** on any page. A bar of six tools: read (scroll and zoom),
+  pen, highlighter, eraser, select and typed notes. Tapping the chosen tool
+  again opens or closes its menu: colour and a thickness slider for the pen and
+  highlighter; for the eraser, a stroke or an area eraser (an area eraser cuts a
+  stroke where it passes), its size, "erase only highlighter" and "erase
+  everything on this page"; for typed notes, a colour and a letter size.
+  Choices are remembered. Strokes are stored relative to the page, so they stay
+  put at every zoom level. Hold the highlighter still (at the start or
+  mid-stroke) and it draws a straight line from where the stroke began to
   wherever you drag; nearly flat lines snap level.
+- **Select** (lasso): draw a loop around notes, or tap one, to select it. Drag it
+  to move it, drag a corner to resize it, drag the top handle to turn it, and use
+  the buttons over it to cut, copy, paste, delete or change its colour and
+  thickness. Everything is undoable. Typed notes (tap the page with the note
+  tool, tap a note to edit it) move and resize like ink, stay upright, and show
+  up under *Notes* with the highlights. Edits keep a stroke's id, so moving or
+  restyling merges between devices like any other change (newer wins).
 - **Library** of the PDFs you have opened, with covers. Your place in each
   document and all your ink are remembered across visits. Several PDFs can be
   added at once.

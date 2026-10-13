@@ -20,12 +20,17 @@ export function logFromInk(ink: DocInk): InkLog {
   return log;
 }
 
-/** Records one page edit (a stroke drawn, erased, undone or redone). */
+/**
+ * Records one page edit (a stroke drawn, erased, moved, restyled, undone or redone).
+ * A stroke present on both sides but no longer the same object has changed: its
+ * new state is logged under the same id, keeping its place in the drawing order.
+ */
 export function applyEdit(log: InkLog, page: number, prev: Stroke[], next: Stroke[], now: number) {
-  const before = new Set(prev.map((s) => s.id));
+  const before = new Map(prev.map((s) => [s.id, s]));
   const after = new Set(next.map((s) => s.id));
   for (const s of next) {
-    if (before.has(s.id)) continue;
+    const old = before.get(s.id);
+    if (old === s) continue;
     log[s.id] = { p: page, c: log[s.id]?.c ?? now, t: now, s };
   }
   for (const s of prev) {
