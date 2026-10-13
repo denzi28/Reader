@@ -34,6 +34,8 @@ export interface DocMeta {
   cloudOnly?: boolean;
   /** The folder it is filed in; none (or a removed folder) means the shelf. */
   folder?: string;
+  /** Starred by the user, to keep it at the top of the shelf. */
+  starred?: boolean;
 }
 
 export interface Folder {

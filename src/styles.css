@@ -340,6 +340,97 @@ mark {
 }
 .book-folder svg { width: 15px; height: 15px; flex: none; color: var(--accent); }
 
+/* ---------- shelf extras: stars, marks, sorting, list view ---------- */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.tagline strong { color: var(--ink); font-weight: 600; }
+.title-star { display: inline-grid; vertical-align: -3px; margin-right: 0.4rem; color: #d9a514; }
+.title-star svg { width: 20px; height: 20px; fill: currentColor; }
+.star-tool.on { opacity: 1 !important; transform: scale(1) !important; color: #d9a514; }
+.star-tool.on svg { fill: currentColor; }
+.cover-marks {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 7px 2px 5px;
+  border-radius: 999px;
+  background: color-mix(in srgb, #ffd84d 88%, #fff);
+  color: #3b2f12;
+  font-size: 0.72rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 1px 4px rgba(60, 40, 0, 0.3);
+}
+.cover-marks svg { width: 13px; height: 13px; }
+.section-head.bare { justify-content: flex-end; margin-top: 0; }
+.shelf-controls { display: inline-flex; align-items: center; gap: 0.5rem; }
+.sort select {
+  appearance: none;
+  -webkit-appearance: none;
+  height: 36px;
+  padding: 0 2rem 0 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23887a60' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M7 10l5 5 5-5'/%3E%3C/svg%3E") right 0.6rem center / 16px no-repeat,
+    var(--card);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.view-toggle {
+  display: inline-flex;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--card);
+}
+.view-toggle button {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 28px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--muted);
+}
+.view-toggle button svg { width: 17px; height: 17px; }
+.view-toggle button.on { background: var(--accent); color: var(--accent-ink); }
+
+.shelf.view-list { grid-template-columns: 1fr; gap: 0.5rem; }
+.view-list .book-open {
+  grid-template-columns: 52px 1fr;
+  column-gap: 0.9rem;
+  row-gap: 0.15rem;
+  align-items: center;
+  padding: 0.55rem 8.5rem 0.55rem 0.55rem;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--card);
+  transition: border-color 0.2s, transform 0.25s var(--ease);
+}
+@media (hover: hover) { .view-list .book-open:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); } }
+.view-list .cover { grid-row: span 3; width: 52px; border-radius: 2px 4px 4px 2px; }
+.view-list .book-open:hover .cover { transform: none; }
+.view-list .cover-marks, .view-list .cover-cloud { display: none; }
+.view-list .cover-progress { left: 4px; right: 4px; bottom: 4px; height: 3px; }
+.view-list .book-name { -webkit-line-clamp: 1; }
+.view-list .book-tools { top: 50%; right: 0.6rem; transform: translateY(-50%); }
+.view-list .book-tool { opacity: 1; transform: none; box-shadow: none; background: none; }
+@media (hover: hover) { .view-list .book-tool:hover { background: var(--line); } }
+
 /* ---------- reading progress ---------- */
 .progress {
   display: block;
@@ -429,7 +520,8 @@ mark {
 .resume-go svg { width: 22px; height: 22px; }
 
 /* ---------- folders ---------- */
-.section-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin: 2.5rem 0 1rem; }
+.section-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.6rem 1rem; margin: 2.5rem 0 1rem; }
+.section-head .shelf-title { white-space: nowrap; }
 .section-head .shelf-title { margin: 0; }
 .chip-button {
   display: inline-flex;
@@ -1690,6 +1782,8 @@ mark {
   .folders { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; }
   .folder-stack { height: 96px; }
   .stack-cover { width: 56px; }
+  .view-list .book-open { padding-right: 7.4rem; }
+  .view-list .book-tool { width: 32px; height: 32px; }
   .resume { gap: 0.85rem; padding: 0.75rem 0.85rem 0.75rem 0.75rem; }
   .resume-cover { width: 60px; }
   .resume-go { width: 40px; height: 40px; }

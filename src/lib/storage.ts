@@ -50,6 +50,7 @@ const fileKey = (id: string) => `file:${id}`;
 const legacyInkKey = (id: string) => `ink:${id}`;
 const logKey = (id: string) => `inklog:${id}`;
 const sizesKey = (id: string) => `sizes:${id}`;
+const marksKey = (id: string) => `marks:${id}`;
 const FOLDERS_KEY = 'folders';
 
 // ---- change notifications (sync listens to these) ---------------------
@@ -112,7 +113,7 @@ export function putDocFile(id: string, file: Blob) {
 export async function deleteDoc(id: string) {
   const current = await getMeta(id);
   dropInkCache(id);
-  await Promise.all([fileKey(id), logKey(id), legacyInkKey(id), sizesKey(id)].map((k) => del(k, store)));
+  await Promise.all([fileKey(id), logKey(id), legacyInkKey(id), sizesKey(id), marksKey(id)].map((k) => del(k, store)));
   if (current) {
     await set(metaKey(id), { ...current, thumb: undefined, deleted: true, updatedAt: Date.now() }, store);
     notify(id, 'meta');
@@ -122,7 +123,7 @@ export async function deleteDoc(id: string) {
 /** Applies a deletion that came from another device. */
 export async function wipeDoc(id: string, marker: DocMeta) {
   dropInkCache(id);
-  await Promise.all([fileKey(id), logKey(id), legacyInkKey(id), sizesKey(id)].map((k) => del(k, store)));
+  await Promise.all([fileKey(id), logKey(id), legacyInkKey(id), sizesKey(id), marksKey(id)].map((k) => del(k, store)));
   await set(metaKey(id), { ...marker, thumb: undefined, deleted: true }, store);
 }
 
@@ -221,13 +222,23 @@ function dropInkCache(id: string) {
   inkCache.delete(id);
 }
 
+/** Strokes still on the page (erased ones stay in the log as markers). */
+const countMarks = (log: InkLog) => Object.values(log).reduce((n, e) => n + (e.d || !e.s ? 0 : 1), 0);
+
+// The number of marks is saved beside each log, so the shelf can show it
+// without reading every document's ink.
+function writeLog(id: string, entry: { log: InkLog; store: UseStore }) {
+  void set(logKey(id), entry.log, entry.store);
+  void set(marksKey(id), countMarks(entry.log), entry.store);
+}
+
 function scheduleWrite(id: string) {
   const entry = inkCache.get(id);
   if (!entry) return;
   clearTimeout(entry.timer);
   entry.timer = window.setTimeout(() => {
     entry.timer = 0;
-    void set(logKey(id), entry.log, entry.store);
+    writeLog(id, entry);
   }, 300);
 }
 
@@ -236,9 +247,27 @@ function flushInk() {
     if (entry.timer) {
       clearTimeout(entry.timer);
       entry.timer = 0;
-      void set(logKey(id), entry.log, entry.store);
+      writeLog(id, entry);
     }
   });
+}
+
+/** How many marks each document has. */
+export async function getMarkCounts(ids: string[]): Promise<Map<string, number>> {
+  const counts = await getMany<number | undefined>(ids.map(marksKey), store);
+  const out = new Map<string, number>();
+  await Promise.all(ids.map(async (id, i) => {
+    let n = counts[i];
+    if (n === undefined) {
+      // Ink saved before counts were kept: count it once.
+      const log = await get<InkLog>(logKey(id), store);
+      const legacy = log ? null : await get<DocInk>(legacyInkKey(id), store);
+      n = log ? countMarks(log) : legacy ? Object.values(legacy).reduce((a, p) => a + p.length, 0) : 0;
+      void set(marksKey(id), n, store);
+    }
+    out.set(id, n);
+  }));
+  return out;
 }
 if (typeof window !== 'undefined') {
   window.addEventListener('pagehide', flushInk);

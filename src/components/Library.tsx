@@ -4,13 +4,13 @@ import { FOLDER_COLORS, folderColor, liveFolders, MAX_FOLDER_NAME } from '../lib
 import { matchRanges, searchTerms } from '../lib/search';
 import {
   adoptGuestDocs, createFolder, currentSpace, deleteDoc, deleteFolder, getFolderLog, guestDocs,
-  listDocs, moveDocs, renameFolder, setFolderColor,
+  getMarkCounts, listDocs, moveDocs, patchMeta, renameFolder, setFolderColor,
 } from '../lib/storage';
 import { downloadPdf } from '../lib/sync/engine';
 import { useDownloadProgress, useSyncStatus } from '../lib/sync/useSync';
 import type { DocMeta, Folder } from '../lib/types';
 import {
-  ArrowIcon, BackIcon, CheckIcon, CloseIcon, CloudIcon, FileIcon, FolderIcon, FolderMoveIcon, FolderPlusIcon, MoonIcon, PencilIcon, SearchIcon, SunIcon,
+  ArrowIcon, BackIcon, GridIcon, ListIcon, MarkIcon, StarIcon, CheckIcon, CloseIcon, CloudIcon, FileIcon, FolderIcon, FolderMoveIcon, FolderPlusIcon, MoonIcon, PencilIcon, SearchIcon, SunIcon,
   TrashIcon, UploadIcon,
 } from './icons';
 import { SyncControl } from './SyncControl';
@@ -54,6 +54,44 @@ function Cover({ meta }: { meta: DocMeta }) {
   ) : (
     <span className="cover-fallback"><FileIcon /></span>
   );
+}
+
+type SortBy = 'opened' | 'added' | 'name' | 'progress';
+const SORTS: { id: SortBy; label: string }[] = [
+  { id: 'opened', label: 'Recently opened' },
+  { id: 'added', label: 'Recently added' },
+  { id: 'name', label: 'Name' },
+  { id: 'progress', label: 'Progress' },
+];
+const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+function sortDocs(list: DocMeta[], by: SortBy) {
+  const out = [...list];
+  if (by === 'added') out.sort((a, b) => b.addedAt - a.addedAt);
+  else if (by === 'name') out.sort((a, b) => collator.compare(a.name, b.name));
+  else if (by === 'progress') out.sort((a, b) => progressOf(b) - progressOf(a) || b.openedAt - a.openedAt);
+  return out; // 'opened': already newest first
+}
+
+/** A remembered setting on this device (falls back quietly if storage is off). */
+function usePref<T extends string>(key: string, initial: T, allowed: readonly T[]) {
+  const [value, setValue] = useState<T>(() => {
+    try {
+      const v = localStorage.getItem(key) as T | null;
+      return v && allowed.includes(v) ? v : initial;
+    } catch {
+      return initial;
+    }
+  });
+  const update = (v: T) => {
+    setValue(v);
+    try { localStorage.setItem(key, v); } catch { /* ignore */ }
+  };
+  return [value, update] as const;
+}
+
+function greeting(now = new Date()) {
+  const h = now.getHours();
+  return h < 5 ? 'Good evening' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
 }
 
 /** How far through a document the reader is (0 to 1), from the page last read. */
@@ -236,6 +274,9 @@ export function Library(props: Props) {
   const [moving, setMoving] = useState<{ id: string; anchor: DOMRect } | null>(null);
   const [dropOn, setDropOn] = useState<string | null>(null);
   const [query, setQuery] = useState(lastQuery);
+  const [markCounts, setMarkCounts] = useState<Map<string, number>>(new Map());
+  const [sortBy, setSortBy] = usePref<SortBy>('reader.sort', 'opened', SORTS.map((x) => x.id));
+  const [view, setView] = usePref<'grid' | 'list'>('reader.view', 'grid', ['grid', 'list']);
   const input = useRef<HTMLInputElement>(null);
   const searchBox = useRef<HTMLInputElement>(null);
   const sync = useSyncStatus();
@@ -266,7 +307,11 @@ export function Library(props: Props) {
 
   const refresh = () =>
     Promise.all([listDocs(), getFolderLog()])
-      .then(([d, log]) => { setDocs(d); setFolders(liveFolders(log)); })
+      .then(async ([d, log]) => {
+        setDocs(d);
+        setFolders(liveFolders(log));
+        setMarkCounts(await getMarkCounts(d.map((x) => x.id)));
+      })
       .catch(() => setDocs([]));
   useEffect(() => { void refresh(); }, [busy, sync.libraryVersion]);
 
@@ -274,7 +319,8 @@ export function Library(props: Props) {
   const current = folders.find((f) => f.id === folder) ?? null;
   const live = new Set(folders.map((f) => f.id));
   const placeOf = (d: DocMeta) => (d.folder && live.has(d.folder) ? d.folder : null);
-  const shown = (docs ?? []).filter((d) => placeOf(d) === (current?.id ?? null));
+  const shown = sortDocs((docs ?? []).filter((d) => placeOf(d) === (current?.id ?? null)), sortBy);
+  const starred = (docs ?? []).filter((d) => d.starred);
   const folderName = new Map(folders.map((f) => [f.id, f.name]));
   // Searching looks through every document and folder, wherever it is filed.
   const terms = searchTerms(query);
@@ -363,6 +409,8 @@ export function Library(props: Props) {
     },
   });
 
+  const reading = (docs ?? []).filter((d) => progressOf(d) > 0 && progressOf(d) < 1).length;
+
   // The document opened most recently, ready to pick up again.
   const resume = !current && !searching ? docs?.[0] : undefined;
 
@@ -437,6 +485,12 @@ export function Library(props: Props) {
         <span className="cover">
           <Cover meta={d} />
           <Progress doc={d} className="cover-progress" />
+          {(markCounts.get(d.id) ?? 0) > 0 && (
+            <span className="cover-marks" title={plural(markCounts.get(d.id)!, 'mark', 'marks')}>
+              <MarkIcon />
+              {markCounts.get(d.id)}
+            </span>
+          )}
           {d.cloudOnly && (
             <span className="cover-cloud" title="In your Google Drive; opens after downloading">
               <CloudIcon />
@@ -453,6 +507,15 @@ export function Library(props: Props) {
         )}
       </button>
       <span className="book-tools">
+        <button
+          className={`book-tool star-tool${d.starred ? ' on' : ''}`}
+          aria-label={d.starred ? `Unstar ${d.name}` : `Star ${d.name}`}
+          aria-pressed={Boolean(d.starred)}
+          title={d.starred ? 'Starred' : 'Star'}
+          onClick={async () => { await patchMeta(d.id, { starred: !d.starred }); void refresh(); }}
+        >
+          <StarIcon />
+        </button>
         <button
           className="book-tool"
           aria-label={`Move ${d.name} to a folder`}
@@ -516,8 +579,19 @@ export function Library(props: Props) {
         <div>
           <h1 className="brand">The Reader</h1>
           <p className="tagline">
-            Read, mark up and keep your documents.{' '}
-            {sync.connected ? 'Kept in step with your Google Drive.' : 'Everything stays on this device.'}
+            {docs?.length ? (
+              <>
+                <strong>{greeting()}{sync.name ? `, ${sync.name.split(' ')[0]}` : ''}.</strong>{' '}
+                {reading > 0
+                  ? `${plural(reading, 'document', 'documents')} in progress.`
+                  : `${plural(docs.length, 'document', 'documents')} on your shelf.`}
+              </>
+            ) : (
+              <>
+                Read, mark up and keep your documents.{' '}
+                {sync.connected ? 'Kept in step with your Google Drive.' : 'Everything stays on this device.'}
+              </>
+            )}
           </p>
         </div>
         <div className="library-actions">
@@ -703,7 +777,7 @@ export function Library(props: Props) {
           </h2>
           {folderHits.length > 0 && <ul className="folders">{folderHits.map(({ f, r }, i) => folderTile(f, i, r))}</ul>}
           {docHits.length > 0 && (
-            <ul className="shelf">{docHits.map(({ d, name }, i) => book(d, i, name, true))}</ul>
+            <ul className={`shelf view-${view}`}>{docHits.map(({ d, name }, i) => book(d, i, name, true))}</ul>
           )}
           {docHits.length + folderHits.length === 0 && (
             <p className="empty-note">Try fewer letters, or another word from the title.</p>
@@ -723,6 +797,15 @@ export function Library(props: Props) {
               </button>
               <p className="drop-note">You can pick several at once. Word, Excel and PowerPoint support is coming next.</p>
             </div>
+          )}
+
+          {!current && starred.length > 0 && (
+            <section aria-label="Starred">
+              <div className="section-head">
+                <h2 className="shelf-title"><span className="title-star"><StarIcon /></span>Starred</h2>
+              </div>
+              <ul className={`shelf view-${view}`}>{starred.map((d, i) => book(d, i, null, true))}</ul>
+            </section>
           )}
 
           {!current && docs && docs.length > 0 && (
@@ -756,14 +839,32 @@ export function Library(props: Props) {
 
           {docs && (shown.length > 0 || current) && (
             <>
-              {!current && <h2 className="shelf-title">{folders.length ? 'Not in a folder' : 'Your shelf'}</h2>}
+              {shown.length > 1 || (!current && shown.length > 0) ? (
+                <div className={`section-head${current ? ' bare' : ''}`}>
+                  {!current && <h2 className="shelf-title">{folders.length ? 'Not in a folder' : 'Your shelf'}</h2>}
+                  {shown.length > 1 && (
+                    <span className="shelf-controls">
+                      <label className="sort">
+                        <span className="sr-only">Sort by</span>
+                        <select value={sortBy} onChange={(e) => setSortBy(e.target.value as SortBy)}>
+                          {SORTS.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+                        </select>
+                      </label>
+                      <span className="view-toggle" role="group" aria-label="View">
+                        <button className={view === 'grid' ? 'on' : ''} aria-pressed={view === 'grid'} aria-label="Grid" title="Grid" onClick={() => setView('grid')}><GridIcon /></button>
+                        <button className={view === 'list' ? 'on' : ''} aria-pressed={view === 'list'} aria-label="List" title="List" onClick={() => setView('list')}><ListIcon /></button>
+                      </span>
+                    </span>
+                  )}
+                </div>
+              ) : null}
               {current && shown.length === 0 && (
                 <p className="empty-note empty-folder">
                   This folder is empty. Add PDFs, drop them anywhere on this page, or move documents here with
                   the folder button on each one.
                 </p>
               )}
-              <ul className="shelf">
+              <ul className={`shelf view-${view}`}>
                 {shown.map((d, i) => book(d, i))}
               </ul>
             </>

@@ -154,3 +154,28 @@ export const ArrowIcon = () => (
     <path d="M5 12h14M13 6l6 6-6 6" />
   </Icon>
 );
+export const StarIcon = () => (
+  <Icon>
+    <path d="M12 3.8l2.5 5.1 5.6.8-4 3.9 1 5.6-5.1-2.7-5.1 2.7 1-5.6-4-3.9 5.6-.8z" />
+  </Icon>
+);
+export const MarkIcon = () => (
+  <Icon>
+    <path d="M9 15l-3 3-2 .5.5-2 3-3" />
+    <path d="M14 4.5l5.5 5.5-8 8L6 12.5z" />
+  </Icon>
+);
+export const GridIcon = () => (
+  <Icon>
+    <rect x="4" y="4" width="7" height="7" rx="1.5" />
+    <rect x="13" y="4" width="7" height="7" rx="1.5" />
+    <rect x="4" y="13" width="7" height="7" rx="1.5" />
+    <rect x="13" y="13" width="7" height="7" rx="1.5" />
+  </Icon>
+);
+export const ListIcon = () => (
+  <Icon>
+    <path d="M9 6h11M9 12h11M9 18h11" />
+    <path d="M4.5 6h.01M4.5 12h.01M4.5 18h.01" />
+  </Icon>
+);
