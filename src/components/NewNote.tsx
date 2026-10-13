@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { MAX_NOTEBOOK_PAGES, type NotebookSpec, type Paper } from '../lib/notebookSpec';
+import type { NotebookSpec, Paper } from '../lib/notebookSpec';
 import { CloseIcon } from './icons';
 
 const PAPERS: { id: Paper; label: string }[] = [
@@ -45,7 +45,6 @@ export function NewNote({ busy, error, dedicated, onCreate, onClose }: {
 }) {
   const [name, setName] = useState('');
   const [paper, setPaper] = useState<Paper>('lined');
-  const [pages, setPages] = useState(dedicated ? 3 : 10);
   const field = useRef<HTMLInputElement>(null);
   useEffect(() => {
     field.current?.focus();
@@ -54,7 +53,7 @@ export function NewNote({ busy, error, dedicated, onCreate, onClose }: {
     return () => window.removeEventListener('keydown', key);
   }, [onClose]);
   const fallback = dedicated ? `${dedicated.name} · p. ${dedicated.page}` : 'Untitled note';
-  const go = () => onCreate({ name: name.trim() || fallback, paper, landscape: false, pages });
+  const go = () => onCreate({ name: name.trim() || fallback, paper, landscape: false, pages: 1 });
 
   return createPortal(
     <div className="tool-menu" role="dialog" aria-modal="true" aria-label="New note">
@@ -91,19 +90,7 @@ export function NewNote({ busy, error, dedicated, onCreate, onClose }: {
           ))}
         </div>
 
-        <div className="newnote-row">
-          <div className="stepper">
-            <button className="icon-button" onClick={() => setPages((n) => Math.max(1, n - 1))} aria-label="Fewer pages">−</button>
-            <label>
-              <span className="sr-only">Pages</span>
-              <input type="number" min={1} max={MAX_NOTEBOOK_PAGES} value={pages}
-                onChange={(e) => setPages(Math.max(1, Math.min(MAX_NOTEBOOK_PAGES, Math.floor(Number(e.target.value)) || 1)))} />
-            </label>
-            <span className="stepper-unit">{pages === 1 ? 'page' : 'pages'}</span>
-            <button className="icon-button" onClick={() => setPages((n) => Math.min(MAX_NOTEBOOK_PAGES, n + 1))} aria-label="More pages">+</button>
-          </div>
-        </div>
-        <p className="tool-hint">Pages are always upright, so every note lines up with the others; turn the device sideways and the page simply fits the screen. {dedicated ? 'It shows in the corner of that page, and that page shows in the corner of the note. ' : ''}Pages can't be added to a note later, so make as many as you may need.</p>
+        <p className="tool-hint">It starts with one page; a button at the end adds the next one whenever you need it. Pages are always upright, so every note lines up with the others.{dedicated ? ' It shows in the corner of that page, and that page shows in the corner of the note.' : ''}</p>
         {error && <p className="tool-error" role="alert">{error}</p>}
         <button className="button newnote-go" disabled={busy} onClick={go}>{busy ? 'Making it…' : 'Create note'}</button>
       </div>

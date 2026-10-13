@@ -172,6 +172,18 @@ export function acquirePdf(id: string, file: () => Promise<Blob | undefined>): P
   return h.pdf;
 }
 
+/**
+ * The stored file of a document changed (a page was added): whoever opens it next
+ * gets the new one. Those already holding it keep working with what they have.
+ */
+export function refreshPdf(id: string, file: () => Promise<Blob | undefined>) {
+  const h = held.get(id);
+  if (!h) return;
+  const old = h.pdf;
+  h.pdf = file().then((f) => (f ? openPdfFile(f) : null)).catch(() => null);
+  void old.then((d) => { if (d) setTimeout(() => void d.loadingTask.destroy(), 120_000); });
+}
+
 export function releasePdf(id: string) {
   const h = held.get(id);
   if (!h) return;

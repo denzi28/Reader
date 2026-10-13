@@ -92,6 +92,7 @@ let status: SyncStatus = {
 // ---- subscriptions ----------------------------------------------------
 const statusListeners = new Set<(s: SyncStatus) => void>();
 const inkListeners = new Map<string, Set<() => void>>();
+const pdfListeners = new Map<string, Set<() => void>>();
 
 export function getStatus() {
   return status;
@@ -107,6 +108,14 @@ export function onRemoteInk(id: string, fn: () => void) {
   const set = inkListeners.get(id) ?? new Set();
   set.add(fn);
   inkListeners.set(id, set);
+  return () => void set.delete(fn);
+}
+
+/** Called when another device changed this document's PDF (a page was added) and this device now has it. */
+export function onRemotePdf(id: string, fn: () => void) {
+  const set = pdfListeners.get(id) ?? new Set();
+  set.add(fn);
+  pdfListeners.set(id, set);
   return () => void set.delete(fn);
 }
 
@@ -446,7 +455,29 @@ async function syncContent(t: string, s: Staged) {
   const { id, rec, g, forceInk } = s;
   if (!g.pdf) {
     const file = await storage.getDocFile(id);
-    if (file) await drive.createFile(t, `pdf-${id}.pdf`, new Blob([file], { type: 'application/pdf' }));
+    if (file) {
+      const f = await drive.createFile(t, `pdf-${id}.pdf`, new Blob([file], { type: 'application/pdf' }));
+      rec.pdfSeen = f.modifiedTime;
+      rec.pdfDirty = false;
+    }
+  } else if (rec.pdfDirty) {
+    // A page was added here: the copy in Drive is replaced.
+    const file = await storage.getDocFile(id);
+    if (file) {
+      const f = await drive.updateFile(t, g.pdf.id, new Blob([file], { type: 'application/pdf' }));
+      rec.pdfSeen = f.modifiedTime;
+      rec.pdfDirty = false;
+    }
+  } else if (rec.pdfSeen && g.pdf.modifiedTime !== rec.pdfSeen) {
+    // Another device replaced it. A copy kept here is brought up to date.
+    if (await storage.getDocFile(id)) {
+      const blob = await drive.downloadBlob(t, g.pdf.id);
+      await storage.putDocFile(id, new Blob([blob], { type: 'application/pdf' }));
+      pdfListeners.get(id)?.forEach((fn) => fn());
+    }
+    rec.pdfSeen = g.pdf.modifiedTime;
+  } else if (!rec.pdfSeen) {
+    rec.pdfSeen = g.pdf.modifiedTime; // first time this device looks: whatever is there is current
   }
 
   // ---- ink (merged stroke by stroke) ----

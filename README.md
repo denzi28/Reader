@@ -27,9 +27,14 @@ your device.
   up under *Notes* with the highlights. Edits keep a stroke's id, so moving or
   restyling merges between devices like any other change (newer wins).
 - **New note**: a blank notebook to write on (blank, lined, squared or dotted
-  paper, always upright pages so that notes line up, up to 200 pages), made on the device as an
-  ordinary PDF, so the pen, typed notes and syncing all work on it. It opens
-  with the pen in hand. Pages cannot be added to it afterwards.
+  paper, always upright so notes line up), made on the device as an ordinary
+  PDF, so the pen, typed notes and syncing all work on it. It opens with the pen
+  in hand and starts with one page. An *Add a page* button after the last page
+  (and one in the top bar) adds the next. This works for notes made for a page
+  too. A page is added in place: the file keeps its identity, notes and shelf
+  place. Sync resends the longer PDF (`pdfDirty` on this device's sync record) and
+  other devices replace their copy when Drive's `pdf-<id>.pdf` changes, so an open
+  note on another device grows live.
 - **A note for one page.** The note button in a PDF's top bar makes an empty
   notebook dedicated to the page being read. The note says at the top which
   document and page it is for. While you read that page the note waits as a small

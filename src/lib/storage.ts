@@ -350,6 +350,10 @@ export interface SyncRecord {
   inkSeen?: string;
   inkPushed?: number;
   thumbSeen?: string;
+  /** The PDF's modified time in Drive when this device last sent or fetched it. */
+  pdfSeen?: string;
+  /** The PDF here was changed (a page added) and the copy in Drive is out of date. */
+  pdfDirty?: boolean;
 }
 const syncKey = (id: string) => `sync:${id}`;
 
@@ -359,6 +363,13 @@ export async function getSyncRecord(id: string): Promise<SyncRecord> {
 
 export function putSyncRecord(id: string, rec: SyncRecord) {
   return set(syncKey(id), rec, store);
+}
+
+/** Tells sync that this device's copy of a document's PDF changed and must be sent again. */
+export async function markPdfChanged(id: string) {
+  const rec = await getSyncRecord(id);
+  rec.pdfDirty = true;
+  await putSyncRecord(id, rec);
 }
 
 export async function clearSyncRecords() {

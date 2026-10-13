@@ -2753,3 +2753,9 @@ button.page-tile:active .page-tile-img { transform: scale(0.97); }
 .download-icon svg { width: 22px; height: 22px; }
 .download-busy { display: grid; justify-items: center; gap: 0.9rem; padding: 1.4rem 0 1rem; color: var(--muted); font-family: var(--serif); text-align: center; }
 .download-busy p { margin: 0; }
+
+/* ---- adding a page to a notebook ---- */
+.add-page { display: flex; align-items: center; justify-content: center; gap: 0.6rem; min-width: 220px; min-height: 76px; margin-bottom: 0.5rem; border: 2px dashed color-mix(in srgb, var(--accent) 55%, var(--line)); border-radius: 12px; background: color-mix(in srgb, var(--accent) 6%, transparent); color: var(--accent); font-family: var(--serif); font-size: 1.1rem; font-weight: 600; transition: background 0.2s, transform 0.25s var(--spring); }
+.add-page:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 14%, transparent); transform: translateY(-2px); }
+.add-page:disabled { opacity: 0.6; }
+.add-page svg { width: 24px; height: 24px; }

@@ -7,7 +7,8 @@ import { BRUSH_SIZES, TEXT_SIZES } from '../lib/ink';
 import { copies, restyle } from '../lib/inkOps';
 import type { NotebookSpec } from '../lib/notebookSpec';
 import { loadPrefs, savePrefs, type ToolPrefs } from '../lib/toolPrefs';
-import { acquirePdf, pageSize, type PageSize, readPageSizes, releasePdf } from '../lib/pdf';
+import { addPage } from '../lib/addPage';
+import { acquirePdf, pageSize, type PageSize, readPageSizes, refreshPdf, releasePdf } from '../lib/pdf';
 import { BookLoader } from './BookLoader';
 import { DownloadDialog } from './DownloadDialog';
 import { LinkCard } from './LinkCard';
@@ -18,10 +19,10 @@ import { setRenderFocus } from '../lib/renderQueue';
 import {
   getDocFile, getMeta, getPageSizes, listDocs, loadInk, patchMeta, putPageSizes, recordInkEdit,
 } from '../lib/storage';
-import { downloadPdf, onRemoteInk, syncDoc } from '../lib/sync/engine';
+import { downloadPdf, onRemoteInk, onRemotePdf, syncDoc } from '../lib/sync/engine';
 import { useDownloadProgress } from '../lib/sync/useSync';
 import type { DocInk, DocMeta, Stroke, Tool } from '../lib/types';
-import { BackIcon, DownloadIcon, MoonIcon, NotePlusIcon, SunIcon } from './icons';
+import { BackIcon, DownloadIcon, MoonIcon, NotePlusIcon, PlusIcon, SunIcon } from './icons';
 import { SyncBadge } from './SyncControl';
 import { PageView } from './PageView';
 import type { SelectionApi } from './SelectionLayer';
@@ -68,6 +69,7 @@ const MAX_BASE = 900;
 
 export function Viewer({ docId, startPage, dark, onTheme, onClose, onOpen }: Props) {
   const scroller = useRef<HTMLDivElement>(null);
+  const goToRef = useRef<(n: number) => void>(() => undefined);
   const [meta, setMeta] = useState<DocMeta | null>(null);
   const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null);
   const [sizes, setSizes] = useState<PageSize[] | null>(null);
@@ -722,6 +724,7 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose, onOpen }: Pro
       scroller.current.scrollTo({ top: el.offsetTop - 70, behavior: 'smooth' });
     }
   };
+  goToRef.current = goToPage;
 
   // ---- ink: commit, undo, redo (each is saved as it happens) -------------
   const commit = useCallback((page: number, prev: Stroke[], next: Stroke[]) => {
@@ -816,6 +819,40 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose, onOpen }: Pro
     () => ({ mode: prefs.eraserMode, size: prefs.eraserSize, onlyHighlighter: prefs.eraserOnlyHl }),
     [prefs.eraserMode, prefs.eraserSize, prefs.eraserOnlyHl],
   );
+
+  // ---- a notebook grows --------------------------------------------------
+  const [adding, setAdding] = useState(false);
+  /** Takes up the stored file again after it gained pages (here, or on another device). */
+  const reloadPdf = useCallback(async () => {
+    const next = await acquirePdf(docId, () => getDocFile(docId));
+    if (!next) return;
+    releasePdf(docId); // the hold this viewer had on the shorter file
+    const m = await getMeta(docId);
+    if (m) setMeta(m);
+    setPdf(next);
+    setSizes((cur) => (cur ? Array.from({ length: next.numPages }, (_, i) => cur[Math.min(i, cur.length - 1)]) : cur));
+  }, [docId]);
+  useEffect(
+    () => onRemotePdf(docId, () => {
+      refreshPdf(docId, () => getDocFile(docId));
+      void reloadPdf();
+    }),
+    [docId, reloadPdf],
+  );
+  const addNotebookPage = async () => {
+    if (adding) return;
+    setAdding(true);
+    try {
+      const pages = await addPage(docId);
+      await reloadPdf();
+      // Once the new sheet has its place, show it.
+      setTimeout(() => goToRef.current(pages), 200);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'A page could not be added.');
+    } finally {
+      setAdding(false);
+    }
+  };
 
   // ---- notes dedicated to a page ----------------------------------------
   // The corner cards at the bottom sit above the toolbar and whatever menu it has open.
@@ -971,6 +1008,12 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose, onOpen }: Pro
             <span>/ {pdf.numPages}</span>
           </label>
         )}
+        {pdf && meta?.notebook && (
+          <button className="icon-button" onClick={() => void addNotebookPage()} disabled={adding}
+            aria-label="Add a page" title="Add a page at the end">
+            <PlusIcon />
+          </button>
+        )}
         {pdf && meta && !meta.notebook && (
           <button className="icon-button" onClick={() => { setNoteError(null); setNoteDialog(true); }}
             aria-label="Add a note for this page" title="Add a note for this page">
@@ -1022,6 +1065,12 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose, onOpen }: Pro
                 selectionApi={selectionApi}
               />
             ))}
+            {meta?.notebook && (
+              <button className="add-page" style={{ width: pageWidth }} onClick={() => void addNotebookPage()} disabled={adding}>
+                <PlusIcon />
+                <span>{adding ? 'Adding…' : 'Add a page'}</span>
+              </button>
+            )}
           </div>
         )}
       </div>
