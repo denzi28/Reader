@@ -2759,3 +2759,14 @@ button.page-tile:active .page-tile-img { transform: scale(0.97); }
 .add-page:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 14%, transparent); transform: translateY(-2px); }
 .add-page:disabled { opacity: 0.6; }
 .add-page svg { width: 24px; height: 24px; }
+
+/* ---- installing, and a new version ---- */
+.update-toast { position: fixed; z-index: 90; left: 50%; bottom: max(16px, env(safe-area-inset-bottom)); transform: translateX(-50%); display: flex; align-items: center; gap: 0.8rem; padding: 0.55rem 0.6rem 0.55rem 1rem; border: 1px solid var(--line); border-radius: 999px; background: var(--card); box-shadow: var(--shadow-float); font-size: 0.92rem; animation: lift 0.4s var(--ease) both; }
+.install-chip { display: inline-flex; align-items: center; border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--line)); border-radius: 999px; background: var(--card); box-shadow: var(--shadow-page); overflow: hidden; }
+.install-chip button { display: inline-flex; align-items: center; gap: 0.4rem; min-height: 40px; padding: 0 0.8rem; border: 0; background: none; color: var(--ink); font-size: 0.85rem; font-weight: 700; }
+.install-chip button:hover { background: var(--line); }
+.install-chip svg { width: 18px; height: 18px; color: var(--accent); }
+.install-chip .install-x { padding: 0 0.6rem 0 0.3rem; color: var(--muted); }
+.install-chip .install-x svg { width: 14px; height: 14px; color: inherit; }
+.install-steps { margin: 0.5rem 0 0; padding-left: 1.2rem; display: grid; gap: 0.6rem; line-height: 1.5; }
+@media (max-width: 520px) { .install-chip button span { display: none; } .install-chip button:first-child { padding: 0 0.7rem; } }

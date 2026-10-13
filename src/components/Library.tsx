@@ -17,6 +17,7 @@ import { Cover } from './Cover';
 import type { NotebookSpec } from '../lib/notebookSpec';
 import { DownloadDialog } from './DownloadDialog';
 import { NewNote } from './NewNote';
+import { InstallChip } from './PwaBits';
 import { ToolMenu, type ToolId } from './toolList';
 import { SyncControl } from './SyncControl';
 
@@ -673,6 +674,7 @@ export function Library(props: Props) {
           </p>
         </div>
         <div className="library-actions">
+          <InstallChip />
           <SyncControl />
           <button
             className="icon-button"

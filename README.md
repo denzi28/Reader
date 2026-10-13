@@ -110,11 +110,25 @@ Keyboard: `P` pen, `L` highlighter, `E` eraser (press again to switch off), `Ctr
 ## Not built yet
 
 - Word, Excel and PowerPoint files (only PDF opens today).
-- Paid unlock, installable app-store builds.
+- Paid unlock, app-store builds (the PWA above is the first step: a Play listing can wrap it).
 - Android and iOS apps. When they are built, bring over everything the web
   app does, including hold-to-straighten for the highlighter (hold ~350 ms,
   6 px wobble allowed, lines within 6° of flat snap level, short haptic tick
   when it engages; see `PageView.tsx`).
+
+## Installing, and working with no connection
+
+The app is a PWA: `public/manifest.webmanifest` and the icons in `public/icons`
+(drawn from the two SVGs by `scripts/make-icons.mjs`) make it installable, and a
+service worker keeps it available offline. `vite.config.ts` writes `sw.js` at
+build time from `scripts/sw.template.js`, filled in with every file the build
+made. The app files are kept when it is installed; pdf.js data files are kept as
+they are used; `/api` (sign-in) and Google are never touched. The page itself is
+fetched fresh when there is a connection. A new version downloads in the
+background and waits behind a "A new version is ready. Reload" toast. Libraries,
+ink and notes were already stored on the device, so reading and writing work
+offline, and sync catches up later. Chrome, Edge and Android offer *Install app*
+in the library header; on an iPhone it shows the Add to Home Screen steps.
 
 ## Why the web app comes first
 
