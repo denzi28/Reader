@@ -31,18 +31,21 @@ const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n
 export const ZOOM_MIN = 0.5;
 export const ZOOM_MAX = 6;
 const ZOOM_KEY = 'reader.pagezoom';
-/** How close each document was last read (1 is the whole page in view), kept on this device. */
-function readZoom(id: string): number {
+interface View { zoom: number; /** How far across and down the page is scrolled (0 to 1). */ x: number; y: number }
+/** How close each document was last read, and where on the page (1 is the whole page in view), kept on this device. */
+function readView(id: string): View {
   try {
-    const kept = (JSON.parse(localStorage.getItem(ZOOM_KEY) ?? '{}') as Record<string, number>)[id];
-    return kept ? clamp(kept, ZOOM_MIN, ZOOM_MAX) : 1;
-  } catch { return 1; }
+    const kept = (JSON.parse(localStorage.getItem(ZOOM_KEY) ?? '{}') as Record<string, number | View>)[id];
+    if (typeof kept === 'number') return { zoom: clamp(kept, ZOOM_MIN, ZOOM_MAX), x: 0.5, y: 0 };
+    if (kept) return { zoom: clamp(kept.zoom, ZOOM_MIN, ZOOM_MAX), x: clamp(kept.x ?? 0.5, 0, 1), y: clamp(kept.y ?? 0, 0, 1) };
+  } catch { /* none kept */ }
+  return { zoom: 1, x: 0.5, y: 0 };
 }
-function keepZoom(id: string, zoom: number) {
+function keepView(id: string, view: View) {
   try {
-    const all = JSON.parse(localStorage.getItem(ZOOM_KEY) ?? '{}') as Record<string, number>;
+    const all = JSON.parse(localStorage.getItem(ZOOM_KEY) ?? '{}') as Record<string, number | View>;
     delete all[id];
-    all[id] = Math.round(zoom * 100) / 100;
+    all[id] = { zoom: Math.round(view.zoom * 100) / 100, x: Math.round(view.x * 1000) / 1000, y: Math.round(view.y * 1000) / 1000 };
     const ids = Object.keys(all);
     if (ids.length > 200) for (const old of ids.slice(0, ids.length - 200)) delete all[old];
     localStorage.setItem(ZOOM_KEY, JSON.stringify(all));
@@ -89,7 +92,8 @@ export function PageBook({ docId, startPage, dark, onTheme, onClose, onPdf, scan
   const [panel, setPanel] = useState<null | 'aa' | 'contents' | 'menu'>(null);
   const [ask, setAsk] = useState(false);
   const [scrub, setScrub] = useState<number | null>(null);
-  const [zoom, setZoomState] = useState(() => readZoom(docId));
+  const start = useRef(readView(docId));
+  const [zoom, setZoomState] = useState(() => start.current.zoom);
   // The picture is drawn again at the new size a moment after the zoom settles; until then it is stretched.
   const [zoomDrawn, setZoomDrawn] = useState(zoom);
   const [outline, setOutline] = useState<{ title: string; level: number; page: number }[]>([]);
@@ -162,13 +166,40 @@ export function PageBook({ docId, startPage, dark, onTheme, onClose, onPdf, scan
       el.scrollTop = f.fy * el.scrollHeight - f.my;
     }
   }, [zoom]);
+  // Turning a page keeps where on the page you are looking (scanned pages of a book have their text in
+  // the same place), and so does coming back to the document later.
+  const placed = useRef(false);
+  useLayoutEffect(() => {
+    const el = viewRef.current;
+    if (!pdf || !el || box.w === 0 || placed.current) return;
+    placed.current = true;
+    const { x, y } = start.current;
+    const put = () => {
+      el.scrollLeft = x * Math.max(0, el.scrollWidth - el.clientWidth);
+      el.scrollTop = y * Math.max(0, el.scrollHeight - el.clientHeight);
+    };
+    put();
+    requestAnimationFrame(() => { put(); requestAnimationFrame(put); });
+  }, [pdf, box.w]);
+  const saveView = useCallback(() => {
+    const el = viewRef.current;
+    if (!el || !placed.current) return;
+    keepView(docId, {
+      zoom: zoomRef.current,
+      x: el.scrollWidth > el.clientWidth ? el.scrollLeft / (el.scrollWidth - el.clientWidth) : 0.5,
+      y: el.scrollHeight > el.clientHeight ? el.scrollTop / (el.scrollHeight - el.clientHeight) : 0,
+    });
+  }, [docId]);
+  const scrollTimer = useRef(0);
+  const onScroll = () => {
+    clearTimeout(scrollTimer.current);
+    scrollTimer.current = window.setTimeout(saveView, 250);
+  };
+  useEffect(() => () => { clearTimeout(scrollTimer.current); saveView(); }, [saveView]);
   useEffect(() => {
-    const t = window.setTimeout(() => setZoomDrawn(zoom), 180);
-    keepZoom(docId, zoom);
+    const t = window.setTimeout(() => { setZoomDrawn(zoom); saveView(); }, 180);
     return () => clearTimeout(t);
-  }, [zoom, docId]);
-  // A new page starts at its top (the sideways position is kept, so the same column stays in view).
-  useLayoutEffect(() => { if (viewRef.current) viewRef.current.scrollTop = 0; }, [first]);
+  }, [zoom, saveView]);
 
   // The place is kept as a page (the same as the PDF reader's), shortly after it stops changing.
   const saveTimer = useRef(0);
@@ -374,7 +405,7 @@ export function PageBook({ docId, startPage, dark, onTheme, onClose, onPdf, scan
         )}
       </header>
 
-      <div className={`bk-view${zoomed ? ' zoomed' : ''}`} ref={viewRef} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={(e) => { down.current = null; touches.current.delete(e.pointerId); pinch.current = null; }}>
+      <div className={`bk-view${zoomed ? ' zoomed' : ''}`} ref={viewRef} onScroll={onScroll} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={(e) => { down.current = null; touches.current.delete(e.pointerId); pinch.current = null; }}>
         {pdf && box.w > 0 && (
           <div className="bk-spread">
             {window_.map((i) => (
