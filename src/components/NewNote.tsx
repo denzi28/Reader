@@ -35,16 +35,18 @@ function Swatch({ paper }: { paper: Paper }) {
 }
 
 /** Asks what a new notebook should be like. */
-export function NewNote({ busy, error, onCreate, onClose }: {
+export function NewNote({ busy, error, dedicated, onCreate, onClose }: {
   busy: boolean;
   error: string | null;
+  /** The document and page this note is for, if it is for one. */
+  dedicated?: { name: string; page: number };
   onCreate: (spec: NotebookSpec) => void;
   onClose: () => void;
 }) {
   const [name, setName] = useState('');
   const [paper, setPaper] = useState<Paper>('lined');
   const [landscape, setLandscape] = useState(false);
-  const [pages, setPages] = useState(10);
+  const [pages, setPages] = useState(dedicated ? 3 : 10);
   const field = useRef<HTMLInputElement>(null);
   useEffect(() => {
     field.current?.focus();
@@ -52,7 +54,8 @@ export function NewNote({ busy, error, onCreate, onClose }: {
     window.addEventListener('keydown', key);
     return () => window.removeEventListener('keydown', key);
   }, [onClose]);
-  const go = () => onCreate({ name: name.trim() || 'Untitled note', paper, landscape, pages });
+  const fallback = dedicated ? `${dedicated.name} · p. ${dedicated.page}` : 'Untitled note';
+  const go = () => onCreate({ name: name.trim() || fallback, paper, landscape, pages });
 
   return createPortal(
     <div className="tool-menu" role="dialog" aria-modal="true" aria-label="New note">
@@ -61,14 +64,21 @@ export function NewNote({ busy, error, onCreate, onClose }: {
         <header className="tool-menu-head">
           <div>
             <h2>New note</h2>
-            <p>An empty notebook to write on with the pen.</p>
+            <p>{dedicated ? 'An empty notebook that goes with one page.' : 'An empty notebook to write on with the pen.'}</p>
           </div>
           <button className="icon-button" onClick={onClose} aria-label="Close"><CloseIcon /></button>
         </header>
 
+        {dedicated && (
+          <p className="dedicated" role="note">
+            <b>Dedicated to</b>
+            <span>{dedicated.name}</span>
+            <em>page {dedicated.page}</em>
+          </p>
+        )}
         <label className="tool-field">
           <span>Name</span>
-          <input ref={field} value={name} onChange={(e) => setName(e.target.value)} placeholder="Untitled note" maxLength={120}
+          <input ref={field} value={name} onChange={(e) => setName(e.target.value)} placeholder={fallback} maxLength={120}
             onKeyDown={(e) => { if (e.key === 'Enter') go(); }} />
         </label>
 
@@ -99,7 +109,7 @@ export function NewNote({ busy, error, onCreate, onClose }: {
             <button className="icon-button" onClick={() => setPages((n) => Math.min(MAX_NOTEBOOK_PAGES, n + 1))} aria-label="More pages">+</button>
           </div>
         </div>
-        <p className="tool-hint">Pages can't be added to a note later, so make as many as you may need.</p>
+        <p className="tool-hint">{dedicated ? 'It shows in the corner of that page, and that page shows in the corner of the note. ' : ''}Pages can't be added to a note later, so make as many as you may need.</p>
         {error && <p className="tool-error" role="alert">{error}</p>}
         <button className="button newnote-go" disabled={busy} onClick={go}>{busy ? 'Making it…' : 'Create note'}</button>
       </div>

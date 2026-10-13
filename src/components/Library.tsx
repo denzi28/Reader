@@ -342,10 +342,8 @@ export function Library(props: Props) {
     setMakingNote(true);
     setNoteError(null);
     try {
-      const [{ makeNotebook }, { importPdf }] = await Promise.all([import('../lib/blankPdf'), import('../lib/importPdf')]);
-      const file = await makeNotebook(spec);
-      const made = await importPdf(file, current?.id, {});
-      await patchMeta(made.id, { notebook: true });
+      const { createNotebook } = await import('../lib/createNote');
+      const made = await createNotebook(spec, { folder: current?.id });
       setNewNote(false);
       void refresh();
       onOpen(made.id);

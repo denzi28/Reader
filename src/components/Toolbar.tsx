@@ -21,7 +21,8 @@ interface Props {
   onUndo: () => void;
   onRedo: () => void;
   zoom: number;
-  onZoom: (z: number) => void;
+  /** Zoom by a factor (1.2 is a step in, 1/1.2 a step out). */
+  onZoomBy: (factor: number) => void;
   dark: boolean;
   /** Clears every mark on the page being read. */
   onClearPage: () => void;
@@ -207,11 +208,11 @@ export function Toolbar(p: Props) {
         </div>
         <span className="sep zoom-sep" />
         <div className="group zoom">
-          <button className="tool" onClick={() => p.onZoom(p.zoom / 1.2)} aria-label="Zoom out" title="Zoom out">
+          <button className="tool" onClick={() => p.onZoomBy(1 / 1.2)} aria-label="Zoom out" title="Zoom out">
             <MinusIcon />
           </button>
           <span className="zoom-label">{Math.round(p.zoom * 100)}%</span>
-          <button className="tool" onClick={() => p.onZoom(p.zoom * 1.2)} aria-label="Zoom in" title="Zoom in">
+          <button className="tool" onClick={() => p.onZoomBy(1.2)} aria-label="Zoom in" title="Zoom in">
             <PlusIcon />
           </button>
         </div>

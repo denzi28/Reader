@@ -5,18 +5,21 @@ import {
 } from 'react';
 import { BRUSH_SIZES, TEXT_SIZES } from '../lib/ink';
 import { copies, restyle } from '../lib/inkOps';
+import type { NotebookSpec } from '../lib/notebookSpec';
 import { loadPrefs, savePrefs, type ToolPrefs } from '../lib/toolPrefs';
 import { acquirePdf, pageSize, type PageSize, readPageSizes, releasePdf } from '../lib/pdf';
 import { BookLoader } from './BookLoader';
+import { LinkCard } from './LinkCard';
+import { NewNote } from './NewNote';
 import { PALM_WINDOW_MS, type PointerHub } from '../lib/pointerHub';
 import { setRenderFocus } from '../lib/renderQueue';
 import {
-  getDocFile, getMeta, getPageSizes, loadInk, patchMeta, putPageSizes, recordInkEdit,
+  getDocFile, getMeta, getPageSizes, listDocs, loadInk, patchMeta, putPageSizes, recordInkEdit,
 } from '../lib/storage';
 import { downloadPdf, onRemoteInk, syncDoc } from '../lib/sync/engine';
 import { useDownloadProgress } from '../lib/sync/useSync';
 import type { DocInk, DocMeta, Stroke, Tool } from '../lib/types';
-import { BackIcon, MoonIcon, SunIcon } from './icons';
+import { BackIcon, MoonIcon, NotePlusIcon, SunIcon } from './icons';
 import { SyncBadge } from './SyncControl';
 import { PageView } from './PageView';
 import type { SelectionApi } from './SelectionLayer';
@@ -29,6 +32,8 @@ interface Props {
   dark: boolean;
   onTheme: () => void;
   onClose: () => void;
+  /** Opens another document (a note, or the page it was made for). */
+  onOpen: (id: string, page?: number) => void;
 }
 
 /** A spot on a page (as fractions of its size) and where on the screen it should stay. */
@@ -59,7 +64,7 @@ const MAX_ZOOM = 5;
 const GUTTER = 14;
 const MAX_BASE = 900;
 
-export function Viewer({ docId, startPage, dark, onTheme, onClose }: Props) {
+export function Viewer({ docId, startPage, dark, onTheme, onClose, onOpen }: Props) {
   const scroller = useRef<HTMLDivElement>(null);
   const [meta, setMeta] = useState<DocMeta | null>(null);
   const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null);
@@ -221,16 +226,114 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose }: Props) {
   const renderWidth = baseWidth * renderZoom;
 
   // ---- zoom -------------------------------------------------------------
+  // Zooming never re-lays-out the pages frame by frame. The pages are scaled by
+  // the compositor (a CSS transform, so the sheets just look soft while moving),
+  // and the new size is set once, when the pinch, wheel turn or button press has
+  // settled; the sheets are then drawn sharp again, nearest first.
   const pendingRatio = useRef<number | null>(null);
   /** The spot on a page that a pinch keeps under the fingers once its new zoom has rendered. */
   const pendingFocus = useRef<Focus | null>(null);
-  const applyZoom = useCallback((next: number) => {
-    setZoom((prev) => {
-      const z = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, next));
-      if (z !== prev) pendingRatio.current = z / prev;
-      return z;
-    });
+  const zoomRef = useRef(zoom);
+  zoomRef.current = zoom;
+  const pagesEl = useRef<HTMLDivElement>(null);
+  const zoomApi = useMemo(() => {
+    interface Session {
+      z0: number;
+      focus: Focus | null;
+      /** Where the focused point sits inside the pages block, and where that block's corner was. */
+      cx: number;
+      cy: number;
+      left: number;
+      top: number;
+      s: number;
+      x: number;
+      y: number;
+      target: number;
+      timer: number;
+    }
+    let ses: Session | null = null;
+    const clamp = (z: number) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z));
+    /** The page under (or nearest to) a point, and the spot on it. */
+    const focusAt = (x: number, y: number): Focus | null => {
+      let best: HTMLElement | null = null;
+      let gap = Infinity;
+      pageEls.current.forEach((page) => {
+        const r = page.getBoundingClientRect();
+        const d = y < r.top ? r.top - y : y > r.bottom ? y - r.bottom : 0;
+        if (d < gap) { gap = d; best = page; }
+      });
+      if (!best) return null;
+      const r = (best as HTMLElement).getBoundingClientRect();
+      return { page: best, fx: (x - r.left) / r.width, fy: (y - r.top) / r.height, x, y };
+    };
+    const begin = (x: number, y: number) => {
+      if (ses) return ses;
+      const el = pagesEl.current;
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      ses = { z0: zoomRef.current, focus: focusAt(x, y), cx: x - r.left, cy: y - r.top, left: r.left, top: r.top, s: 1, x, y, target: zoomRef.current, timer: 0 };
+      el.style.transformOrigin = '0 0';
+      el.style.willChange = 'transform';
+      return ses;
+    };
+    /** Shows the pages at zoom `z` with the point under (x, y) held there. */
+    const scale = (z: number, x: number, y: number, animate = false) => {
+      const el = pagesEl.current;
+      const cur = begin(x, y);
+      if (!el || !cur) return;
+      const target = clamp(z);
+      const s = target / cur.z0;
+      cur.s = s;
+      cur.x = x;
+      cur.y = y;
+      cur.target = target;
+      el.style.transition = animate ? 'transform 0.16s cubic-bezier(0.2, 0.7, 0.3, 1)' : 'none';
+      el.style.transform = `translate(${x - s * cur.cx - cur.left}px, ${y - s * cur.cy - cur.top}px) scale(${s})`;
+    };
+    /** Makes the zoom real: one layout, one scroll adjustment, in the same frame. */
+    const commit = () => {
+      const cur = ses;
+      if (!cur) return;
+      ses = null;
+      clearTimeout(cur.timer);
+      const el = pagesEl.current;
+      if (el) {
+        el.style.transform = '';
+        el.style.transition = '';
+        el.style.willChange = '';
+        el.style.transformOrigin = '';
+      }
+      const z = clamp(cur.z0 * cur.s);
+      const focus = cur.focus && { ...cur.focus, x: cur.x, y: cur.y };
+      if (Math.abs(z - zoomRef.current) < 1e-4) {
+        // Only moved (two fingers panning): the scroll position takes the shift.
+        if (focus && scroller.current) keepUnder(scroller.current, focus);
+        return;
+      }
+      pendingFocus.current = focus;
+      if (!focus) pendingRatio.current = z / zoomRef.current;
+      flushSync(() => setZoom(z));
+    };
+    /** Commits `ms` after the last change. */
+    const settle = (ms: number) => {
+      if (!ses) return;
+      clearTimeout(ses.timer);
+      ses.timer = window.setTimeout(commit, ms);
+    };
+    const target = () => ses?.target ?? zoomRef.current;
+    const middle = () => {
+      const r = scroller.current?.getBoundingClientRect();
+      return { x: r ? r.left + r.width / 2 : 0, y: r ? r.top + r.height / 2 : 0 };
+    };
+    return { begin, scale, commit, settle, target, middle };
   }, []);
+
+  /** Zoom buttons and keys: a short glide to the new size about the middle of the screen. */
+  const applyZoom = useCallback((next: number) => {
+    const { x, y } = zoomApi.middle();
+    zoomApi.scale(next, x, y, true);
+    zoomApi.settle(190);
+  }, [zoomApi]);
 
   useLayoutEffect(() => {
     const el = scroller.current;
@@ -260,13 +363,12 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose }: Props) {
     const onWheel = (e: WheelEvent) => {
       if (!e.ctrlKey && !e.metaKey) return;
       e.preventDefault();
-      applyZoom(zoomRef.current * Math.exp(-e.deltaY * 0.01));
+      zoomApi.scale(zoomApi.target() * Math.exp(-e.deltaY * 0.01), e.clientX, e.clientY);
+      zoomApi.settle(140);
     };
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
-  }, [pdf, applyZoom]);
-  const zoomRef = useRef(zoom);
-  zoomRef.current = zoom;
+  }, [pdf, zoomApi]);
 
   // ---- screen-sized canvas for the stroke being drawn --------------------
   useEffect(() => {
@@ -305,7 +407,7 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose }: Props) {
     if (!el || !pdf) return;
     const drawing = tool !== 'hand';
     const touches = new Map<number, { x: number; y: number }>();
-    let start: { dist: number; zoom: number; focus: Focus | null } | null = null;
+    let start: { dist: number; zoom: number } | null = null;
     let panning = false;
     let raf = 0;
     let fling = 0;
@@ -321,24 +423,12 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose }: Props) {
         ? { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, dist: Math.hypot(a.x - b.x, a.y - b.y) }
         : { x: a.x, y: a.y, dist: 0 };
     };
-    /** The page under (or nearest to) the fingers, and the spot on it they are holding. */
-    const focusAt = (x: number, y: number): Focus | null => {
-      let best: HTMLElement | null = null;
-      let gap = Infinity;
-      pageEls.current.forEach((page) => {
-        const r = page.getBoundingClientRect();
-        const d = y < r.top ? r.top - y : y > r.bottom ? y - r.bottom : 0;
-        if (d < gap) { gap = d; best = page; }
-      });
-      if (!best) return null;
-      const r = (best as HTMLElement).getBoundingClientRect();
-      return { page: best, fx: (x - r.left) / r.width, fy: (y - r.top) / r.height, x, y };
-    };
-
     /** Two fingers down (or one lifted and another landed): measure from here. */
     const begin = () => {
       const m = centre();
-      start = { dist: Math.max(m.dist, 1), zoom: zoomRef.current, focus: focusAt(m.x, m.y) };
+      zoomApi.commit(); // a different pair of fingers: what was done so far is made real
+      zoomApi.begin(m.x, m.y);
+      start = { dist: Math.max(m.dist, 1), zoom: zoomRef.current };
       panning = false;
       last = { x: m.x, y: m.y, t: performance.now() };
       vx = vy = 0;
@@ -367,15 +457,8 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose }: Props) {
       const m = centre();
       const z = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, start.zoom * (m.dist / start.dist)));
       if (Math.abs(z / start.zoom - 1) > 0.04) pinched = true;
-      // Keep the spot that was under the fingers under the fingers.
-      const focus = start.focus && { ...start.focus, x: m.x, y: m.y };
-      if (z !== zoomRef.current) {
-        pendingFocus.current = focus;
-        // Committed now, so the new size and the new scroll position land in one frame.
-        flushSync(() => setZoom(z));
-      } else if (focus) {
-        keepUnder(el, focus);
-      }
+      // The pages follow the fingers (scaled and moved); the layout waits until they lift.
+      zoomApi.scale(z, m.x, m.y);
       track(m);
     };
 
@@ -436,6 +519,7 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose }: Props) {
       } else if (start) {
         // A pinch ended. In reading mode the finger left behind carries on as a drag.
         start = null;
+        zoomApi.commit();
         cancelAnimationFrame(raf);
         raf = 0;
         if (touches.size === 1 && !drawing) beginPan();
@@ -461,7 +545,7 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose }: Props) {
       cancelAnimationFrame(fling);
       hub.gesture = false;
     };
-  }, [pdf, tool, hub]);
+  }, [pdf, tool, hub, zoomApi]);
 
   // Safari zooms the whole page with its own gesture events, ignoring
   // touch-action in places. Block that; on a Mac trackpad, zoom the document.
@@ -470,12 +554,16 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose }: Props) {
     const touchScreen = navigator.maxTouchPoints > 0;
     const onStart = (e: Event) => {
       e.preventDefault();
-      startZoom = zoomRef.current;
+      startZoom = zoomApi.target();
     };
     const onChange = (e: Event) => {
       e.preventDefault();
       const scale = (e as Event & { scale?: number }).scale;
-      if (!touchScreen && scale) applyZoom(startZoom * scale);
+      if (!touchScreen && scale) {
+        const { x, y } = zoomApi.middle();
+        zoomApi.scale(startZoom * scale, x, y);
+        zoomApi.settle(120);
+      }
     };
     document.addEventListener('gesturestart', onStart, { passive: false });
     document.addEventListener('gesturechange', onChange, { passive: false });
@@ -483,7 +571,7 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose }: Props) {
       document.removeEventListener('gesturestart', onStart);
       document.removeEventListener('gesturechange', onChange);
     };
-  }, [applyZoom]);
+  }, [zoomApi]);
 
   // ---- which pages are on screen ----------------------------------------
   const pageEls = useRef(new Map<number, HTMLDivElement>());
@@ -726,6 +814,44 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose }: Props) {
     [prefs.eraserMode, prefs.eraserSize, prefs.eraserOnlyHl],
   );
 
+  // ---- notes dedicated to a page ----------------------------------------
+  const [allDocs, setAllDocs] = useState<DocMeta[]>([]);
+  const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
+  const [noteDialog, setNoteDialog] = useState(false);
+  const [makingNote, setMakingNote] = useState(false);
+  const [noteError, setNoteError] = useState<string | null>(null);
+  useEffect(() => {
+    void listDocs().then(setAllDocs).catch(() => undefined);
+  }, [docId]);
+  /** What waits in the corner: the notes made for this page, or (in a note) the page it was made for. */
+  const links = useMemo(() => {
+    const at = meta?.attached;
+    if (at) {
+      const target = allDocs.find((d) => d.id === at.doc);
+      return target ? [{ doc: target, page: at.page, label: target.name, sub: `page ${at.page + 1}` }] : [];
+    }
+    return allDocs
+      .filter((d) => d.attached?.doc === docId && d.attached.page === current)
+      .sort((a, b) => b.addedAt - a.addedAt)
+      .slice(0, 3)
+      .map((d) => ({ doc: d, page: 0, label: d.name, sub: 'your note' }));
+  }, [allDocs, meta, docId, current]);
+  const createDedicated = async (spec: NotebookSpec) => {
+    if (!meta) return;
+    setMakingNote(true);
+    setNoteError(null);
+    try {
+      const { createNotebook } = await import('../lib/createNote');
+      const made = await createNotebook(spec, { folder: meta.folder, attached: { doc: docId, page: currentRef.current, name: meta.name } });
+      setNoteDialog(false);
+      onOpen(made.id);
+    } catch (err) {
+      setNoteError(err instanceof Error ? err.message : 'The note could not be made.');
+    } finally {
+      setMakingNote(false);
+    }
+  };
+
   // Another device's notes arrived: show them. The undo history no longer
   // matches what is on the page, so it starts afresh.
   useEffect(
@@ -766,8 +892,8 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose }: Props) {
       } else if (!mod && selectionRef.current && (e.key === 'Delete' || e.key === 'Backspace')) {
         e.preventDefault();
         selectionApi.remove(selectionRef.current.page, selectionRef.current.ids);
-      } else if (!mod && (e.key === '+' || e.key === '=')) applyZoom(zoomRef.current * 1.2);
-      else if (!mod && e.key === '-') applyZoom(zoomRef.current / 1.2);
+      } else if (!mod && (e.key === '+' || e.key === '=')) applyZoom(zoomApi.target() * 1.2);
+      else if (!mod && e.key === '-') applyZoom(zoomApi.target() / 1.2);
       else if (!mod && e.key === 'Escape') {
         if (selectionRef.current) setSelection(null);
         else onClose();
@@ -782,7 +908,7 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose }: Props) {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [undo, redo, applyZoom, onClose, chooseTool, selectionApi, canPaste]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [undo, redo, applyZoom, zoomApi, onClose, chooseTool, selectionApi, canPaste]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---- render -----------------------------------------------------------
   if (error) {
@@ -803,7 +929,14 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose }: Props) {
         <button className="icon-button" onClick={onClose} aria-label="Back to library" title="Back (Esc)">
           <BackIcon />
         </button>
-        <h1 className="doc-title" title={meta?.name}>{meta?.name ?? 'Opening…'}</h1>
+        <div className="doc-head">
+          <h1 className="doc-title" title={meta?.name}>{meta?.name ?? 'Opening…'}</h1>
+          {meta?.attached && (
+            <button className="doc-link" onClick={() => onOpen(meta.attached!.doc, meta.attached!.page)} title="Go to that page">
+              Dedicated to {links[0]?.label ?? meta.attached.name} · page {meta.attached.page + 1}
+            </button>
+          )}
+        </div>
         {pdf && (
           <label className="page-jump" title="Go to page">
             <input
@@ -824,6 +957,12 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose }: Props) {
             <span>/ {pdf.numPages}</span>
           </label>
         )}
+        {pdf && meta && !meta.notebook && (
+          <button className="icon-button" onClick={() => { setNoteError(null); setNoteDialog(true); }}
+            aria-label="Add a note for this page" title="Add a note for this page">
+            <NotePlusIcon />
+          </button>
+        )}
         <SyncBadge />
         <button
           className="icon-button"
@@ -839,7 +978,7 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose }: Props) {
         {!pdf || !sizes ? (
           <div className="loading" role="status" />
         ) : (
-          <div className="pages">
+          <div className="pages" ref={pagesEl}>
             {sizes.map((s, i) => (
               <PageView
                 key={i}
@@ -870,6 +1009,19 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose }: Props) {
 
       <canvas ref={overlay} className="ink-overlay" aria-hidden="true" />
 
+      {cover === 'off' && links.some((l) => !hidden.has(l.doc.id)) && (
+        <div className="link-stack" aria-label={meta?.attached ? 'The page this note is for' : 'Notes for this page'}>
+          {links.filter((l) => !hidden.has(l.doc.id)).map((l) => (
+            <LinkCard key={`${l.doc.id}:${l.page}`} doc={l.doc} page={l.page} label={l.label} sub={l.sub}
+              onOpen={() => onOpen(l.doc.id, l.page)} onHide={() => setHidden((cur) => new Set(cur).add(l.doc.id))} />
+          ))}
+        </div>
+      )}
+      {noteDialog && meta && (
+        <NewNote busy={makingNote} error={noteError} dedicated={{ name: meta.name, page: current + 1 }}
+          onCreate={(spec) => void createDedicated(spec)} onClose={() => setNoteDialog(false)} />
+      )}
+
       {cover !== 'off' && (
         <div className={`opening-cover${cover === 'fading' ? ' fading' : ''}`} role="status">
           <BookLoader size={46} label="Opening your document" />
@@ -892,7 +1044,7 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose }: Props) {
         onUndo={undo}
         onRedo={redo}
         zoom={zoom}
-        onZoom={applyZoom}
+        onZoomBy={(f) => applyZoom(zoomApi.target() * f)}
         dark={dark}
         onClearPage={clearPage}
         onSelectAll={selectAll}

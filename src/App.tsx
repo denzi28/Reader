@@ -151,6 +151,7 @@ export function App() {
         dark={theme === 'dark'}
         onTheme={toggleTheme}
         onClose={close}
+        onOpen={open}
       />
     </Suspense>
   ) : (

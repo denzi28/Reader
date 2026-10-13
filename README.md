@@ -30,6 +30,15 @@ your device.
   paper, portrait or landscape, up to 200 pages), made on the device as an
   ordinary PDF, so the pen, typed notes and syncing all work on it. It opens
   with the pen in hand. Pages cannot be added to it afterwards.
+- **A note for one page.** The note button in a PDF's top bar makes an empty
+  notebook dedicated to the page being read. The note says at the top which
+  document and page it is for. While you read that page the note waits as a small
+  card in the top right corner; tapping it brings the note to the screen, with the
+  PDF page now in the corner (tap that to swap back). Hide a card with its ×.
+  Stored as `attached` on the note's record, so it syncs.
+- **Smooth zoom.** Pinching, Ctrl+wheel, the buttons and the keys scale the pages
+  with a CSS transform (soft while moving, no re-layout per frame); the real size
+  is set once when you stop, and the sheets are then redrawn sharp, nearest first.
 - **Library** of the PDFs you have opened, with covers. Your place in each
   document and all your ink are remembered across visits. Several PDFs can be
   added at once.

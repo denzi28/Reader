@@ -2695,3 +2695,31 @@ button.page-tile:active .page-tile-img { transform: scale(0.97); }
 .newnote-row .segmented { margin: 0; }
 .newnote-go { width: 100%; }
 @media (max-width: 420px) { .papers { gap: 0.3rem; } }
+
+/* ---- a note dedicated to a page: the corner card and the line at the top ---- */
+.doc-head { flex: 1; min-width: 0; display: grid; }
+.doc-head .doc-title { flex: none; }
+.doc-link { justify-self: start; max-width: 100%; padding: 0; border: 0; background: none; color: var(--accent); font-size: 0.74rem; font-weight: 700; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.doc-link:hover { text-decoration: underline; }
+.link-stack { position: absolute; z-index: 5; top: calc(max(8px, env(safe-area-inset-top)) + 64px); right: max(10px, env(safe-area-inset-right)); display: grid; gap: 10px; justify-items: end; pointer-events: none; }
+.link-card { position: relative; pointer-events: auto; animation: pip-in 0.4s var(--spring) both; }
+@keyframes pip-in { from { opacity: 0; transform: translateY(-8px) scale(0.85); } }
+.link-card-open { display: grid; gap: 4px; justify-items: center; width: 92px; padding: 5px 5px 6px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow-float); color: var(--ink); transition: transform 0.25s var(--spring); }
+.link-card-open:hover { transform: translateY(-2px) scale(1.04); }
+.link-card-open:active { transform: scale(0.96); }
+.link-card-page { position: relative; display: block; width: 100%; aspect-ratio: 3 / 4; overflow: hidden; border-radius: 6px; background: var(--page); box-shadow: inset 0 0 0 1px var(--line); }
+.link-card-page canvas { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; opacity: 0; transition: opacity 0.25s; }
+.link-card-page canvas.on { opacity: 1; }
+.link-card-fallback { position: absolute; inset: 0; display: block; }
+.link-card-text { display: grid; width: 100%; text-align: center; line-height: 1.2; }
+.link-card-text strong { font-size: 0.66rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.link-card-text span { color: var(--muted); font-size: 0.62rem; }
+.link-card-hide { position: absolute; top: -7px; left: -7px; display: grid; place-items: center; width: 22px; height: 22px; padding: 0; border: 1px solid var(--line); border-radius: 50%; background: var(--card); color: var(--muted); opacity: 0; transition: opacity 0.2s; }
+.link-card:hover .link-card-hide, .link-card:focus-within .link-card-hide { opacity: 1; }
+@media (pointer: coarse) { .link-card-hide { opacity: 0.9; } }
+.link-card-hide svg { width: 13px; height: 13px; }
+@media (max-width: 520px) { .link-card-open { width: 78px; } }
+.dedicated { display: grid; gap: 1px; margin: 0; padding: 0.65rem 0.8rem; border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--line)); border-radius: 12px; background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.dedicated b { color: var(--accent); font-size: 0.7rem; letter-spacing: 0.1em; text-transform: uppercase; }
+.dedicated span { font-family: var(--serif); font-size: 1.05rem; font-weight: 600; overflow-wrap: anywhere; }
+.dedicated em { color: var(--muted); font-style: normal; font-size: 0.85rem; }

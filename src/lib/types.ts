@@ -46,6 +46,8 @@ export interface DocMeta {
   localOnly?: boolean;
   /** Made here as an empty notebook to write on; it opens with the pen in hand. */
   notebook?: boolean;
+  /** A note made for one page of a document: it shows beside that page, and that page shows beside it. */
+  attached?: { doc: string; page: number; name: string };
 }
 
 export interface Folder {
