@@ -1,3 +1,4 @@
+import type { ToolId } from '../toolList';
 import { delay } from './PenScene';
 
 /** Four tiny looping pictures, one per PDF tool. Pure SVG + CSS, no images to load. */
@@ -51,15 +52,15 @@ function EditArt() {
   );
 }
 
-const CHIPS = [
-  { name: 'Merge', colour: 'c-blue', art: <MergeArt /> },
-  { name: 'Split', colour: 'c-red', art: <SplitArt /> },
-  { name: 'Crop', colour: 'c-green', art: <CropArt /> },
-  { name: 'Edit', colour: 'c-purple', art: <EditArt /> },
+const CHIPS: { id: ToolId; name: string; colour: string; art: React.ReactNode }[] = [
+  { id: 'merge', name: 'Merge', colour: 'c-blue', art: <MergeArt /> },
+  { id: 'split', name: 'Split', colour: 'c-red', art: <SplitArt /> },
+  { id: 'crop', name: 'Crop', colour: 'c-green', art: <CropArt /> },
+  { id: 'edit', name: 'Edit', colour: 'c-purple', art: <EditArt /> },
 ];
 
-/** Sits beside the brand on the landing page: what the PDF tools are, before anyone signs in. */
-export function ToolChips({ onTry }: { onTry: () => void }) {
+/** Sits beside the brand on the landing page: what the PDF tools are, before anyone signs in. Each opens its own tool. */
+export function ToolChips({ onTry }: { onTry: (tool: ToolId) => void }) {
   return (
     <div className="nav-tools" role="group" aria-label="Free PDF tools">
       <span className="nav-tools-label">PDF tools</span>
@@ -68,7 +69,7 @@ export function ToolChips({ onTry }: { onTry: () => void }) {
           key={c.name}
           className={`nav-tool ${c.colour}`}
           style={delay(0.35 + i * 0.12)}
-          onClick={onTry}
+          onClick={() => onTry(c.id)}
           aria-label={`${c.name} PDFs, free, no account needed`}
           title={`${c.name} PDFs: free, on your device, no account needed`}
         >

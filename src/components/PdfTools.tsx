@@ -7,7 +7,8 @@ import { makeZip } from '../lib/zip';
 import type { DocMeta } from '../lib/types';
 import { CropTool } from './CropTool';
 import { Cover } from './Cover';
-import { ArrowIcon, CheckIcon, CloseIcon, CloudOffIcon, DownloadIcon, FileIcon, FolderIcon, MarkIcon, PlusIcon, UploadIcon } from './icons';
+import { ArrowIcon, CheckIcon, CloseIcon, CloudOffIcon, DownloadIcon, FileIcon, FolderIcon, MarkIcon, PlusIcon, SparkIcon, UploadIcon } from './icons';
+import { GoogleButton } from './SyncControl';
 import { OrganizeTool } from './OrganizeTool';
 import { TOOLS, type ToolId } from './toolList';
 import {
@@ -242,7 +243,7 @@ function Ready({ tool, finished, signedIn, guest, onClose, onChanged, onOpen }: 
           <div className="keep-card">
             <div>
               <strong>Download {many ? 'them' : 'it'} now</strong>
-              <p>Nothing is kept here. Sign in to keep a library, mark up PDFs and find them on all your devices.</p>
+              <p>Nothing is kept here, so save {many ? 'them' : 'it'} to your device.</p>
             </div>
           </div>
         )}
@@ -255,6 +256,9 @@ function Ready({ tool, finished, signedIn, guest, onClose, onChanged, onOpen }: 
             <button className="button button-small" onClick={() => act({ kind: 'none' })}>Save to {where}</button>
           </div>
         )}
+        <Promo guest={guest} />
+        {/* Room for an advertisement (AdSense) later. */}
+        <div className="ad-slot" aria-hidden="true" />
       </div>
 
       {dialog?.step === 'save' && then && (
@@ -291,6 +295,35 @@ function Ready({ tool, finished, signedIn, guest, onClose, onChanged, onOpen }: 
         </div>
       )}
     </Shell>
+  );
+}
+
+/** A light word about the site, shown under finished files. */
+function Promo({ guest }: { guest?: boolean }) {
+  const [copied, setCopied] = useState(false);
+  const share = async () => {
+    const data = { title: 'The Reader', text: 'A PDF reader that feels like paper: write on your pages, keep everything in your own Google Drive.', url: location.origin };
+    try {
+      if (navigator.share) await navigator.share(data);
+      else {
+        await navigator.clipboard.writeText(location.origin);
+        setCopied(true);
+      }
+    } catch { /* cancelled */ }
+  };
+  return (
+    <aside className="promo">
+      <span className="promo-mark"><SparkIcon /></span>
+      <div className="promo-text">
+        <strong>{guest ? 'Like it? There is more in The Reader.' : 'Like The Reader? Tell a friend.'}</strong>
+        <p>
+          {guest
+            ? 'Write on your PDFs with a pen and highlighter, and find them on every device, kept in your own Google Drive.'
+            : 'A PDF reader that feels like paper, free to use.'}
+        </p>
+      </div>
+      {guest ? <GoogleButton label="Continue with Google" /> : <button className="chip-button" onClick={() => void share()}>{copied ? 'Link copied' : 'Share'}</button>}
+    </aside>
   );
 }
 

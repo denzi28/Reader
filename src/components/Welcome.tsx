@@ -3,11 +3,12 @@ import { MoonIcon, SunIcon } from './icons';
 import { InkArt, PhoneMirror, PrivacyArt, SyncArt } from './landing/Art';
 import { delay, PenScene } from './landing/PenScene';
 import { ToolChips } from './landing/ToolChips';
+import type { ToolId } from './toolList';
 import { GoogleButton } from './SyncControl';
 
 interface Props {
-  /** Opens the tools-only page (the library itself is behind sign-in). */
-  onTools: () => void;
+  /** Opens the tools-only page, straight into one tool when given (the library itself is behind sign-in). */
+  onTools: (tool?: ToolId) => void;
   dark: boolean;
   onTheme: () => void;
 }
@@ -81,7 +82,7 @@ export function Welcome({ onTools, dark, onTheme }: Props) {
         <span className="landing-brand"><Logo /> The Reader</span>
         <ToolChips onTry={onTools} />
         <div className="landing-nav-actions">
-          <button className="link nav-link" onClick={onTools}>Try the PDF tools</button>
+          <button className="link nav-link" onClick={() => onTools()}>Try the PDF tools</button>
           <button
             className="icon-button"
             onClick={onTheme}
@@ -107,7 +108,7 @@ export function Welcome({ onTools, dark, onTheme }: Props) {
             </p>
             <div className="hero-cta reveal" style={delay(0.75)}>
               <SignIn label="Continue with Google" onError={setError} />
-              <button className="link hero-skip" onClick={onTools}>Try the PDF tools, no account</button>
+              <button className="link hero-skip" onClick={() => onTools()}>Try the PDF tools, no account</button>
             </div>
             {error && <p className="welcome-error" role="alert">{error}</p>}
             <p className="hero-note reveal" style={delay(0.9)}>
@@ -169,7 +170,7 @@ export function Welcome({ onTools, dark, onTheme }: Props) {
           <h2>Your next page is waiting.</h2>
           <div className="hero-cta">
             <SignIn label="Continue with Google" onError={setError} />
-            <button className="link hero-skip" onClick={onTools}>Try the PDF tools, no account</button>
+            <button className="link hero-skip" onClick={() => onTools()}>Try the PDF tools, no account</button>
           </div>
         </section>
       </main>

@@ -2,6 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { Library } from './components/Library';
 import { GuestTools } from './components/GuestTools';
+import type { ToolId } from './components/toolList';
 import { Welcome } from './components/Welcome';
 import { useSyncStatus } from './lib/sync/useSync';
 
@@ -122,8 +123,10 @@ export function App() {
 
   const toggleTheme = () => setTheme((t) => (t === 'dark' ? 'light' : 'dark'));
 
-  const openGuestTools = () => {
+  // A tool picked on the welcome page opens at once, on top of the tools page, so Back peels both off.
+  const openGuestTools = (tool?: ToolId) => {
     history.pushState({ tools: 1 }, '');
+    if (tool) history.pushState({ tools: 1, tool: 1, toolId: tool }, '');
     transition(() => setGuestTools(true));
   };
   const closeGuestTools = () => {
