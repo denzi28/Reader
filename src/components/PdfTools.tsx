@@ -22,6 +22,8 @@ interface Props {
   onClose: () => void;
   /** Signed in to Google: saved files sync, unless kept on the device. */
   signedIn: boolean;
+  /** Shown before sign-in: files come from the device and can only be downloaded. */
+  guest?: boolean;
   /** The library changed (documents or folders were added). */
   onChanged: () => void;
   onOpen: (id: string) => void;
@@ -33,11 +35,11 @@ interface Finished {
 }
 
 /** The documents the tools work on, and the screens they go through. */
-export default function PdfTools({ tool, docs, folderOf, onClose, signedIn, onChanged, onOpen }: Props) {
+export default function PdfTools({ tool, docs, folderOf, onClose, signedIn, guest, onChanged, onOpen }: Props) {
   const [finished, setFinished] = useState<Finished | null>(null);
-  const ctx: ToolContext = useMemo(() => ({ docs, folderOf, finish: setFinished }), [docs, folderOf]);
+  const ctx: ToolContext = useMemo(() => ({ docs, folderOf, guest, finish: setFinished }), [docs, folderOf, guest]);
   if (finished) {
-    return <Ready tool={tool} finished={finished} signedIn={signedIn} onClose={onClose} onChanged={onChanged} onOpen={onOpen} />;
+    return <Ready tool={tool} finished={finished} signedIn={signedIn} guest={guest} onClose={onClose} onChanged={onChanged} onOpen={onOpen} />;
   }
   return tool === 'merge' ? <MergeTool ctx={ctx} onClose={onClose} />
     : tool === 'split' ? <SplitTool ctx={ctx} onClose={onClose} />
@@ -70,10 +72,11 @@ interface Row {
   downloaded?: boolean;
 }
 
-function Ready({ tool, finished, signedIn, onClose, onChanged, onOpen }: {
+function Ready({ tool, finished, signedIn, guest, onClose, onChanged, onOpen }: {
   tool: ToolId;
   finished: Finished;
   signedIn: boolean;
+  guest?: boolean;
   onClose: () => void;
   onChanged: () => void;
   onOpen: (id: string) => void;
@@ -163,6 +166,10 @@ function Ready({ tool, finished, signedIn, onClose, onChanged, onOpen }: {
 
   /** Starts an action; files not yet kept raise the "save to your account?" question first. */
   const act = (then: Then) => {
+    if (guest) {
+      if (then.kind === 'download' || then.kind === 'zip') perform(then, rows);
+      return;
+    }
     const needsSave = then.kind === 'open' ? !rows[then.index].saved : unsaved.length > 0 && !declined && then.kind !== 'none';
     if (then.kind === 'none' && unsaved.length === 0) return;
     if (then.kind === 'none' || needsSave) setDialog({ step: 'save', then });
@@ -190,7 +197,7 @@ function Ready({ tool, finished, signedIn, onClose, onChanged, onOpen }: {
 
   return (
     <Shell title={many ? 'Your new PDFs' : 'Your new PDF'} subtitle={finished.title} color={meta.color} onClose={leave}
-      footer={<button className="button" onClick={leave}>Back to library</button>}>
+      footer={<button className="button" onClick={leave}>{guest ? 'Done' : 'Back to library'}</button>}>
       {busy && <Busy label={busy} />}
       {error && <Notice>{error}</Notice>}
 
@@ -215,9 +222,11 @@ function Ready({ tool, finished, signedIn, onClose, onChanged, onOpen }: {
               <button className="chip-button" onClick={() => act({ kind: 'download', index: i })} aria-label={`Download ${r.spec.name}`}>
                 <DownloadIcon /> Download
               </button>
-              <button className="chip-button chip-primary" onClick={() => act({ kind: 'open', index: i })} aria-label={`Open ${r.spec.name}`}>
-                Open <ArrowIcon />
-              </button>
+              {guest ? null : (
+                <button className="chip-button chip-primary" onClick={() => act({ kind: 'open', index: i })} aria-label={`Open ${r.spec.name}`}>
+                  Open <ArrowIcon />
+                </button>
+              )}
             </li>
           ))}
         </ul>
@@ -226,10 +235,18 @@ function Ready({ tool, finished, signedIn, onClose, onChanged, onOpen }: {
             <DownloadIcon /> Download all as one ZIP
           </button>
         )}
-        {rows[0].spec.newFolder && unsaved.length > 0 && (
+        {!guest && rows[0].spec.newFolder && unsaved.length > 0 && (
           <p className="tool-done-folder"><FolderIcon /> They will go in a new folder, “{rows[0].spec.newFolder}”</p>
         )}
-        {unsaved.length > 0 && (
+        {guest && (
+          <div className="keep-card">
+            <div>
+              <strong>Download {many ? 'them' : 'it'} now</strong>
+              <p>Nothing is kept here. Sign in to keep a library, mark up PDFs and find them on all your devices.</p>
+            </div>
+          </div>
+        )}
+        {!guest && unsaved.length > 0 && (
           <div className="keep-card">
             <div>
               <strong>Not saved yet</strong>
@@ -359,7 +376,7 @@ function MergeTool({ ctx, onClose }: { ctx: ToolContext; onClose: () => void }) 
       <section className="tool-section">
         <h3 className="tool-label">Order</h3>
         {items.length === 0 ? (
-          <p className="empty-note">Tap documents below to add them. They are joined top to bottom.</p>
+          <p className="empty-note">{ctx.guest ? 'Add PDFs from your device below. They are joined top to bottom.' : 'Tap documents below to add them. They are joined top to bottom.'}</p>
         ) : (
           <ol className="merge-order">
             {items.map((it, i) => (
@@ -387,7 +404,7 @@ function MergeTool({ ctx, onClose }: { ctx: ToolContext; onClose: () => void }) 
 
       <section className="tool-section">
         <h3 className="tool-label">Add documents</h3>
-        <DocList docs={available} onPick={add} empty={ctx.docs.length ? 'Everything is already in the list.' : 'Add a PDF to your library first.'} badge={() => <span className="docrow-plus"><PlusIcon /></span>} />
+        {!ctx.guest && <DocList docs={available} onPick={add} empty={ctx.docs.length ? 'Everything is already in the list.' : 'Add a PDF to your library first.'} badge={() => <span className="docrow-plus"><PlusIcon /></span>} />}
         <button className="chip-button pick-device" onClick={() => input.current?.click()}>
           <UploadIcon /> Add files from this device
         </button>
@@ -504,7 +521,7 @@ function SplitOptions({ ctx, doc, onBack, onClose }: { ctx: ToolContext; doc: To
         </section>
       )}
 
-      {mode === 'extract' && (
+      {mode === 'extract' ? (
         <section className="tool-section">
           <div className="tool-bar">
             <span className="tool-hint">{plural(picked.size, 'page', 'pages')} selected</span>
@@ -524,6 +541,26 @@ function SplitOptions({ ctx, doc, onBack, onClose }: { ctx: ToolContext; doc: To
                 </button>
               </li>
             ))}
+          </ul>
+        </section>
+      ) : (
+        <section className="tool-section">
+          <p className="tool-hint">{files > 0 ? 'Each colour is one new document.' : 'Every page of the document, so you can see where to cut.'}</p>
+          <ul className="page-grid split-preview" aria-label="Pages and the documents they go into">
+            {Array.from({ length: pages }, (_, i) => {
+              const owners = plan.groups.flatMap((g, n) => (g.includes(i) ? [n] : []));
+              const first = owners[0];
+              const startsNew = first !== undefined && plan.groups[first][0] === i && i > 0;
+              return (
+                <li key={i} className={`split-cell${first === undefined ? (files ? ' unused' : '') : ` g${first % 6} used`}${startsNew ? ' starts' : ''}`}>
+                  <span className="page-tile">
+                    <span className="page-tile-img"><PageThumb pdf={pdf} page={i} /></span>
+                    <span className="page-tile-num">{i + 1}</span>
+                    {first !== undefined && <span className="split-badge" aria-label={`Goes into document ${owners.map((n) => n + 1).join(' and ')}`}>{owners.map((n) => n + 1).join('·')}</span>}
+                  </span>
+                </li>
+              );
+            })}
           </ul>
         </section>
       )}

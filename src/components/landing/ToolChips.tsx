@@ -69,7 +69,7 @@ export function ToolChips({ onTry }: { onTry: () => void }) {
           className={`nav-tool ${c.colour}`}
           style={delay(0.35 + i * 0.12)}
           onClick={onTry}
-          aria-label={`${c.name} PDFs, no account needed`}
+          aria-label={`${c.name} PDFs, free, no account needed`}
           title={`${c.name} PDFs: free, on your device, no account needed`}
         >
           {c.art}

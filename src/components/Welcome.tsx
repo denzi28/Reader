@@ -6,7 +6,8 @@ import { ToolChips } from './landing/ToolChips';
 import { GoogleButton } from './SyncControl';
 
 interface Props {
-  onSkip: () => void;
+  /** Opens the tools-only page (the library itself is behind sign-in). */
+  onTools: () => void;
   dark: boolean;
   onTheme: () => void;
 }
@@ -68,7 +69,7 @@ function Section({ eyebrow, title, children, art, flip }: {
 }
 
 /** The landing page for someone not signed in. */
-export function Welcome({ onSkip, dark, onTheme }: Props) {
+export function Welcome({ onTools, dark, onTheme }: Props) {
   const [error, setError] = useState<string | null>(null);
   const root = useReveal();
 
@@ -78,9 +79,9 @@ export function Welcome({ onSkip, dark, onTheme }: Props) {
 
       <header className="landing-nav">
         <span className="landing-brand"><Logo /> The Reader</span>
-        <ToolChips onTry={onSkip} />
+        <ToolChips onTry={onTools} />
         <div className="landing-nav-actions">
-          <button className="link nav-link" onClick={onSkip}>Open without an account</button>
+          <button className="link nav-link" onClick={onTools}>Try the PDF tools</button>
           <button
             className="icon-button"
             onClick={onTheme}
@@ -106,7 +107,7 @@ export function Welcome({ onSkip, dark, onTheme }: Props) {
             </p>
             <div className="hero-cta reveal" style={delay(0.75)}>
               <SignIn label="Continue with Google" onError={setError} />
-              <button className="link hero-skip" onClick={onSkip}>Use without an account</button>
+              <button className="link hero-skip" onClick={onTools}>Try the PDF tools, no account</button>
             </div>
             {error && <p className="welcome-error" role="alert">{error}</p>}
             <p className="hero-note reveal" style={delay(0.9)}>
@@ -168,7 +169,7 @@ export function Welcome({ onSkip, dark, onTheme }: Props) {
           <h2>Your next page is waiting.</h2>
           <div className="hero-cta">
             <SignIn label="Continue with Google" onError={setError} />
-            <button className="link hero-skip" onClick={onSkip}>Use without an account</button>
+            <button className="link hero-skip" onClick={onTools}>Try the PDF tools, no account</button>
           </div>
         </section>
       </main>

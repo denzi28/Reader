@@ -53,8 +53,12 @@ your device.
 Keyboard: `P` pen, `L` highlighter, `E` eraser (press again to switch off), `Ctrl/Cmd+Z` undo,
 `Ctrl/Cmd+Shift+Z` redo, `+` / `-` zoom, `Esc` back to the library.
 
-- **Sign in with Google**, once, from a welcome screen (or use the app without
-  an account). The session lasts until the user signs out.
+- **Sign in with Google**, once, from a welcome screen. The library is only
+  reachable when signed in. Without an account, the welcome page's PDF-tools
+  strip (and "Try the PDF tools") opens a tools-only page: files come from the
+  device and results can only be downloaded, nothing is kept. The session lasts
+  until the user signs out. (When no Google client ID is configured at all, e.g.
+  a local build, the library opens directly.)
 - **Google Drive sync** (when the build has a Google client ID): documents,
   ink and the page you were on follow you between devices. Everything is kept
   in a hidden app folder in the user's own Drive, so there is no server and no

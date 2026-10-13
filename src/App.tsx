@@ -1,6 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { Library } from './components/Library';
+import { GuestTools } from './components/GuestTools';
 import { Welcome } from './components/Welcome';
 import { useSyncStatus } from './lib/sync/useSync';
 
@@ -25,8 +26,6 @@ function initialTheme(): Theme {
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 }
 
-const SKIP_KEY = 'reader.welcome.skipped';
-
 const AUTH_ERRORS: Record<string, string> = {
   access_denied: 'Google sign-in was cancelled.',
   drive_scope: 'Google Drive access is needed to sync. Please allow it when signing in.',
@@ -39,14 +38,6 @@ function takeAuthResult(): string | null {
   if (!error && !params.has('signed_in')) return null;
   history.replaceState(history.state, '', location.pathname);
   return error ? AUTH_ERRORS[error] ?? 'Google sign-in did not finish. Please try again.' : null;
-}
-
-function readSkipped() {
-  try {
-    return localStorage.getItem(SKIP_KEY) === '1';
-  } catch {
-    return false;
-  }
 }
 
 /** Crossfades between screens where the browser supports it. */
@@ -64,7 +55,8 @@ export function App() {
   const [folder, setFolder] = useState<string | null>(() => history.state?.folder ?? null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(takeAuthResult);
-  const [skipped, setSkipped] = useState(readSkipped);
+  // The tools-only page for someone not signed in; a step in the history, so Back leaves it.
+  const [guestTools, setGuestTools] = useState<boolean>(() => !!history.state?.tools);
   const sync = useSyncStatus();
 
   useEffect(() => {
@@ -78,6 +70,7 @@ export function App() {
     const onPop = () => transition(() => {
       setDocId(history.state?.doc ?? null);
       setFolder(history.state?.folder ?? null);
+      setGuestTools(!!history.state?.tools);
     });
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
@@ -129,13 +122,20 @@ export function App() {
 
   const toggleTheme = () => setTheme((t) => (t === 'dark' ? 'light' : 'dark'));
 
-  const skip = () => {
-    try { localStorage.setItem(SKIP_KEY, '1'); } catch { /* ignore */ }
-    transition(() => setSkipped(true));
+  const openGuestTools = () => {
+    history.pushState({ tools: 1 }, '');
+    transition(() => setGuestTools(true));
+  };
+  const closeGuestTools = () => {
+    if (history.state?.tools) history.back();
+    else transition(() => setGuestTools(false));
   };
 
-  if (!docId && sync.available && sync.ready && !sync.connected && !skipped) {
-    return <Welcome onSkip={skip} dark={theme === 'dark'} onTheme={toggleTheme} />;
+  // The library is for signed-in people; everyone else gets the welcome page and the tools.
+  if (!docId && sync.available && sync.ready && !sync.connected) {
+    return guestTools
+      ? <GuestTools dark={theme === 'dark'} onTheme={toggleTheme} onBack={closeGuestTools} />
+      : <Welcome onTools={openGuestTools} dark={theme === 'dark'} onTheme={toggleTheme} />;
   }
 
   return docId ? (
