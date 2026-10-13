@@ -1,4 +1,5 @@
 import type { PDFDocumentProxy } from 'pdfjs-dist';
+import { flushSync } from 'react-dom';
 import {
   useCallback, useEffect, useLayoutEffect, useRef, useState,
 } from 'react';
@@ -24,6 +25,22 @@ interface Props {
   dark: boolean;
   onTheme: () => void;
   onClose: () => void;
+}
+
+/** A spot on a page (as fractions of its size) and where on the screen it should stay. */
+interface Focus {
+  page: HTMLElement;
+  fx: number;
+  fy: number;
+  x: number;
+  y: number;
+}
+
+/** Scrolls so the focused spot on its page sits at its screen position. */
+function keepUnder(scroller: HTMLElement, f: Focus) {
+  const r = f.page.getBoundingClientRect();
+  scroller.scrollLeft += r.left + f.fx * r.width - f.x;
+  scroller.scrollTop += r.top + f.fy * r.height - f.y;
 }
 
 interface Edit {
@@ -163,8 +180,8 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose }: Props) {
 
   // ---- zoom -------------------------------------------------------------
   const pendingRatio = useRef<number | null>(null);
-  /** Exact scroll position to land on once a pinch's new zoom has rendered. */
-  const pendingScroll = useRef<{ left: number; top: number } | null>(null);
+  /** The spot on a page that a pinch keeps under the fingers once its new zoom has rendered. */
+  const pendingFocus = useRef<Focus | null>(null);
   const applyZoom = useCallback((next: number) => {
     setZoom((prev) => {
       const z = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, next));
@@ -176,13 +193,12 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose }: Props) {
   useLayoutEffect(() => {
     const el = scroller.current;
     const ratio = pendingRatio.current;
-    const target = pendingScroll.current;
+    const focus = pendingFocus.current;
     pendingRatio.current = null;
-    pendingScroll.current = null;
+    pendingFocus.current = null;
     if (!el) return;
-    if (target) {
-      el.scrollLeft = target.left;
-      el.scrollTop = target.top;
+    if (focus) {
+      keepUnder(el, focus);
       return;
     }
     if (ratio === null) return;
@@ -231,22 +247,24 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose }: Props) {
     };
   }, [hub, pdf]);
 
-  // ---- two fingers scroll and zoom the document ------------------------
-  // The browser's own page zoom is switched off in the viewer (see CSS), as it
-  // would magnify the toolbars off screen; pinching zooms the document instead.
+  // ---- fingers scroll and zoom the document -----------------------------
+  // The browser's own scrolling and page zoom are switched off over the pages
+  // (touch-action: none, see CSS): its page zoom would magnify the toolbars off
+  // screen, and its scrolling would carry on underneath a pinch, sliding the
+  // page about. So both are done here, by hand, in every mode.
   //
-  // Drawing mode: one finger draws, so all touch scrolling is done here. The
-  // pointer handlers run in the capture phase, before React's page handlers, so
-  // a second finger can claim the gesture and drop the stroke the first started.
-  //
-  // Reading mode: one finger scrolls natively; two fingers are taken over here
-  // through touch events, which can cancel the browser's handling of them.
+  // Reading: one finger drags the document (and glides on release), two fingers
+  // pinch and pan together. Drawing: one finger draws, two fingers do the same
+  // as above. The pointer handlers run in the capture phase, before React's page
+  // handlers, so a second finger can claim the gesture and drop the stroke the
+  // first started.
   useEffect(() => {
     const el = scroller.current;
     if (!el || !pdf) return;
     const drawing = tool !== 'hand';
     const touches = new Map<number, { x: number; y: number }>();
-    let start: { dist: number; zoom: number; cx: number; cy: number } | null = null;
+    let start: { dist: number; zoom: number; focus: Focus | null } | null = null;
+    let panning = false;
     let raf = 0;
     let fling = 0;
     let last = { x: 0, y: 0, t: 0 };
@@ -254,53 +272,69 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose }: Props) {
     let vy = 0;
     let pinched = false;
 
-    const pair = () => {
-      const [a, b] = touches.values();
-      return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, dist: Math.hypot(a.x - b.x, a.y - b.y) };
+    const centre = () => {
+      const pts = [...touches.values()];
+      const [a, b] = pts;
+      return b
+        ? { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, dist: Math.hypot(a.x - b.x, a.y - b.y) }
+        : { x: a.x, y: a.y, dist: 0 };
     };
-    const padding = () => {
-      const cs = getComputedStyle(el);
-      return { left: parseFloat(cs.paddingLeft) || 0, top: parseFloat(cs.paddingTop) || 0 };
+    /** The page under (or nearest to) the fingers, and the spot on it they are holding. */
+    const focusAt = (x: number, y: number): Focus | null => {
+      let best: HTMLElement | null = null;
+      let gap = Infinity;
+      pageEls.current.forEach((page) => {
+        const r = page.getBoundingClientRect();
+        const d = y < r.top ? r.top - y : y > r.bottom ? y - r.bottom : 0;
+        if (d < gap) { gap = d; best = page; }
+      });
+      if (!best) return null;
+      const r = (best as HTMLElement).getBoundingClientRect();
+      return { page: best, fx: (x - r.left) / r.width, fy: (y - r.top) / r.height, x, y };
     };
 
+    /** Two fingers down (or one lifted and another landed): measure from here. */
     const begin = () => {
-      const m = pair();
-      const rect = el.getBoundingClientRect();
-      start = {
-        dist: Math.max(m.dist, 1),
-        zoom: zoomRef.current,
-        cx: el.scrollLeft + m.x - rect.left,
-        cy: el.scrollTop + m.y - rect.top,
-      };
+      const m = centre();
+      start = { dist: Math.max(m.dist, 1), zoom: zoomRef.current, focus: focusAt(m.x, m.y) };
+      panning = false;
       last = { x: m.x, y: m.y, t: performance.now() };
       vx = vy = 0;
       pinched = false;
     };
-
-    const update = () => {
-      raf = 0;
-      if (!start || touches.size < 2) return;
-      const m = pair();
-      const rect = el.getBoundingClientRect();
-      const pad = padding();
-      const z = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, start.zoom * (m.dist / start.dist)));
-      const r = z / start.zoom;
-      if (Math.abs(r - 1) > 0.04) pinched = true;
-      // Keep the content that was under the fingers under the fingers.
-      const left = (start.cx - pad.left) * r + pad.left - (m.x - rect.left);
-      const top = (start.cy - pad.top) * r + pad.top - (m.y - rect.top);
-      if (z !== zoomRef.current) {
-        pendingScroll.current = { left, top };
-        setZoom(z);
-      } else {
-        el.scrollLeft = left;
-        el.scrollTop = top;
-      }
+    /** One finger on a reading page: it drags the document. */
+    const beginPan = () => {
+      const m = centre();
+      start = null;
+      panning = true;
+      last = { x: m.x, y: m.y, t: performance.now() };
+      vx = vy = 0;
+      pinched = false;
+    };
+    const track = (m: { x: number; y: number }) => {
       const now = performance.now();
       const dt = Math.max(1, now - last.t);
       vx = vx * 0.6 + (-(m.x - last.x) / dt) * 0.4;
       vy = vy * 0.6 + (-(m.y - last.y) / dt) * 0.4;
       last = { x: m.x, y: m.y, t: now };
+    };
+
+    const update = () => {
+      raf = 0;
+      if (!start || touches.size < 2) return;
+      const m = centre();
+      const z = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, start.zoom * (m.dist / start.dist)));
+      if (Math.abs(z / start.zoom - 1) > 0.04) pinched = true;
+      // Keep the spot that was under the fingers under the fingers.
+      const focus = start.focus && { ...start.focus, x: m.x, y: m.y };
+      if (z !== zoomRef.current) {
+        pendingFocus.current = focus;
+        // Committed now, so the new size and the new scroll position land in one frame.
+        flushSync(() => setZoom(z));
+      } else if (focus) {
+        keepUnder(el, focus);
+      }
+      track(m);
     };
 
     const launchFling = () => {
@@ -321,10 +355,14 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose }: Props) {
 
     const onDown = (e: PointerEvent) => {
       cancelAnimationFrame(fling); // touching the page stops a glide
-      if (e.pointerType !== 'touch') return;
+      // A stylus drags the document too when reading; when drawing it writes.
+      if (e.pointerType !== 'touch' && !(e.pointerType === 'pen' && !drawing)) return;
       if (e.timeStamp - hub.lastPenAt < PALM_WINDOW_MS) return; // palm while writing
       touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      if (touches.size < 2) return;
+      if (touches.size < 2) {
+        if (!drawing) beginPan();
+        return;
+      }
       if (!hub.gesture) {
         hub.gesture = true;
         hub.cancelStroke?.();
@@ -339,7 +377,14 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose }: Props) {
     const onMove = (e: PointerEvent) => {
       if (!touches.has(e.pointerId)) return;
       touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      if (hub.gesture && touches.size >= 2 && !raf) raf = requestAnimationFrame(update);
+      if (touches.size >= 2) {
+        if (hub.gesture && !raf) raf = requestAnimationFrame(update);
+      } else if (panning) {
+        const m = centre();
+        el.scrollLeft -= m.x - last.x;
+        el.scrollTop -= m.y - last.y;
+        track(m);
+      }
     };
 
     const onUp = (e: PointerEvent) => {
@@ -347,72 +392,29 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose }: Props) {
       if (touches.size >= 2) {
         begin();
       } else if (start) {
+        // A pinch ended. In reading mode the finger left behind carries on as a drag.
         start = null;
         cancelAnimationFrame(raf);
         raf = 0;
+        if (touches.size === 1 && !drawing) beginPan();
+        else launchFling();
+      } else if (panning) {
+        panning = false;
         launchFling();
       }
       // The finger left behind after a gesture must not start drawing.
       if (touches.size === 0) hub.gesture = false;
     };
 
-    // Reading mode: mirror the touch list into `touches` and reuse the above.
-    let owned = false; // false when the browser had already begun scrolling
-    const syncTouches = (e: TouchEvent) => {
-      touches.clear();
-      for (const t of Array.from(e.touches)) touches.set(t.identifier, { x: t.clientX, y: t.clientY });
-    };
-    const onTouchStart = (e: TouchEvent) => {
-      cancelAnimationFrame(fling);
-      syncTouches(e);
-      if (touches.size >= 2) {
-        begin();
-        owned = true;
-      }
-    };
-    const onTouchMove = (e: TouchEvent) => {
-      syncTouches(e);
-      if (!start || touches.size < 2) return;
-      if (!e.cancelable) owned = false;
-      if (!owned) {
-        start = null; // the browser is already scrolling; let it carry on
-        return;
-      }
-      e.preventDefault();
-      if (!raf) raf = requestAnimationFrame(update);
-    };
-    const onTouchEnd = (e: TouchEvent) => {
-      syncTouches(e);
-      if (touches.size >= 2) {
-        begin();
-      } else if (start) {
-        start = null;
-        cancelAnimationFrame(raf);
-        raf = 0;
-        launchFling();
-      }
-    };
-
-    if (drawing) {
-      el.addEventListener('pointerdown', onDown, true);
-      el.addEventListener('pointermove', onMove, true);
-      el.addEventListener('pointerup', onUp, true);
-      el.addEventListener('pointercancel', onUp, true);
-    } else {
-      el.addEventListener('touchstart', onTouchStart, { passive: true });
-      el.addEventListener('touchmove', onTouchMove, { passive: false });
-      el.addEventListener('touchend', onTouchEnd, { passive: true });
-      el.addEventListener('touchcancel', onTouchEnd, { passive: true });
-    }
+    el.addEventListener('pointerdown', onDown, true);
+    el.addEventListener('pointermove', onMove, true);
+    el.addEventListener('pointerup', onUp, true);
+    el.addEventListener('pointercancel', onUp, true);
     return () => {
       el.removeEventListener('pointerdown', onDown, true);
       el.removeEventListener('pointermove', onMove, true);
       el.removeEventListener('pointerup', onUp, true);
       el.removeEventListener('pointercancel', onUp, true);
-      el.removeEventListener('touchstart', onTouchStart);
-      el.removeEventListener('touchmove', onTouchMove);
-      el.removeEventListener('touchend', onTouchEnd);
-      el.removeEventListener('touchcancel', onTouchEnd);
       cancelAnimationFrame(raf);
       cancelAnimationFrame(fling);
       hub.gesture = false;

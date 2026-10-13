@@ -1619,12 +1619,11 @@ mark {
   background:
     radial-gradient(1200px 600px at 50% -10%, color-mix(in srgb, var(--desk) 70%, #fff) 0%, transparent 70%),
     var(--desk);
-  /* No browser page zoom: it would push the toolbars off screen. Pinching
-     zooms the document instead (handled in Viewer). */
-  touch-action: pan-x pan-y;
+  /* No browser scrolling or page zoom over the pages: zoom would push the
+     toolbars off screen, and scrolling would slide the page under a pinch.
+     Viewer scrolls and zooms the document by hand instead. */
+  touch-action: none;
 }
-/* While drawing, one finger draws and two fingers scroll or zoom by hand. */
-.viewer:not(.tool-hand) .scroller { touch-action: none; }
 :root[data-theme='dark'] .scroller {
   background:
     radial-gradient(1000px 520px at 50% -10%, #2c2519 0%, transparent 70%),
