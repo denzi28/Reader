@@ -11,7 +11,7 @@ import { downloadPdf } from '../lib/sync/engine';
 import { useDownloadProgress, useSyncStatus } from '../lib/sync/useSync';
 import type { DocMeta, Folder } from '../lib/types';
 import {
-  ArrowIcon, BackIcon, CloudOffIcon, DownloadIcon, GridIcon, ListIcon, MarkIcon, StarIcon, CheckIcon, CloseIcon, CloudIcon, FileIcon, FolderIcon, FolderMoveIcon, FolderPlusIcon, PencilIcon, SearchIcon,
+  ArrowIcon, BackIcon, BookOpenIcon, CloudOffIcon, DownloadIcon, GridIcon, ListIcon, MarkIcon, StarIcon, CheckIcon, CloseIcon, CloudIcon, FileIcon, FolderIcon, FolderMoveIcon, FolderPlusIcon, PencilIcon, SearchIcon,
   MoreVIcon, SortIcon, TrashIcon, UploadIcon,
 } from './icons';
 import { AddSheet, BookSheet, MePage, PhoneNav, type PhoneTab, ToolsPage } from './PhoneParts';
@@ -26,7 +26,7 @@ import type { ToolId } from './toolList';
 interface Props {
   dark: boolean;
   onTheme: () => void;
-  onOpen: (id: string, page?: number) => void;
+  onOpen: (id: string, page?: number, view?: 'book' | 'pdf') => void;
   onImport: (files: File[], into: string | null) => Promise<void>;
   /** The folder being looked at; null is the whole shelf. */
   folder: string | null;
@@ -431,14 +431,14 @@ export function Library(props: Props) {
     void refresh();
   };
 
-  const openBook = async (d: DocMeta) => {
-    if (!d.cloudOnly) return onOpen(d.id);
+  const openBook = async (d: DocMeta, view?: 'book') => {
+    if (!d.cloudOnly) return onOpen(d.id, undefined, view);
     // Only in Drive so far: bring the PDF to this device first.
     setFetching(d.id);
     setFetchError(null);
     try {
       await downloadPdf(d.id);
-      onOpen(d.id);
+      onOpen(d.id, undefined, view);
     } catch (err) {
       setFetchError(err instanceof Error ? err.message : 'Could not download this document.');
     } finally {
@@ -576,6 +576,11 @@ export function Library(props: Props) {
           <span className="book-folder"><FolderIcon />{folderName.get(placeOf(d)!)}</span>
         )}
       </button>
+      {!d.notebook && !d.attached && (
+        <button className="cover-book" aria-label={`Read ${d.name} as a book`} title="Read as a book" disabled={fetching !== null} onClick={() => void openBook(d, 'book')}>
+          <BookOpenIcon />
+        </button>
+      )}
       {phone && (
         <button className="book-more" aria-label={`Actions for ${d.name}`} aria-haspopup="dialog" onClick={() => setMenuFor(d)}><MoreVIcon /></button>
       )}
@@ -879,14 +884,14 @@ export function Library(props: Props) {
             // An empty library gets a big, friendly place to start.
             <div className={`dropzone${dragging ? ' over' : ''}${busy ? ' busy' : ''}`}>
               <span className="drop-icon"><UploadIcon /></span>
-              <p className="drop-title">{busy ? 'Adding to your library…' : 'Drop PDFs, Office files, text or pictures here'}</p>
+              <p className="drop-title">{busy ? 'Adding to your library…' : 'Drop PDFs, ePub books, Office files, text or pictures here'}</p>
               <button className="button" disabled={busy} onClick={() => input.current?.click()}>
                 Choose files
               </button>
               <button className="chip-button" disabled={busy} aria-label="New note" onClick={() => { setNoteError(null); setNewNote(true); }}>
                 <PencilIcon /> Or start a blank note
               </button>
-              <p className="drop-note">You can pick several at once. Word, Excel, PowerPoint, OpenDocument, RTF, text, CSV and pictures are turned into PDFs on your device.</p>
+              <p className="drop-note">You can pick several at once. ePub books open as books. Word, Excel, PowerPoint, OpenDocument, RTF, text, CSV and pictures are turned into PDFs on your device.</p>
             </div>
           )}
 
@@ -954,7 +959,7 @@ export function Library(props: Props) {
           <PdfTools
             tool={tool}
             signedIn={sync.connected}
-            docs={docs ?? []}
+            docs={(docs ?? []).filter((d) => d.kind !== 'epub')}
             folderOf={placeOf}
             onClose={closeTools}
             onChanged={() => void refresh()}

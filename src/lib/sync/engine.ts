@@ -340,6 +340,8 @@ function groupFiles(files: drive.RemoteFile[]) {
   return groups;
 }
 
+const EPUB_TYPE = 'application/epub+zip';
+
 const stamp = (m: DocMeta) => m.updatedAt ?? m.openedAt ?? 0;
 
 function forCloud(m: DocMeta) {
@@ -457,6 +459,10 @@ async function pageCountOf(blob: Blob): Promise<number> {
 
 /** Takes another device's longer PDF as this one's, and makes the record say so. */
 async function adoptRemotePdf(id: string, blob: Blob) {
+  if ((await storage.getMeta(id))?.kind === 'epub') {
+    await storage.putDocFile(id, new Blob([blob], { type: EPUB_TYPE }));
+    return;
+  }
   const file = new Blob([blob], { type: 'application/pdf' });
   await storage.putDocFile(id, file);
   const pages = await pageCountOf(file).catch(() => 0);
@@ -471,7 +477,8 @@ async function syncContent(t: string, s: Staged) {
   if (!g.pdf) {
     const file = await storage.getDocFile(id);
     if (file) {
-      const f = await drive.createFile(t, `pdf-${id}.pdf`, new Blob([file], { type: 'application/pdf' }));
+      // (An ePub book is kept in the same slot; its record says what it is.)
+      const f = await drive.createFile(t, `pdf-${id}.pdf`, new Blob([file], { type: file.type || 'application/pdf' }));
       rec.pdfSeen = f.modifiedTime;
       rec.pdfDirty = false;
     }
@@ -491,7 +498,7 @@ async function syncContent(t: string, s: Staged) {
         }
       }
       if (send) {
-        const f = await drive.updateFile(t, g.pdf.id, new Blob([file], { type: 'application/pdf' }));
+        const f = await drive.updateFile(t, g.pdf.id, new Blob([file], { type: file.type || 'application/pdf' }));
         rec.pdfSeen = f.modifiedTime;
       }
       rec.pdfDirty = false;
@@ -695,7 +702,8 @@ async function fetchPdf(id: string) {
   const pdf = files.find((f) => f.name === `pdf-${id}.pdf`);
   if (!pdf) throw new Error('This document is no longer in your Google Drive.');
   const blob = await drive.downloadWithProgress(t, pdf, (f) => setProgress(id, f));
-  await storage.putDocFile(id, new Blob([blob], { type: 'application/pdf' }));
+  const wanted = await storage.getMeta(id);
+  await storage.putDocFile(id, new Blob([blob], { type: wanted?.kind === 'epub' ? EPUB_TYPE : 'application/pdf' }));
   const meta = await storage.getMeta(id);
   if (meta) await storage.putMeta({ ...meta, cloudOnly: false });
   shelfChanged();

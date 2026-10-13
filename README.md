@@ -173,6 +173,23 @@ Keyboard: `P` pen, `L` highlighter, `E` eraser (press again to switch off), `Ctr
   toggles for the strip and the panel (both remembered). Notes and PDF tools stay
   plain lists.
 
+- **Book mode** (the small book on every card, and in the reading screen's top bar): any
+  PDF or ePub opens as a book to read: reflowed text you can resize, in four page colours
+  (paper, sepia, mist, night) and four typefaces, with line spacing and margins. It turns
+  pages (swipe or tap the edges on a phone; arrows, wheel or edge clicks on a computer,
+  two pages side by side when the window is wide) or scrolls, and shows the page, how far
+  through the book you are and how long is left (about 230 words a minute). Contents, search
+  in the book, bookmarks, and highlights in four colours with notes are in the panels;
+  selecting words offers them. An ePub is read directly (chapters, contents list, pictures
+  and cover); a PDF is rebuilt from its text (`src/lib/book/fromPdf.ts`: lines, columns,
+  paragraphs, headings, chapters from the outline; running heads and page numbers are
+  dropped; a scanned PDF offers to read its pages first, with the OCR already described).
+  Tables, formulas and figures stay in the PDF, one tap away. The place (`bookPos`, kept in
+  step with the PDF's page) and the marks (kept in the same log as ink, so they sync the same
+  way) follow you between devices. A PDF last read as a book opens as one next time.
+  ePub files are added like any other file and kept in the same Drive slot as PDFs; the
+  record says which it is (`kind: 'epub'`).
+
 ## Not built yet
 
 - Paid unlock, app-store builds (the PWA above is the first step: a Play listing can wrap it).

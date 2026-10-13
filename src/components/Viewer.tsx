@@ -24,7 +24,7 @@ import {
 import { downloadPdf, onRemoteInk, onRemotePdf, syncDoc } from '../lib/sync/engine';
 import { useDownloadProgress } from '../lib/sync/useSync';
 import type { DocInk, DocMeta, Stroke, Tool } from '../lib/types';
-import { BackIcon, DownloadIcon, FitIcon, MinusIcon, MoonIcon, MoreVIcon, NotePlusIcon, PanelIcon, PlusIcon, RailIcon, SearchIcon, SunIcon } from './icons';
+import { BackIcon, BookOpenIcon, DownloadIcon, FitIcon, MinusIcon, MoonIcon, MoreVIcon, NotePlusIcon, PanelIcon, PlusIcon, RailIcon, SearchIcon, SunIcon } from './icons';
 import { DocPanel, PageRail } from './ReaderSide';
 import { SyncBadge, SyncRow } from './SyncControl';
 import { usePhone } from '../lib/usePhone';
@@ -41,6 +41,34 @@ interface Props {
   onClose: () => void;
   /** Opens another document (a note, or the page it was made for). */
   onOpen: (id: string, page?: number) => void;
+  /** Reads this document as a book instead. */
+  onBook?: () => void;
+}
+
+/** The small book that turns a PDF into a book to read; a hint shows once, the first time. */
+function BookButton({ onBook }: { onBook: () => void }) {
+  const [tip, setTip] = useState(() => {
+    try { return !localStorage.getItem('reader.bookTip'); } catch { return false; }
+  });
+  useEffect(() => {
+    if (!tip) return;
+    const t = window.setTimeout(() => setTip(false), 9000);
+    try { localStorage.setItem('reader.bookTip', '1'); } catch { /* ignore */ }
+    return () => clearTimeout(t);
+  }, [tip]);
+  return (
+    <span className="book-btn">
+      <button className="icon-button" onClick={() => { setTip(false); onBook(); }} aria-label="Read as a book" title="Read as a book">
+        <BookOpenIcon />
+      </button>
+      {tip && (
+        <span className="book-tip" role="status" onClick={() => setTip(false)}>
+          <b>Read it as a book</b>
+          Turns this PDF into clean, resizable text. The PDF stays as it is.
+        </span>
+      )}
+    </span>
+  );
 }
 
 /** A spot on a page (as fractions of its size) and where on the screen it should stay. */
@@ -71,7 +99,7 @@ const MAX_ZOOM = 5;
 const GUTTER = 14;
 const MAX_BASE = 900;
 
-export function Viewer({ docId, startPage, dark, onTheme, onClose, onOpen }: Props) {
+export function Viewer({ docId, startPage, dark, onTheme, onClose, onOpen, onBook }: Props) {
   const scroller = useRef<HTMLDivElement>(null);
   const goToRef = useRef<(n: number) => void>(() => undefined);
   const [meta, setMeta] = useState<DocMeta | null>(null);
@@ -671,7 +699,8 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose, onOpen }: Pro
       clearTimeout(save);
       if (pending !== null && pending !== saved) {
         saved = pending;
-        void patchMeta(docId, { lastPage: pending });
+        // (The place kept for book mode follows the page read here.)
+        void patchMeta(docId, { lastPage: pending, bookPos: undefined });
       }
       pending = null;
     };
@@ -1071,6 +1100,7 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose, onOpen }: Pro
               </label>
             )}
           </div>
+          {onBook && pdf && !meta?.notebook && <BookButton onBook={onBook} />}
           {finder && !meta?.notebook && (
             <button className="icon-button" onClick={() => { setMenuOpen(false); setFindOpen((v) => !v); }} aria-pressed={findOpen}
               aria-label="Find in this document" title="Find in this document">
@@ -1121,6 +1151,7 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose, onOpen }: Pro
           <button className="icon-button" onClick={() => applyZoom(zoomApi.target() * 1.2)} aria-label="Zoom in" title="Zoom in (+)"><PlusIcon /></button>
           <button className="icon-button" onClick={() => applyZoom(1)} aria-label="Fit to width" title="Fit to width"><FitIcon /></button>
         </div>
+        {onBook && pdf && !meta?.notebook && <BookButton onBook={onBook} />}
         {finder && !meta?.notebook && (
           <button className="icon-button" onClick={() => setFindOpen((v) => !v)} aria-pressed={findOpen}
             aria-label="Find in this document" title="Find in this document (Ctrl+F)">

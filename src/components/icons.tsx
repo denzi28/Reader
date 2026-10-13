@@ -374,3 +374,22 @@ export const FitIcon = () => (
     <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
   </Icon>
 );
+
+export const BookOpenIcon = () => (
+  <Icon>
+    <path d="M12 6.5C10 5 7.5 4.5 4 4.5v14c3.5 0 6 .5 8 2 2-1.5 4.5-2 8-2v-14c-3.5 0-6 .5-8 2z" />
+    <path d="M12 6.5v14" />
+  </Icon>
+);
+
+export const AaIcon = () => (
+  <Icon>
+    <path d="M3 19l5-13 5 13M5 14h6M15.5 19l3-8 3 8M16.6 16.5h3.8" />
+  </Icon>
+);
+
+export const BookmarkIcon = ({ filled }: { filled?: boolean }) => (
+  <Icon>
+    <path d="M7 4h10v17l-5-4-5 4z" fill={filled ? 'currentColor' : 'none'} />
+  </Icon>
+);

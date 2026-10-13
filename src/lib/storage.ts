@@ -2,7 +2,8 @@ import { clear, createStore, del, get, getMany, keys, set, update, type UseStore
 import { cleanFolderName, FOLDER_COLORS, liveFolders, mergeFolderLogs } from './folders';
 import { applyEdit, inkFromLog, latestChange, logFromInk, mergeLogs } from './inkLog';
 import type { TextBox } from './pdf';
-import type { DocInk, DocMeta, Folder, FolderLog, InkLog, Stroke } from './types';
+import type { Book } from './book/model';
+import type { BookMark, DocInk, DocMeta, Folder, FolderLog, InkLog, Stroke } from './types';
 
 // ---- one separate library per account ---------------------------------
 // Every Google account gets its own database on the device, and so does use
@@ -55,6 +56,7 @@ const marksKey = (id: string) => `marks:${id}`;
 const stampKey = (id: string) => `inkstamp:${id}`;
 const notesKey = (id: string) => `notes:${id}`;
 const ocrKey = (id: string) => `ocr:${id}`;
+const bookKey = (id: string) => `book:${id}`;
 const FOLDERS_KEY = 'folders';
 
 // ---- change notifications (sync listens to these) ---------------------
@@ -117,7 +119,7 @@ export function putDocFile(id: string, file: Blob) {
 export async function deleteDoc(id: string) {
   const current = await getMeta(id);
   dropInkCache(id);
-  await Promise.all([fileKey(id), logKey(id), legacyInkKey(id), sizesKey(id), marksKey(id), stampKey(id), notesKey(id), ocrKey(id)].map((k) => del(k, store)));
+  await Promise.all([fileKey(id), logKey(id), legacyInkKey(id), sizesKey(id), marksKey(id), stampKey(id), notesKey(id), ocrKey(id), bookKey(id)].map((k) => del(k, store)));
   if (current) {
     await set(metaKey(id), { ...current, thumb: undefined, deleted: true, updatedAt: Date.now() }, store);
     notify(id, 'meta');
@@ -127,7 +129,7 @@ export async function deleteDoc(id: string) {
 /** Applies a deletion that came from another device. */
 export async function wipeDoc(id: string, marker: DocMeta) {
   dropInkCache(id);
-  await Promise.all([fileKey(id), logKey(id), legacyInkKey(id), sizesKey(id), marksKey(id), stampKey(id), notesKey(id), ocrKey(id)].map((k) => del(k, store)));
+  await Promise.all([fileKey(id), logKey(id), legacyInkKey(id), sizesKey(id), marksKey(id), stampKey(id), notesKey(id), ocrKey(id), bookKey(id)].map((k) => del(k, store)));
   await set(metaKey(id), { ...marker, thumb: undefined, deleted: true }, store);
 }
 
@@ -439,4 +441,29 @@ export const getOcrPages = (id: string) => get<OcrPages>(ocrKey(id), store);
 
 export async function putOcrPage(id: string, page: number, boxes: TextBox[]) {
   await update<OcrPages>(ocrKey(id), (old) => ({ ...(old ?? {}), [page]: boxes }), store);
+}
+
+// ---- a PDF rebuilt as a book (kept on this device; it is made again if it is lost) ---
+export interface BookCache { book: Book; /** How many pages had been read from pictures when it was made. */ ocr: number }
+
+export const getBookCache = (id: string) => get<BookCache>(bookKey(id), store);
+export const putBookCache = (id: string, value: BookCache) => set(bookKey(id), value, store);
+
+// ---- highlights and bookmarks in book mode ---------------------------------
+// They live in the same log as ink, so syncing and merging need nothing new.
+export async function getBookMarks(id: string): Promise<Record<string, BookMark>> {
+  const log = (await cachedLog(id)).log;
+  const out: Record<string, BookMark> = {};
+  for (const [key, e] of Object.entries(log)) if (e.m && !e.d) out[key] = e.m;
+  return out;
+}
+
+/** Saves a mark (or removes it when `mark` is null). */
+export async function recordBookMark(id: string, key: string, mark: BookMark | null) {
+  const entry = await cachedLog(id);
+  const now = Date.now();
+  const old = entry.log[key];
+  entry.log[key] = mark ? { p: 0, c: old?.c ?? now, t: now, m: mark } : { p: 0, c: old?.c ?? now, t: now, d: 1 };
+  scheduleWrite(id);
+  notify(id, 'ink');
 }

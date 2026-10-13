@@ -17,4 +17,4 @@ export const EXT: Record<string, OfficeKind> = {
 };
 
 /** The `accept` list for a file picker: PDFs and everything that can be turned into one. */
-export const IMPORT_ACCEPT = ['application/pdf', '.pdf', ...Object.keys(EXT).map((e) => `.${e}`), 'image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/bmp', 'image/avif'].join(',');
+export const IMPORT_ACCEPT = ['application/pdf', '.pdf', 'application/epub+zip', '.epub', ...Object.keys(EXT).map((e) => `.${e}`), 'image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/bmp', 'image/avif'].join(',');

@@ -1,22 +1,15 @@
-import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { Library } from './components/Library';
-import { BookLoader } from './components/BookLoader';
+import { DocScreen, type DocView } from './components/DocScreen';
 import { GuestTools } from './components/GuestTools';
 import type { ToolId } from './components/toolList';
 import { Welcome } from './components/Welcome';
 import { useSyncStatus } from './lib/sync/useSync';
 
-// The reader and the PDF engine are a large download of their own; the
+// The readers and the PDF engine are a large download of their own; the
 // shelf and welcome page show without waiting for them (the shelf fetches
 // them in the background).
-const Viewer = lazy(() => import('./components/Viewer').then((m) => ({ default: m.Viewer })));
-const opening = (
-  <div className="viewer-loading loading" role="status">
-    <BookLoader size={46} label="Opening your document" />
-    <span>Opening your document…</span>
-  </div>
-);
 
 type Theme = 'light' | 'dark';
 
@@ -53,6 +46,8 @@ function transition(update: () => void) {
 export function App() {
   const [theme, setTheme] = useState<Theme>(initialTheme);
   const [docId, setDocId] = useState<string | null>(() => history.state?.doc ?? null);
+  // How the open document is being read: as a PDF, as a book, or as it was last time (unset).
+  const [view, setView] = useState<DocView | undefined>(() => history.state?.view);
   // The folder open on the shelf; kept in the history so Back leaves it.
   const [folder, setFolder] = useState<string | null>(() => history.state?.folder ?? null);
   const [busy, setBusy] = useState(false);
@@ -78,6 +73,7 @@ export function App() {
   useEffect(() => {
     const onPop = () => transition(() => {
       setDocId(history.state?.doc ?? null);
+      setView(history.state?.view);
       setFolder(history.state?.folder ?? null);
       setGuestTools(!!history.state?.tools);
     });
@@ -85,9 +81,17 @@ export function App() {
     return () => window.removeEventListener('popstate', onPop);
   }, []);
 
-  const open = useCallback((id: string, page?: number) => {
-    history.pushState({ doc: id, folder: history.state?.folder ?? null, page }, '');
-    transition(() => setDocId(id));
+  const open = useCallback((id: string, page?: number, as?: DocView) => {
+    // A page asked for (a note's page, say) is a page of the PDF.
+    const how = as ?? (page !== undefined ? 'pdf' : undefined);
+    history.pushState({ doc: id, folder: history.state?.folder ?? null, page, view: how }, '');
+    transition(() => { setView(how); setDocId(id); });
+  }, []);
+
+  /** Switches the open document between the PDF and book mode, in place (Back still leaves the document). */
+  const switchView = useCallback((as: DocView) => {
+    history.replaceState({ ...history.state, view: as, page: undefined }, '');
+    transition(() => setView(as));
   }, []);
 
   /**
@@ -96,8 +100,9 @@ export function App() {
    * shelf however many times the two have been swapped.
    */
   const swap = useCallback((id: string, page?: number) => {
-    history.replaceState({ doc: id, folder: history.state?.folder ?? null, page }, '');
-    transition(() => setDocId(id));
+    const how = page !== undefined ? 'pdf' : undefined;
+    history.replaceState({ doc: id, folder: history.state?.folder ?? null, page, view: how }, '');
+    transition(() => { setView(how); setDocId(id); });
   }, []);
 
   const openFolder = useCallback((id: string | null) => {
@@ -160,17 +165,17 @@ export function App() {
   }
 
   return docId ? (
-    <Suspense fallback={opening}>
-      <Viewer
-        key={docId}
-        docId={docId}
-        startPage={history.state?.page}
-        dark={theme === 'dark'}
-        onTheme={toggleTheme}
-        onClose={close}
-        onOpen={swap}
-      />
-    </Suspense>
+    <DocScreen
+      key={docId}
+      docId={docId}
+      startPage={history.state?.page}
+      view={view}
+      dark={theme === 'dark'}
+      onTheme={toggleTheme}
+      onClose={close}
+      onOpen={swap}
+      onView={switchView}
+    />
   ) : (
     <Library
       dark={theme === 'dark'}

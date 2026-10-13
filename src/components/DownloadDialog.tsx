@@ -6,7 +6,7 @@ import type { DocMeta } from '../lib/types';
 import { CloseIcon, DownloadIcon } from './icons';
 import { BookLoader } from './BookLoader';
 
-const fileName = (name: string, suffix = '') => `${name.replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120) || 'Document'}${suffix}.pdf`;
+const fileName = (name: string, suffix = '', ext = 'pdf') => `${name.replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120) || 'Document'}${suffix}.${ext}`;
 
 function save(blob: Blob, name: string) {
   const url = URL.createObjectURL(blob);
@@ -43,7 +43,7 @@ export function DownloadDialog({ doc, onClose }: { doc: DocMeta; onClose: () => 
       }
       if (!file) throw new Error('This document is not on this device yet.');
       if (!withNotes) {
-        save(file, fileName(doc.name));
+        save(file, fileName(doc.name, '', epub ? 'epub' : 'pdf'));
       } else {
         setBusy('Putting your notes on the pages…');
         const [{ pdfWithNotes }, ink] = await Promise.all([import('../lib/exportPdf'), loadInk(doc.id)]);
@@ -58,6 +58,7 @@ export function DownloadDialog({ doc, onClose }: { doc: DocMeta; onClose: () => 
   };
 
   const none = marks === 0;
+  const epub = doc.kind === 'epub';
   // A note you made yourself is its writing: the blank paper alone is not what anyone wants.
   const blankOnly = Boolean(doc.notebook);
   return createPortal(
@@ -78,19 +79,19 @@ export function DownloadDialog({ doc, onClose }: { doc: DocMeta; onClose: () => 
           </div>
         ) : (
           <div className="download-options">
-            <button className="download-option" disabled={none || marks === null} onClick={() => void run(true)}>
+            {!epub && <button className="download-option" disabled={none || marks === null} onClick={() => void run(true)}>
               <span className="download-icon"><DownloadIcon /></span>
               <span>
                 <strong>{blankOnly ? 'The note as a PDF' : 'With my notes'}</strong>
                 <small>{none ? 'Nothing is written on it yet.' : 'Your pen, highlights and typed notes are drawn onto the pages.'}</small>
               </span>
-            </button>
+            </button>}
             {!blankOnly && (
               <button className="download-option" onClick={() => void run(false)}>
                 <span className="download-icon plain"><DownloadIcon /></span>
                 <span>
-                  <strong>Original PDF</strong>
-                  <small>Exactly as it was added, without your notes.</small>
+                  <strong>{epub ? 'The book (ePub)' : 'Original PDF'}</strong>
+                  <small>{epub ? 'The book file, exactly as it was added.' : 'Exactly as it was added, without your notes.'}</small>
                 </span>
               </button>
             )}

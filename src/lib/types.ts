@@ -48,6 +48,29 @@ export interface DocMeta {
   notebook?: boolean;
   /** A note made for one page of a document: it shows beside that page, and that page shows beside it. */
   attached?: { doc: string; page: number; name: string };
+  /** 'epub' when the file is an ePub book; a PDF otherwise. */
+  kind?: 'epub';
+  /** Who wrote it (books). */
+  author?: string;
+  /** Where the reader was in book mode: block number (over the whole book) and a character in it. */
+  bookPos?: { b: number; o: number };
+  /** Last read in book mode, so it opens that way again. */
+  view?: 'book';
+}
+
+/** A highlight (with an optional note) or a bookmark in book mode. */
+export interface BookMark {
+  k: 'hl' | 'bm';
+  /** Start: block number and character. */
+  a: [block: number, offset: number];
+  /** End of a highlight. */
+  z?: [block: number, offset: number];
+  /** Highlight colour name. */
+  c?: string;
+  /** The reader's note on it. */
+  n?: string;
+  /** The words highlighted (or the line a bookmark sits on), to find the place again. */
+  q?: string;
 }
 
 export interface Folder {
@@ -79,6 +102,8 @@ export interface InkEntry {
   /** 1 when the stroke was erased (its points are then dropped). */
   d?: 1;
   s?: Stroke;
+  /** A book-mode highlight or bookmark kept in the same log, so it syncs the same way. */
+  m?: BookMark;
 }
 
 export type InkLog = Record<string, InkEntry>;
