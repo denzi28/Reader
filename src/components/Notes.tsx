@@ -6,7 +6,7 @@ import { collectNotes, type PageNotes } from '../lib/notes';
 import { acquirePdf, pageTextBoxes, releasePdf, renderPagePreview } from '../lib/pdf';
 import { getCachedNotes, getDocFile, getInkStamps, loadInk, putCachedNotes } from '../lib/storage';
 import type { DocMeta } from '../lib/types';
-import { ArrowIcon, BackIcon, CloseIcon, CopyIcon, FolderIcon, MarkIcon, PenIcon, PrintIcon } from './icons';
+import { ArrowIcon, BackIcon, ChevronIcon, CloseIcon, CopyIcon, FolderIcon, MarkIcon, PenIcon, PrintIcon } from './icons';
 
 interface Props {
   /** Documents with marks, newest opened first. */
@@ -48,6 +48,9 @@ let previewChain: Promise<unknown> = Promise.resolve();
 const queuePreview = (job: () => Promise<void>) => {
   previewChain = previewChain.then(job, job).catch(() => undefined);
 };
+
+// Which documents are opened up, kept while the app is open.
+let openDocs_ = new Set<string>();
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
@@ -168,6 +171,13 @@ export function Notes({ docs, folderName, onOpen }: Props) {
   const [loaded, setLoaded] = useState<Map<string, Loaded>>(new Map());
   const [copied, setCopied] = useState(false);
   const [peek, setPeek] = useState<number | null>(null);
+  const [opened, setOpened] = useState(openDocs_);
+  const toggle = (id: string) => setOpened((cur) => {
+    const next = new Set(cur);
+    if (!next.delete(id)) next.add(id);
+    openDocs_ = next;
+    return next;
+  });
   const ids = docs.map((d) => d.id).join();
 
   // Notes worked out before are reused until that document's ink changes;
@@ -261,22 +271,28 @@ export function Notes({ docs, folderName, onOpen }: Props) {
 
       {docs.map((d, i) => {
         const l = loaded.get(d.id);
+        const isOpen = opened.has(d.id);
         const folder = folderName(d);
         return (
           <article
             key={d.id}
-            className="note-doc"
+            className={`note-doc${isOpen ? ' open' : ''}`}
             // Room kept for it while off screen (where it is not drawn), so scrolling doesn't jump.
-            style={{ ['--i' as string]: i, containIntrinsicSize: `auto ${80 + Math.ceil((l?.notes.length ?? 1) / 5) * 190}px` }}
+            style={{ ['--i' as string]: i, containIntrinsicSize: `auto ${isOpen ? 90 + Math.ceil((l?.notes.length ?? 1) / 5) * 230 : 72}px` }}
           >
-            <header className="note-doc-head">
-              <h3>{d.name}</h3>
-              <span className="note-doc-meta">
-                {folder && <><FolderIcon />{folder} · </>}
-                {l ? plural(l.notes.reduce((a, p) => a + p.highlights.length + p.untextedHighlights + p.pens, 0), 'mark', 'marks') : 'Reading…'}
+            <button className="note-doc-head" aria-expanded={isOpen} onClick={() => toggle(d.id)}>
+              <span className="note-doc-text">
+                <span className="note-doc-name">{d.name}</span>
+                <span className="note-doc-meta">
+                  {folder && <><FolderIcon />{folder} · </>}
+                  {l
+                    ? `${plural(l.notes.reduce((a, p) => a + p.highlights.length + p.untextedHighlights + p.pens, 0), 'mark', 'marks')} on ${plural(l.notes.length, 'page', 'pages')}`
+                    : 'Reading…'}
+                </span>
               </span>
-            </header>
-            {!l ? (
+              <span className="note-chevron" aria-hidden="true"><ChevronIcon /></span>
+            </button>
+            {!isOpen ? null : !l ? (
               <div className="note-loading" />
             ) : (
               <ol className="note-grid">
@@ -302,13 +318,18 @@ export function Notes({ docs, folderName, onOpen }: Props) {
                             {p.pens > 0 && <span><PenIcon />{p.pens}</span>}
                           </span>
                         </span>
+                        {p.highlights[0] && (
+                          <span className="note-snippet" style={{ ['--hl' as string]: p.highlights[0].color }}>
+                            {p.highlights[0].text}
+                          </span>
+                        )}
                       </button>
                     </li>
                   );
                 })}
               </ol>
             )}
-            {l && !l.hasFile && <p className="empty-note">In your Google Drive only: open it once to see its pages here.</p>}
+            {isOpen && l && !l.hasFile && <p className="empty-note">In your Google Drive only: open it once to see its pages here.</p>}
           </article>
         );
       })}

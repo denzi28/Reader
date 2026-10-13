@@ -198,3 +198,8 @@ export const BooksIcon = () => (
     <path d="M16 5.2l3.3-.9 3 13.6-3.3.8z" transform="translate(-1.5 .4)" />
   </Icon>
 );
+export const ChevronIcon = () => (
+  <Icon>
+    <path d="M7 10l5 5 5-5" />
+  </Icon>
+);

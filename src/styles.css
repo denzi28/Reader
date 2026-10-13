@@ -1844,8 +1844,8 @@ mark {
 .notes-sub { margin: 0.15rem 0 0; color: var(--muted); font-size: 0.9rem; }
 .notes-actions { display: inline-flex; flex-wrap: wrap; gap: 0.5rem; }
 .note-doc {
-  margin-bottom: 1.25rem;
-  padding: 1rem 1.1rem 0.6rem;
+  margin-bottom: 0.75rem;
+  padding: 0 0.4rem;
   border: 1px solid var(--line);
   border-radius: 18px;
   background: var(--card);
@@ -1855,10 +1855,42 @@ mark {
   content-visibility: auto;
   contain-intrinsic-size: auto 320px;
 }
-.note-doc-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.25rem 1rem; margin-bottom: 0.5rem; }
-.note-doc-head h3 { margin: 0; font-family: var(--serif); font-size: 1.2rem; font-weight: 600; }
+.note-doc-head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.85rem 0.7rem;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  text-align: left;
+}
+.note-doc-text { flex: 1; min-width: 0; display: grid; gap: 0.15rem; }
+.note-doc-name {
+  font-family: var(--serif);
+  font-size: 1.1rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .note-doc-meta { display: inline-flex; align-items: center; gap: 0.3rem; color: var(--muted); font-size: 0.82rem; }
 .note-doc-meta svg { width: 15px; height: 15px; color: var(--accent); }
+.note-chevron {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--line);
+  color: var(--muted);
+  transition: transform 0.3s var(--ease), background 0.2s;
+}
+.note-chevron svg { width: 20px; height: 20px; }
+.note-doc.open .note-chevron { transform: rotate(180deg); background: var(--accent); color: var(--accent-ink); }
+.note-doc.open .note-grid, .note-doc.open .note-loading, .note-doc.open .empty-note { margin: 0 0.7rem 1rem; animation: rise 0.3s var(--ease) both; }
 .note-grid {
   list-style: none;
   margin: 0.25rem 0 0.5rem;
@@ -1894,6 +1926,17 @@ mark {
 .note-tile-marks { display: inline-flex; gap: 0.45rem; color: var(--muted); font-variant-numeric: tabular-nums; }
 .note-tile-marks span { display: inline-flex; align-items: center; gap: 0.15rem; }
 .note-tile-marks svg { width: 13px; height: 13px; }
+.note-snippet {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  padding-left: 0.35rem;
+  border-left: 2px solid var(--hl, #ffd84d);
+  color: var(--muted);
+  font-size: 0.68rem;
+  line-height: 1.35;
+}
 .note-loading {
   height: 72px;
   margin: 0.5rem 0;
@@ -1908,7 +1951,7 @@ mark {
 @media (max-width: 520px) {
   .tabs { display: flex; }
   .tabs button { flex: 1; justify-content: center; }
-  .note-doc { padding: 0.9rem 0.8rem 0.5rem; }
+  .note-doc { padding: 0; }
   .note-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.75rem 0.6rem; }
 }
 
