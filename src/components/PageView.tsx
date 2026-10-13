@@ -73,6 +73,9 @@ function PageViewImpl(props: Props) {
     brush, dark, hub, onCommit, register, eraser, textSize, selection, onSelect, selectionApi, finds,
   } = props;
 
+  // A steady callback: a new one on every render would detach and re-attach the page each
+  // time (a theme switch, a sync tick), and the page would be dropped from the visible set.
+  const attach = useCallback((el: HTMLDivElement | null) => register(index, el), [register, index]);
   const pdfCanvas = useRef<HTMLCanvasElement>(null);
   const inkCanvas = useRef<HTMLCanvasElement>(null);
   const surface = useRef<HTMLDivElement>(null);
@@ -553,7 +556,7 @@ function PageViewImpl(props: Props) {
 
   return (
     <div
-      ref={(el) => register(index, el)}
+      ref={attach}
       className={`page${ready ? ' ready' : ''}`}
       data-page={index}
       style={{ width, height }}
