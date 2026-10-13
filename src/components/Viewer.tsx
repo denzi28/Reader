@@ -24,7 +24,8 @@ import {
 import { downloadPdf, onRemoteInk, onRemotePdf, syncDoc } from '../lib/sync/engine';
 import { useDownloadProgress } from '../lib/sync/useSync';
 import type { DocInk, DocMeta, Stroke, Tool } from '../lib/types';
-import { BackIcon, DownloadIcon, MoonIcon, MoreVIcon, NotePlusIcon, PlusIcon, SearchIcon, SunIcon } from './icons';
+import { BackIcon, DownloadIcon, FitIcon, MinusIcon, MoonIcon, MoreVIcon, NotePlusIcon, PanelIcon, PlusIcon, RailIcon, SearchIcon, SunIcon } from './icons';
+import { DocPanel, PageRail } from './ReaderSide';
 import { SyncBadge, SyncRow } from './SyncControl';
 import { usePhone } from '../lib/usePhone';
 import { PageView } from './PageView';
@@ -828,6 +829,14 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose, onOpen }: Pro
   const findOpenRef = useRef(false);
   findOpenRef.current = findOpen;
   const phone = usePhone();
+  // The page strip (left) and the panel of marks (right) of the desktop reading screen; remembered between visits.
+  const remembered = (key: string, fallback: boolean) => {
+    try { const v = localStorage.getItem(key); return v === null ? fallback : v === '1'; } catch { return fallback; }
+  };
+  const [rail, setRailState] = useState(() => remembered('reader.rail', window.innerWidth >= 1200));
+  const [side, setSideState] = useState(() => remembered('reader.panel', false));
+  const setRail = (v: boolean) => { setRailState(v); try { localStorage.setItem('reader.rail', v ? '1' : '0'); } catch { /* ignore */ } };
+  const setSide = (v: boolean) => { setSideState(v); try { localStorage.setItem('reader.panel', v ? '1' : '0'); } catch { /* ignore */ } };
   // On a phone the less-used actions live in a menu behind the three dots.
   const [menuOpen, setMenuOpen] = useState(false);
   const menuOpenRef = useRef(false);
@@ -895,10 +904,21 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose, onOpen }: Pro
     const el = root.current;
     const bar = el?.querySelector('.toolbar-wrap');
     if (!el || !bar) return;
-    const ro = new ResizeObserver(() => el.style.setProperty('--bar-h', `${bar.getBoundingClientRect().height}px`));
+    // The desktop's tools stand at the side, so nothing is in the way along the bottom.
+    const ro = new ResizeObserver(() => el.style.setProperty('--bar-h', bar.classList.contains('dock') ? '0px' : `${bar.getBoundingClientRect().height}px`));
     ro.observe(bar);
     return () => ro.disconnect();
-  }, [pdf]);
+  }, [pdf, phone]);
+
+  // A tool's menu (colours, thickness) goes away when the page is touched.
+  useEffect(() => {
+    if (!panel) return;
+    const away = (e: PointerEvent) => {
+      if (!(e.target as Element | null)?.closest?.('.toolbar-wrap')) setPanel(false);
+    };
+    document.addEventListener('pointerdown', away, true);
+    return () => document.removeEventListener('pointerdown', away, true);
+  }, [panel]);
   const [allDocs, setAllDocs] = useState<DocMeta[]>([]);
   const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
   const [cardCorner, setCardCorner] = useState<Corner>(loadCorner);
@@ -1017,7 +1037,7 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose, onOpen }: Pro
   const color = tool === 'highlighter' ? prefs.hlColor : prefs.penColor;
 
   return (
-    <div ref={root} className={`viewer tool-${tool}${cover === 'on' ? ' opening' : ''}`}>
+    <div ref={root} className={`viewer tool-${tool}${cover === 'on' ? ' opening' : ''}${!phone && rail ? ' rail-on' : ''}${!phone && side ? ' side-on' : ''}`}>
       {phone ? (
         <header className="topbar phone-topbar">
           <button className="icon-button" onClick={onClose} aria-label="Back to library" title="Back">
@@ -1095,6 +1115,12 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose, onOpen }: Pro
             <span>/ {pdf.numPages}</span>
           </label>
         )}
+        <div className="zoom-group" role="group" aria-label="Zoom">
+          <button className="icon-button" onClick={() => applyZoom(zoomApi.target() / 1.2)} aria-label="Zoom out" title="Zoom out (-)"><MinusIcon /></button>
+          <span className="zoom-value" aria-live="polite">{Math.round(zoom * 100)}%</span>
+          <button className="icon-button" onClick={() => applyZoom(zoomApi.target() * 1.2)} aria-label="Zoom in" title="Zoom in (+)"><PlusIcon /></button>
+          <button className="icon-button" onClick={() => applyZoom(1)} aria-label="Fit to width" title="Fit to width"><FitIcon /></button>
+        </div>
         {finder && !meta?.notebook && (
           <button className="icon-button" onClick={() => setFindOpen((v) => !v)} aria-pressed={findOpen}
             aria-label="Find in this document" title="Find in this document (Ctrl+F)">
@@ -1127,6 +1153,8 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose, onOpen }: Pro
         >
           {dark ? <SunIcon /> : <MoonIcon />}
         </button>
+        <button className={`icon-button${rail ? ' on' : ''}`} onClick={() => setRail(!rail)} aria-pressed={rail} aria-label="Page strip" title="Show the pages down the side"><RailIcon /></button>
+        <button className={`icon-button${side ? ' on' : ''}`} onClick={() => setSide(!side)} aria-pressed={side} aria-label="Marks and notes" title="Show the marks and notes of this document"><PanelIcon /></button>
       </header>
       )}
 
@@ -1225,6 +1253,22 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose, onOpen }: Pro
             {downloaded !== null && <small>{Math.round(downloaded * 100)}%</small>}
           </p>
         </div>
+      )}
+
+      {!phone && rail && pdf && sizes && cover === 'off' && <PageRail pdf={pdf} sizes={sizes} current={current} dark={dark} onGo={goToPage} />}
+      {!phone && side && (
+        <DocPanel
+          pdf={pdf}
+          docId={docId}
+          ink={ink}
+          current={current}
+          dark={dark}
+          links={links}
+          canNote={Boolean(pdf && meta && !meta.notebook)}
+          onGo={goToPage}
+          onOpen={onOpen}
+          onNote={() => { setNoteError(null); setNoteDialog(true); }}
+        />
       )}
 
       <Toolbar

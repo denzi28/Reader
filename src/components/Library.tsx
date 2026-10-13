@@ -11,18 +11,17 @@ import { downloadPdf } from '../lib/sync/engine';
 import { useDownloadProgress, useSyncStatus } from '../lib/sync/useSync';
 import type { DocMeta, Folder } from '../lib/types';
 import {
-  ArrowIcon, BackIcon, CloudOffIcon, DownloadIcon, SparkIcon, BooksIcon, GridIcon, ListIcon, MarkIcon, StarIcon, CheckIcon, CloseIcon, CloudIcon, FileIcon, FolderIcon, FolderMoveIcon, FolderPlusIcon, MoonIcon, PencilIcon, SearchIcon, SunIcon,
+  ArrowIcon, BackIcon, CloudOffIcon, DownloadIcon, GridIcon, ListIcon, MarkIcon, StarIcon, CheckIcon, CloseIcon, CloudIcon, FileIcon, FolderIcon, FolderMoveIcon, FolderPlusIcon, PencilIcon, SearchIcon,
   MoreVIcon, SortIcon, TrashIcon, UploadIcon,
 } from './icons';
 import { AddSheet, BookSheet, MePage, PhoneNav, type PhoneTab, ToolsPage } from './PhoneParts';
+import { Sidebar } from './Sidebar';
 import { usePhone } from '../lib/usePhone';
 import { Cover } from './Cover';
 import type { NotebookSpec } from '../lib/notebookSpec';
 import { DownloadDialog } from './DownloadDialog';
 import { NewNote } from './NewNote';
-import { InstallChip } from './PwaBits';
-import { ToolMenu, type ToolId } from './toolList';
-import { SyncControl } from './SyncControl';
+import type { ToolId } from './toolList';
 
 interface Props {
   dark: boolean;
@@ -85,10 +84,6 @@ function usePref<T extends string>(key: string, initial: T, allowed: readonly T[
   return [value, update] as const;
 }
 
-function greeting(now = new Date()) {
-  const h = now.getHours();
-  return h < 5 ? 'Good evening' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
-}
 
 /** How far through a document the reader is (0 to 1), from the page last read. */
 const progressOf = (d: DocMeta) => (d.pages > 1 ? Math.min(1, d.lastPage / (d.pages - 1)) : 0);
@@ -285,7 +280,6 @@ export function Library(props: Props) {
   const [moving, setMoving] = useState<{ id: string; anchor: DOMRect } | null>(null);
   const [dropOn, setDropOn] = useState<string | null>(null);
   const [query, setQuery] = useState(lastQuery);
-  const [toolMenu, setToolMenu] = useState(false);
   const [newNote, setNewNote] = useState(false);
   const [downloading, setDownloading] = useState<DocMeta | null>(null);
   const [makingNote, setMakingNote] = useState(false);
@@ -298,7 +292,7 @@ export function Library(props: Props) {
   const [addOpen, setAddOpen] = useState(false);
   const [menuFor, setMenuFor] = useState<DocMeta | null>(null);
   // The phone's Tools and Me pages only exist on a phone; elsewhere the shelf is shown.
-  const page: PhoneTab = !phone && (tab === 'tools' || tab === 'me') ? 'shelf' : tab;
+  const page: PhoneTab = !phone && tab === 'me' ? 'shelf' : tab;
   const [markCounts, setMarkCounts] = useState<Map<string, number>>(new Map());
   const [sortBy, setSortBy] = usePref<SortBy>('reader.sort', 'opened', SORTS.map((x) => x.id));
   const [view, setView] = usePref<'grid' | 'list'>('reader.view', 'grid', ['grid', 'list']);
@@ -333,26 +327,19 @@ export function Library(props: Props) {
 
   // A tool is a step in the browser history, so the Back button closes it.
   useEffect(() => {
-    const onPop = () => { if (!history.state?.tool) { setTool(null); setToolMenu(false); } };
+    const onPop = () => { if (!history.state?.tool) setTool(null); };
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
   }, []);
-  const openToolMenu = () => {
-    history.pushState({ ...history.state, tool: 1 }, '');
-    setToolMenu(true);
-  };
   const closeTools = () => {
     setTool(null);
-    setToolMenu(false);
+    // "Back to library": on a computer the tools list is a sidebar page, so go back to the shelf.
+    if (!phone) setTab('shelf');
     if (history.state?.tool) history.back();
   };
   /** A tool picked on the phone's Tools page: a history step, so Back closes it. */
   const pickFromTools = (id: ToolId) => {
     history.pushState({ ...history.state, tool: 1 }, '');
-    setTool(id);
-  };
-  const pickTool = (id: ToolId) => {
-    setToolMenu(false);
     setTool(id);
   };
 
@@ -487,8 +474,6 @@ export function Library(props: Props) {
       void move(doc, id);
     },
   });
-
-  const reading = (docs ?? []).filter((d) => progressOf(d) > 0 && progressOf(d) < 1).length;
 
   // The document opened most recently, ready to pick up again.
   const resume = !current && !searching && !onNotes && !onTools && !onMe ? docs?.[0] : undefined;
@@ -656,26 +641,8 @@ export function Library(props: Props) {
     </li>
   );
 
-  return (
-    <main
-      className={`library${phone ? ' phone' : ''}`}
-      onDragEnter={(e) => {
-        if (!hasFiles(e)) return;
-        dragDepth.current++;
-        setDragging(true);
-      }}
-      onDragOver={(e) => { if (hasFiles(e)) e.preventDefault(); }}
-      onDragLeave={(e) => {
-        if (hasFiles(e) && --dragDepth.current <= 0) { dragDepth.current = 0; setDragging(false); }
-      }}
-      onDrop={(e) => {
-        if (!hasFiles(e)) return;
-        e.preventDefault();
-        dragDepth.current = 0;
-        setDragging(false);
-        take(e.dataTransfer.files);
-      }}
-    >
+  const content = (
+    <>
       {phone ? (
         <header className="library-head phone-head">
           <h1 className="brand">{onTools ? 'Tools' : onMe ? 'Me' : 'The Reader'}</h1>
@@ -685,39 +652,7 @@ export function Library(props: Props) {
             </button>
           )}
         </header>
-      ) : (
-      <header className="library-head">
-        <div>
-          <h1 className="brand">The Reader</h1>
-          <p className="tagline">
-            {docs?.length ? (
-              <>
-                <strong>{greeting()}{sync.name ? `, ${sync.name.split(' ')[0]}` : ''}.</strong>{' '}
-                {reading > 0
-                  ? `${plural(reading, 'document', 'documents')} in progress.`
-                  : `${plural(docs.length, 'document', 'documents')} on your shelf.`}
-              </>
-            ) : (
-              <>
-                Read, mark up and keep your documents.{' '}
-                {sync.connected ? 'Kept in step with your Google Drive.' : 'Everything stays on this device.'}
-              </>
-            )}
-          </p>
-        </div>
-        <div className="library-actions">
-          <InstallChip />
-          <SyncControl />
-          <button
-            className="icon-button"
-            onClick={onTheme}
-            aria-label={dark ? 'Switch to day paper' : 'Switch to night paper'}
-          >
-            {dark ? <SunIcon /> : <MoonIcon />}
-          </button>
-        </div>
-      </header>
-      )}
+      ) : null}
 
       {guestCount > 0 && (
         <div className="notice notice-info" role="status">
@@ -747,19 +682,6 @@ export function Library(props: Props) {
         hidden
         onChange={(e) => { take(e.target.files); e.target.value = ''; }}
       />
-
-      {!phone && !current && docs && docs.length > 0 && (
-        <div className="tabs" role="tablist" aria-label="Library or notes">
-          <button role="tab" aria-selected={!onNotes} className={onNotes ? '' : 'on'} onClick={() => setTab('shelf')}>
-            <BooksIcon />
-            Library
-          </button>
-          <button role="tab" aria-selected={onNotes} className={onNotes ? 'on' : ''} onClick={() => setTab('notes')}>
-            <MarkIcon />
-            Notes
-          </button>
-        </div>
-      )}
 
       {current ? (
         <nav className="folder-bar" aria-label="Folder">
@@ -863,10 +785,6 @@ export function Library(props: Props) {
             <PencilIcon />
             <span>New note</span>
           </button>
-          <button className="tools-button" onClick={openToolMenu} aria-label="PDF tools" title="PDF tools: merge, split, crop, edit">
-            <SparkIcon />
-            <span>PDF tools</span>
-          </button>
           {addButton}
         </div>
       )}
@@ -893,6 +811,7 @@ export function Library(props: Props) {
         </div>
       )}
 
+      {!phone && (onTools || onNotes) && <h2 className="page-title">{onTools ? 'PDF tools' : 'Notes'}</h2>}
       {onTools && <ToolsPage onPick={pickFromTools} />}
       {onMe && <MePage dark={dark} onTheme={onTheme} />}
 
@@ -980,40 +899,11 @@ export function Library(props: Props) {
             </section>
           )}
 
-          {!phone && !current && docs && docs.length > 0 && (
-            <section className="folders-section" aria-label="Folders">
-              <div className="section-head">
-                <h2 className="shelf-title">Folders</h2>
-                <button className="chip-button" onClick={() => setCreating(true)} disabled={creating}>
-                  <FolderPlusIcon />
-                  New folder
-                </button>
-              </div>
-              {folders.length === 0 && !creating ? (
-                <p className="empty-note">Group your notes by course, project or client. Create a folder, then move documents into it.</p>
-              ) : (
-                <ul className="folders">
-                  {folders.map((f, i) => folderTile(f, i))}
-                  {creating && (
-                    <li className="folder-tile folder-tile-new">
-                      <span className="folder-tile-icon"><FolderIcon /></span>
-                      <NameField
-                        label="Folder name"
-                        onSave={async (name) => { setCreating(false); await createFolder(name); void refresh(); }}
-                        onCancel={() => setCreating(false)}
-                      />
-                    </li>
-                  )}
-                </ul>
-              )}
-            </section>
-          )}
-
           {docs && (shown.length > 0 || current) && (
             <>
               {shown.length > 1 || (!current && shown.length > 0) ? (
                 <div className={`section-head${current ? ' bare' : ''}`}>
-                  {!current && <h2 className="shelf-title">{phone ? SORT_TITLES[sortBy] : folders.length ? 'Not in a folder' : 'Your shelf'}</h2>}
+                  {!current && <h2 className="shelf-title">{phone ? SORT_TITLES[sortBy] : 'All documents'}</h2>}
                   {shown.length > 1 && phone && (
                     <span className="shelf-controls phone-controls">
                       <label className="icon-button sort-icon" aria-label="Sort">
@@ -1057,7 +947,6 @@ export function Library(props: Props) {
         </>
       )}
 
-      {toolMenu && <ToolMenu onPick={pickTool} onClose={closeTools} />}
       {downloading && <DownloadDialog doc={downloading} onClose={() => setDownloading(null)} />}
       {newNote && <NewNote busy={makingNote} error={noteError} onCreate={(spec) => void createNote(spec)} onClose={() => setNewNote(false)} />}
       {tool && (
@@ -1122,6 +1011,58 @@ export function Library(props: Props) {
         <span aria-hidden="true">·</span>
         <a href="/terms.html">Terms</a>
       </footer>
+    </>
+  );
+
+  return (
+    <main
+      className={`library${phone ? ' phone' : ' desk'}`}
+      onDragEnter={(e) => {
+        if (!hasFiles(e)) return;
+        dragDepth.current++;
+        setDragging(true);
+      }}
+      onDragOver={(e) => { if (hasFiles(e)) e.preventDefault(); }}
+      onDragLeave={(e) => {
+        if (hasFiles(e) && --dragDepth.current <= 0) { dragDepth.current = 0; setDragging(false); }
+      }}
+      onDrop={(e) => {
+        if (!hasFiles(e)) return;
+        e.preventDefault();
+        dragDepth.current = 0;
+        setDragging(false);
+        take(e.dataTransfer.files);
+      }}
+    >
+      {phone ? content : (
+        <div className="lib-shell">
+      {!phone && (
+        <Sidebar
+          tab={page === 'notes' ? 'notes' : page === 'tools' ? 'tools' : 'shelf'}
+          folder={current?.id ?? null}
+          folders={folders}
+          counts={counts}
+          total={docs?.length ?? 0}
+          creating={creating}
+          newFolder={(
+            <NameField
+              label="Folder name"
+              onSave={async (name) => { setCreating(false); await createFolder(name); void refresh(); }}
+              onCancel={() => setCreating(false)}
+            />
+          )}
+          dropOn={dropOn}
+          dropTarget={dropTarget}
+          dark={dark}
+          onTheme={onTheme}
+          onTab={(t) => { if (current) onFolder(null); setQuery(''); setTab(t); }}
+          onFolder={(id) => { setQuery(''); setTab('shelf'); onFolder(id); }}
+          onCreate={() => setCreating(true)}
+        />
+      )}
+          <div className="lib-main">{content}</div>
+        </div>
+      )}
     </main>
   );
 }

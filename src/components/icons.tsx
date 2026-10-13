@@ -354,3 +354,23 @@ export const ShieldIcon = () => (
     <path d="M9 12l2 2 4-4" />
   </Icon>
 );
+
+export const RailIcon = () => (
+  <Icon>
+    <rect x="3.5" y="4.5" width="17" height="15" rx="2.5" />
+    <path d="M9.5 4.5v15" />
+  </Icon>
+);
+
+export const PanelIcon = () => (
+  <Icon>
+    <rect x="3.5" y="4.5" width="17" height="15" rx="2.5" />
+    <path d="M14.5 4.5v15" />
+  </Icon>
+);
+
+export const FitIcon = () => (
+  <Icon>
+    <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
+  </Icon>
+);

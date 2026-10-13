@@ -159,8 +159,19 @@ Keyboard: `P` pen, `L` highlighter, `E` eraser (press again to switch off), `Ctr
   dot appears on Me when sync needs attention). The reading screen keeps only
   back, title with page, find and a three-dot menu on top (add a page or a note,
   download, night paper, sync), and hand, pen, highlighter, eraser, "more"
-  (select, type a note, zoom), undo and redo below. Wider screens keep the
+  (select, type a note, zoom), undo and redo below. Wider screens get the
   desktop layout (`src/lib/usePhone.ts` decides; `PhoneParts.tsx` has the pieces).
+
+- **Desktop layout** (screens wider than 640 px): the library is a sidebar workspace
+  (`Sidebar.tsx`): Library, Notes and PDF tools on top, folders with their counts
+  beneath (drop a document on one to move it), and sync, night paper, install,
+  privacy and terms at the foot; the main area holds search, a resume card and the
+  shelf. The reading screen has a page strip on the left (thumbnails, drawn only
+  near the view), a vertical tool dock whose options fly out beside it, a "this
+  document" panel on the right listing every mark and note by page (`ReaderSide.tsx`),
+  and a top bar with page jump, zoom, find, add page, download, night paper and
+  toggles for the strip and the panel (both remembered). Notes and PDF tools stay
+  plain lists.
 
 ## Not built yet
 
