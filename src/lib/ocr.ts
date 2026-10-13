@@ -40,7 +40,7 @@ const TARGET_WIDTH = (() => {
 })();
 const MAX_HEIGHT = 2800;
 
-async function pictureOf(pdf: PDFDocumentProxy, index: number): Promise<{ blob: Blob; width: number }> {
+async function pictureOf(pdf: PDFDocumentProxy, index: number): Promise<{ blob: Blob; width: number; inked: boolean }> {
   const page = await pdf.getPage(index + 1);
   const base = page.getViewport({ scale: 1 });
   const scale = Math.min(TARGET_WIDTH / base.width, MAX_HEIGHT / base.height, 4);
@@ -53,8 +53,23 @@ async function pictureOf(pdf: PDFDocumentProxy, index: number): Promise<{ blob: 
     canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('no picture'))), 'image/png'),
   );
   const width = canvas.width;
+  // Is there anything on it at all? (A blank sheet may be left empty; a page with marks should give words.)
+  let inked = true;
+  try {
+    const small = document.createElement('canvas');
+    small.width = 120;
+    small.height = Math.max(1, Math.round(120 * (canvas.height / canvas.width)));
+    const ctx = small.getContext('2d', { willReadFrequently: true });
+    if (ctx) {
+      ctx.drawImage(canvas, 0, 0, small.width, small.height);
+      const px = ctx.getImageData(0, 0, small.width, small.height).data;
+      let dark = 0;
+      for (let i = 0; i < px.length; i += 4) if (px[i] + px[i + 1] + px[i + 2] < 540) dark++;
+      inked = dark / (px.length / 4) > 0.004;
+    }
+  } catch { /* assume it has marks */ }
   canvas.width = canvas.height = 0;
-  return { blob, width };
+  return { blob, width, inked };
 }
 
 interface Word { text: string; confidence: number; bbox: { x0: number; y0: number; x1: number; y1: number } }
@@ -170,15 +185,36 @@ export async function recognisePages(
   const sample: string[] = [];
   let firstAt = 0;
 
-  const lane = async (worker: Reader) => {
+  /** One page, on its own: a page that cannot be read is left alone (it stays "not read") rather than ending the whole run. */
+  const readPage = async (worker: Reader, page: number): Promise<TextBox[] | null> => {
+    const { blob, width, inked } = await pictureOf(pdf, page);
+    let boxes = boxesFrom((await worker.recognize(blob, {}, { blocks: true })) as unknown as Result, width);
+    if (!boxes.length && inked) {
+      // Marks but no words: look again, treating the page as scattered text rather than a column.
+      await worker.setParameters({ tessedit_pageseg_mode: '11' as never });
+      try { boxes = boxesFrom((await worker.recognize(blob, {}, { blocks: true })) as unknown as Result, width); }
+      finally { await worker.setParameters({ tessedit_pageseg_mode: '3' as never }); }
+    }
+    return boxes;
+  };
+
+  const lane = async (start: Reader) => {
+    let worker = start;
     worker.langs = 'eng+tur';
     while (!stop()) {
       const k = next++;
       if (k >= pages.length) return;
       if (worker.langs !== langs) { await worker.reinitialize(langs); worker.langs = langs; }
-      const { blob, width } = await pictureOf(pdf, pages[k]);
-      const result = (await worker.recognize(blob, {}, { blocks: true })) as unknown as Result;
-      const boxes = boxesFrom(result, width);
+      let boxes: TextBox[] | null = null;
+      for (let attempt = 0; attempt < 2 && boxes === null && !stop(); attempt++) {
+        try { boxes = await readPage(worker, pages[k]); } catch (err) {
+          console.warn('Could not read page', pages[k] + 1, err);
+          // The reader itself may have given up (a phone short of memory): start a fresh one.
+          try { await worker.terminate(); } catch { /* already gone */ }
+          try { worker = await make(langs); worker.langs = langs; team.push(worker); } catch { return; }
+        }
+      }
+      if (boxes === null) { progress(++done, pages.length); continue; }
       await putOcrPage(id, pages[k], boxes);
       (await savedFor(id))[pages[k]] = boxes;
       if (!decided) {

@@ -193,7 +193,9 @@ Keyboard: `P` pen, `L` highlighter, `E` eraser (press again to switch off), `Ctr
   as far as wanted (pinch, + and −, Ctrl and the wheel, the Aa panel's slider or "Page width");
   dragging moves about a zoomed page, and each document keeps its own zoom, also after closing it.
   Places and marks in a PDF book are kept as (page, number on that page), so they stay put when
-  pages are added later.
+  pages are added later, also while the book grows under the reader during a scan. One page that
+  fails to read no longer ends a scan, and the page label of a book made from a PDF is the PDF's
+  own page number.
   Tables, formulas and figures stay in the PDF, one tap away. The place (`bookPos`, kept in
   step with the PDF's page) and the marks (kept in the same log as ink, so they sync the same
   way) follow you between devices. A PDF last read as a book opens as one next time.

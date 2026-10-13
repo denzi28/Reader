@@ -36,6 +36,8 @@ const GAP = 72;
 const before = (a: Pos, b: Pos) => a.b < b.b || (a.b === b.b && a.o < b.o);
 
 export interface ScanState { done: number; total: number }
+/** Which pages to read: this many from this page on. */
+export interface ScanOnly { from: number; count: number }
 
 /** Loads the book (making it from a PDF the first time), then hands it to the reader. */
 export function BookReader(props: Props) {
@@ -93,7 +95,7 @@ export function BookReader(props: Props) {
    * Reads the pages that have no text, from their pictures. The book opens as soon as the first
    * pages are read and grows as the rest come in, so there is no waiting for a whole scan.
    */
-  const startScan = async (only?: { from: number; count: number }) => {
+  const startScan = async (only?: ScanOnly) => {
     if (scanning.current) return;
     scanning.current = true;
     const file = await getDocFile(docId);
@@ -138,11 +140,16 @@ export function BookReader(props: Props) {
     }
   };
 
-  if (data) return <Reader data={data} {...props} scan={scan} onScan={() => void startScan()} />;
+  // (one function for good, so the pages of the book are not drawn again each time the scan moves on)
+  const startRef = useRef(startScan);
+  startRef.current = startScan;
+  const scanFn = useCallback((only?: ScanOnly) => { void startRef.current(only); }, []);
+
+  if (data) return <Reader data={data} {...props} scan={scan} onScan={scanFn} />;
   const error = state && 'error' in state ? state : null;
   // A scanned PDF opens as its own pages; reading them into text is only offered when something needs text.
   if (error?.scanned) {
-    return <PageBook docId={docId} startPage={props.startPage} dark={props.dark} onTheme={props.onTheme} onClose={props.onClose} onPdf={props.onPdf} scan={scan} onScan={(only) => void startScan(only)} />;
+    return <PageBook docId={docId} startPage={props.startPage} dark={props.dark} onTheme={props.onTheme} onClose={props.onClose} onPdf={props.onPdf} scan={scan} onScan={scanFn} />;
   }
   const progress = state && 'progress' in state ? state.progress : 0;
   return (
@@ -166,7 +173,7 @@ export function BookReader(props: Props) {
   );
 }
 
-function Reader({ data, docId, startPage, dark, onTheme, onClose, onPdf, scan, onScan }: Props & { data: Loaded; scan: ScanState | null; onScan: () => void }) {
+function Reader({ data, docId, startPage, dark, onTheme, onClose, onPdf, scan, onScan }: Props & { data: Loaded; scan: ScanState | null; onScan: (only?: ScanOnly) => void }) {
   const { meta, book, ix, image } = data;
   const phone = usePhone();
   const [settings, change] = useBookSettings();
@@ -363,15 +370,6 @@ function Reader({ data, docId, startPage, dark, onTheme, onClose, onPdf, scan, o
   useLayoutEffect(() => { measure(); }, [measure, chapter, dims.clipW, dims.clipH, dims.cols, settings.font, settings.size, settings.spacing, settings.flow, box.w, box.h]);
   useEffect(() => { void document.fonts?.ready.then(measure); }, [measure]);
 
-  // The book grew (more scanned pages were read): keep the place and lay it out again.
-  const lastBook = useRef(book);
-  useLayoutEffect(() => {
-    if (lastBook.current === book) return;
-    lastBook.current = book;
-    const c = ix.chapterOf[Math.min(posRef.current.b, lastBlock)] ?? 0;
-    if (c !== chapter) { pending.current = null; setChapter(c); } else measure();
-  }, [book]); // eslint-disable-line react-hooks/exhaustive-deps
-
   const turnTo = useCallback((s: number) => {
     setAnim(!reduced);
     setScreen(s);
@@ -446,6 +444,26 @@ function Reader({ data, docId, startPage, dark, onTheme, onClose, onPdf, scan, o
     setScreen(clamp(s, 0, screens - 1));
   }, [ix, lastBlock, commitPos, paged, scrollToPos, chapter, screenOfPos, screens, phone]);
 
+  // The book grew (more scanned pages were read): block numbers moved, so the place is found again by its
+  // stable anchor, and the page is laid out again around it.
+  const lastBook = useRef(book);
+  const lastIx = useRef(ix);
+  useLayoutEffect(() => {
+    if (lastBook.current === book) return;
+    const old = lastIx.current;
+    lastBook.current = book;
+    lastIx.current = ix;
+    const from = posRef.current;
+    const id = toStable(old, from.b);
+    const b = fromStable(ix, id);
+    const here: Pos = { b, o: ix.stable[b] === id ? from.o : 0 };
+    posRef.current = here;
+    setPos(here);
+    if (!paged) { scrollToPos(here); return; }
+    const c = ix.chapterOf[Math.min(b, lastBlock)] ?? 0;
+    if (c !== chapter) { pending.current = null; setChapter(c); } else measure();
+  }, [book]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Scroll mode: the place follows the scrolling, and a settings change keeps the place.
   useLayoutEffect(() => {
     if (!paged) scrollToPos(posRef.current);
@@ -493,7 +511,10 @@ function Reader({ data, docId, startPage, dark, onTheme, onClose, onPdf, scan, o
   const perScreen = paged && screens > 1 && chapterWords > 150 ? chapterWords / screens : 220 * dims.cols;
   const totalScreens = Math.max(1, Math.round(ix.total / perScreen));
   const screenNow = clamp(Math.floor(shownFrac * totalScreens) + 1, 1, totalScreens);
+  // A book made from a PDF says which page of the PDF it is on (steady while the rest is still being read).
+  const pdfPage = book.fromPdf ? (ix.blocks[Math.min((scrub !== null ? posAtFraction(ix, scrub) : pos).b, lastBlock)]?.pg ?? 0) + 1 : 0;
   const pageLabel = !paged ? `${Math.round(shownFrac * 100)}%`
+    : book.fromPdf ? `Page ${Math.min(pdfPage, meta.pages)} of ${meta.pages}`
     : dims.cols === 2 ? `Pages ${screenNow * 2 - 1}–${screenNow * 2} of ${totalScreens * 2}` : `Page ${screenNow} of ${totalScreens}`;
 
   // ---- touching the page -------------------------------------------------------------------
@@ -736,7 +757,7 @@ function Reader({ data, docId, startPage, dark, onTheme, onClose, onPdf, scan, o
       {(scan || (book.fromPdf && (book.blank?.length ?? 0) > meta.pages * 0.3)) && (
         <div className="bk-scan" role="status">
           {scan ? <span>Reading the pages… {scan.done} of {scan.total}</span> : (
-            <button onClick={onScan}>{book.blank!.length} pages have no text yet · Read them ({ocrEstimate(book.blank!.length)})</button>
+            <button onClick={() => onScan()}>{book.blank!.length} pages have no text yet · Read them ({ocrEstimate(book.blank!.length)})</button>
           )}
         </div>
       )}
