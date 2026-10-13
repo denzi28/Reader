@@ -3149,7 +3149,7 @@ html.reading, html.reading body { touch-action: pan-x pan-y; }
   background: linear-gradient(90deg, transparent, rgba(60, 40, 10, 0.1) 44%, rgba(60, 40, 10, 0.2) 50%, rgba(60, 40, 10, 0.1) 56%, transparent);
 }
 .bk-clip { position: absolute; overflow: hidden; }
-.bk-flow { position: absolute; left: 0; top: 0; column-fill: auto; will-change: transform; }
+.bk-flow { position: absolute; left: 0; top: 0; column-fill: auto; }
 .bk-flow, .bk-column { font-family: var(--bk-font); font-size: var(--bk-fs); line-height: var(--bk-lh); color: var(--bk-ink); -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
 .bk-ribbon { position: absolute; top: 0; right: 22px; width: 14px; height: 26px; background: var(--bk-accent); clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 74%, 0 100%); }
 

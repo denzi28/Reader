@@ -216,13 +216,13 @@ function Reader({ data, docId, startPage, dark, onTheme, onClose, onPdf }: Props
     const cols = !phone && settings.spread === 'two' && box.w >= 900 ? 2 : 1;
     if (phone) {
       const padX = clamp(box.w * MARGIN[settings.margins], 20, 56);
-      const clipW = Math.max(120, box.w - 2 * padX);
+      const clipW = Math.max(120, Math.floor(box.w - 2 * padX));
       return { cols, gap: 32, clipW, clipH: Math.max(120, box.h - 20), clipLeft: padX, clipTop: 10, sheetW: box.w, sheetH: box.h, sheetLeft: 0, sheetTop: 0, stride: clipW + 32, padX, measure: 0 };
     }
     const measure = { narrow: 760, medium: 660, wide: 560 }[settings.margins] * (cols === 2 ? 0.74 : 1);
     const padX = 52;
     const colW = Math.max(240, Math.min(measure, ((box.w - 2 * padX - 48) - (cols - 1) * GAP) / cols));
-    const clipW = cols * colW + (cols - 1) * GAP;
+    const clipW = Math.floor(cols * colW + (cols - 1) * GAP);
     const sheetH = Math.max(200, box.h - 12);
     const sheetW = clipW + 2 * padX;
     return {
@@ -297,6 +297,19 @@ function Reader({ data, docId, startPage, dark, onTheme, onClose, onPdf }: Props
     commitPos(posOfScreen(s));
     if (phone) setChrome(false);
   }, [reduced, posOfScreen, commitPos, phone]);
+
+  const shown = useRef(0);
+  useLayoutEffect(() => {
+    const f = flowRef.current;
+    const from = shown.current;
+    shown.current = screen;
+    if (!f || !anim || from === screen) return;
+    const slide = f.animate(
+      [{ transform: `translateX(${(screen - from) * dims.stride}px)` }, { transform: 'translateX(0)' }],
+      { duration: 260, easing: 'cubic-bezier(.3,.7,.2,1)' },
+    );
+    return () => slide.cancel();
+  }, [screen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const openChapter = useCallback((c: number, where: 'first' | 'last') => {
     pending.current = where === 'last' ? 'last' : 0;
@@ -617,7 +630,9 @@ function Reader({ data, docId, startPage, dark, onTheme, onClose, onPdf }: Props
                 className="bk-flow"
                 style={{
                   width: dims.clipW, height: dims.clipH, columnCount: dims.cols, columnGap: dims.gap,
-                  transform: `translateX(${-screen * dims.stride}px)`, transition: anim ? 'transform 0.26s cubic-bezier(.3,.7,.2,1)' : 'none',
+                  // Resting pages are placed by layout, not by a transform: a transformed layer is drawn
+                  // without sub-pixel text smoothing and looks softer. A turn slides with a transform only while it moves.
+                  left: -screen * dims.stride,
                 }}
               >
                 {blockEls(ix.first[chapter], ix.first[chapter + 1])}
