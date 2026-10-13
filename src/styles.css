@@ -2997,8 +2997,21 @@ html.reading, html.reading body { touch-action: pan-x pan-y; }
 @media (hover: hover) { .side-add:hover:not(:disabled) { background: var(--line); color: var(--ink); } }
 .side-empty { margin: 4px 12px; color: var(--muted); font-size: 0.85rem; line-height: 1.4; }
 .side-foot { margin-top: auto; display: grid; gap: 10px; padding-top: 14px; }
+.side-profile { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 14px; background: color-mix(in srgb, var(--card) 70%, transparent); border: 1px solid var(--line); min-width: 0; }
+.side-profile .avatar { width: 36px; height: 36px; }
+.avatar-wrap { position: relative; flex: none; display: inline-flex; }
+.presence { position: absolute; right: -1px; bottom: -1px; width: 11px; height: 11px; border-radius: 50%; border: 2px solid var(--card); background: #2fb36d; box-shadow: 0 0 0 0 rgba(47, 179, 109, 0.5); }
+.presence.on { animation: presence 2.4s ease-out infinite; }
+.presence.off { background: var(--muted); }
+.presence.warn { background: #e0a23a; }
+@keyframes presence { 0% { box-shadow: 0 0 0 0 rgba(47, 179, 109, 0.5); } 70%, 100% { box-shadow: 0 0 0 7px rgba(47, 179, 109, 0); } }
+@media (prefers-reduced-motion: reduce) { .presence.on { animation: none; } }
+.side-who { display: grid; min-width: 0; line-height: 1.25; }
+.side-who strong { font-size: 0.9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.side-who span { font-size: 0.76rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .side-account { display: flex; align-items: center; gap: 6px; }
 .side-account .sync { flex: 1; min-width: 0; }
+.side-account .sync-chip .avatar { display: none; }
 .side-account .sync-chip, .side-account .google-btn { width: 100%; justify-content: flex-start; }
 .side .sync-menu { top: auto; bottom: calc(100% + 8px); left: 0; right: auto; }
 .side-links { display: flex; gap: 6px; padding: 0 6px; font-size: 0.78rem; color: var(--muted); }

@@ -3,7 +3,7 @@ import { folderColor } from '../lib/folders';
 import type { Folder } from '../lib/types';
 import { BooksIcon, FolderPlusIcon, MarkIcon, MoonIcon, SparkIcon, SunIcon } from './icons';
 import { InstallChip } from './PwaBits';
-import { SyncControl } from './SyncControl';
+import { SideProfile, SyncControl } from './SyncControl';
 
 export type SideTab = 'shelf' | 'notes' | 'tools';
 
@@ -77,6 +77,7 @@ export function Sidebar({
       </nav>
       <div className="side-foot">
         <InstallChip />
+        <SideProfile />
         <div className="side-account">
           <SyncControl />
           <button className="icon-button" onClick={onTheme} aria-label={dark ? 'Switch to day paper' : 'Switch to night paper'} title={dark ? 'Day paper' : 'Night paper'}>

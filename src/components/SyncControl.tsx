@@ -88,6 +88,39 @@ function Avatar({ status }: { status: SyncStatus }) {
 }
 
 /** The shelf's account button: sign in, then sync progress, sync now, sign out. */
+function useOnline() {
+  const [online, setOnline] = useState(() => navigator.onLine);
+  useEffect(() => {
+    const on = () => setOnline(true);
+    const off = () => setOnline(false);
+    window.addEventListener('online', on);
+    window.addEventListener('offline', off);
+    return () => { window.removeEventListener('online', on); window.removeEventListener('offline', off); };
+  }, []);
+  return online;
+}
+
+/** Who is signed in, at the foot of the desktop sidebar: name, email and a dot that is green while online. */
+export function SideProfile() {
+  const status = useSyncStatus();
+  const online = useOnline();
+  if (!status.available || !status.ready || !status.connected) return null;
+  const dot = !online ? 'off' : status.state === 'reauth' || status.state === 'error' ? 'warn' : 'on';
+  const label = { on: 'Online', off: 'Offline', warn: 'Needs attention' }[dot];
+  return (
+    <div className="side-profile" aria-label="Signed in account">
+      <span className="avatar-wrap">
+        <Avatar status={status} />
+        <i className={`presence ${dot}`} role="img" aria-label={label} title={label} />
+      </span>
+      <span className="side-who">
+        <strong>{status.name || status.email}</strong>
+        {status.name && status.email && <span>{status.email}</span>}
+      </span>
+    </div>
+  );
+}
+
 export function SyncControl() {
   const status = useSyncStatus();
   const [open, setOpen] = useState(false);
