@@ -117,9 +117,33 @@ Keyboard: `P` pen, `L` highlighter, `E` eraser (press again to switch off), `Ctr
   the document in IndexedDB, and then searchable. The same words let a
   highlighter pick up the text of a scanned page in the Notes tab.
 
+- **Word, Excel and PowerPoint** (`.docx`, `.xlsx`, `.pptx`): added like any
+  PDF (Add files, or drop them on the page) and converted on the device
+  (`src/lib/office/`, nothing is uploaded) into a normal text PDF, so reading,
+  ink, notes, find, download and sync all work on them. The same file always
+  gives the same PDF (fixed dates and font names), so adding it twice finds the
+  first copy.
+  - Word: styles (headings, bold/italic/underline/colour/highlight, super- and
+    subscript), alignment, indents, bullet and numbered lists, tables (spans,
+    shading, rules, repeated header rows), pictures (cropped ones too) and
+    footnotes (set after the text). Headers, footers and text boxes are left out.
+  - Excel: every visible sheet as a table with a light grid; numbers, dates and
+    percentages are shown as the sheet formats them; wide sheets go landscape,
+    shrink a little, and are split by columns if still too wide. Charts and
+    pictures are left out.
+  - PowerPoint: one page per slide at the slide's size; text takes its size,
+    colour and bullets from the layout and master, plus pictures, tables, simple
+    shapes, lines, and the master/layout decoration. Charts and diagrams show as
+    a labelled empty box; animations, notes and hidden slides are not included.
+  - Old formats (`.doc`, `.xls`, `.ppt`) and OpenDocument/RTF are refused with a
+    hint to save as the newer format.
+  - Fonts: Reader Sans/Serif/Mono (`public/fonts/`, trimmed and renamed copies
+    of Carlito and Liberation under the SIL OFL, made by
+    `scripts/make-office-fonts.py`) are fetched on first use so Turkish letters
+    and the like come out right. They are not precached.
+
 ## Not built yet
 
-- Word, Excel and PowerPoint files (only PDF opens today).
 - Paid unlock, app-store builds (the PWA above is the first step: a Play listing can wrap it).
 - Android and iOS apps. When they are built, bring over everything the web
   app does, including hold-to-straighten for the highlighter (hold ~350 ms,

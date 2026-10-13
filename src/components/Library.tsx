@@ -481,7 +481,7 @@ export function Library(props: Props) {
   const addButton = (
     <button className="button add-button" disabled={busy} onClick={() => input.current?.click()}>
       <UploadIcon />
-      <span>{busy ? 'Adding…' : 'Add PDFs'}</span>
+      <span>{busy ? 'Adding…' : 'Add files'}</span>
     </button>
   );
 
@@ -709,7 +709,7 @@ export function Library(props: Props) {
       <input
         ref={input}
         type="file"
-        accept="application/pdf,.pdf"
+        accept="application/pdf,.pdf,.docx,.xlsx,.pptx,.docm,.xlsm,.pptm,.ppsx,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.presentationml.presentation"
         multiple
         hidden
         onChange={(e) => { take(e.target.files); e.target.value = ''; }}
@@ -902,14 +902,14 @@ export function Library(props: Props) {
             // An empty library gets a big, friendly place to start.
             <div className={`dropzone${dragging ? ' over' : ''}${busy ? ' busy' : ''}`}>
               <span className="drop-icon"><UploadIcon /></span>
-              <p className="drop-title">{busy ? 'Adding to your library…' : 'Drop PDFs here'}</p>
+              <p className="drop-title">{busy ? 'Adding to your library…' : 'Drop PDFs, Word, Excel or PowerPoint files here'}</p>
               <button className="button" disabled={busy} onClick={() => input.current?.click()}>
                 Choose files
               </button>
               <button className="chip-button" disabled={busy} aria-label="New note" onClick={() => { setNoteError(null); setNewNote(true); }}>
                 <PencilIcon /> Or start a blank note
               </button>
-              <p className="drop-note">You can pick several at once. Word, Excel and PowerPoint support is coming next.</p>
+              <p className="drop-note">You can pick several at once. Word, Excel and PowerPoint files are turned into PDFs on your device.</p>
             </div>
           )}
 
@@ -974,7 +974,7 @@ export function Library(props: Props) {
               ) : null}
               {current && shown.length === 0 && (
                 <p className="empty-note empty-folder">
-                  This folder is empty. Add PDFs, drop them anywhere on this page, or move documents here with
+                  This folder is empty. Add files, drop them anywhere on this page, or move documents here with
                   the folder button on each one.
                 </p>
               )}
@@ -1012,7 +1012,7 @@ export function Library(props: Props) {
         <div className="drop-overlay" aria-hidden="true">
           <div className="drop-overlay-card">
             <UploadIcon />
-            <p>{current ? `Drop to add to “${current.name}”` : 'Drop PDFs to add them'}</p>
+            <p>{current ? `Drop to add to “${current.name}”` : 'Drop files to add them'}</p>
           </div>
         </div>
       )}

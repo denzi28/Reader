@@ -3,18 +3,23 @@ import { makeThumbnail, openPdfFile } from './pdf';
 import { getMeta, patchMeta, putDocFile, putMeta, requestPersistence, saveDoc } from './storage';
 import type { DocMeta } from './types';
 
-export const UNSUPPORTED =
-  'Only PDF files can be opened for now. Word, Excel and PowerPoint are on the way.';
+export const UNSUPPORTED = 'Only PDF, Word, Excel and PowerPoint files can be added.';
 
 function looksLikePdf(buf: ArrayBuffer) {
   const head = new TextDecoder('latin1').decode(buf.slice(0, 1024));
   return head.includes('%PDF-');
 }
 
-/** Adds a PDF to the library, filed in `folder` when one is given. */
-export async function importPdf(file: File, folder?: string, options: { localOnly?: boolean } = {}): Promise<DocMeta> {
-  const buf = await file.arrayBuffer();
-  if (!looksLikePdf(buf)) throw new Error(UNSUPPORTED);
+/** Adds a PDF (or a Word, Excel or PowerPoint file, made into one) to the library, filed in `folder` when one is given. */
+export async function importPdf(original: File, folder?: string, options: { localOnly?: boolean } = {}): Promise<DocMeta> {
+  let file = original;
+  let buf = await file.arrayBuffer();
+  if (!looksLikePdf(buf)) {
+    const { officeKind, unsupportedReason, convertOffice } = await import('./office');
+    if (!officeKind(file)) throw new Error(unsupportedReason(file) ?? UNSUPPORTED);
+    file = await convertOffice(file);
+    buf = await file.arrayBuffer();
+  }
 
   const id = await fileId(buf);
   const existing = await getMeta(id);
