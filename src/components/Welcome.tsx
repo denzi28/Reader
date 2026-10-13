@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { MoonIcon, SunIcon } from './icons';
 import { InkArt, PhoneMirror, PrivacyArt, SyncArt } from './landing/Art';
 import { delay, PenScene } from './landing/PenScene';
+import { ToolChips } from './landing/ToolChips';
 import { GoogleButton } from './SyncControl';
 
 interface Props {
@@ -77,6 +78,7 @@ export function Welcome({ onSkip, dark, onTheme }: Props) {
 
       <header className="landing-nav">
         <span className="landing-brand"><Logo /> The Reader</span>
+        <ToolChips onTry={onSkip} />
         <div className="landing-nav-actions">
           <button className="link nav-link" onClick={onSkip}>Open without an account</button>
           <button
