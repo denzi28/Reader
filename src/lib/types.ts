@@ -44,6 +44,8 @@ export interface DocMeta {
   starred?: boolean;
   /** Kept on this device only: never sent to Google Drive. */
   localOnly?: boolean;
+  /** Made here as an empty notebook to write on; it opens with the pen in hand. */
+  notebook?: boolean;
 }
 
 export interface Folder {

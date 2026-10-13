@@ -14,6 +14,8 @@ import {
   TrashIcon, UploadIcon,
 } from './icons';
 import { Cover } from './Cover';
+import type { NotebookSpec } from '../lib/notebookSpec';
+import { NewNote } from './NewNote';
 import { ToolMenu, type ToolId } from './toolList';
 import { SyncControl } from './SyncControl';
 
@@ -278,6 +280,9 @@ export function Library(props: Props) {
   const [dropOn, setDropOn] = useState<string | null>(null);
   const [query, setQuery] = useState(lastQuery);
   const [toolMenu, setToolMenu] = useState(false);
+  const [newNote, setNewNote] = useState(false);
+  const [makingNote, setMakingNote] = useState(false);
+  const [noteError, setNoteError] = useState<string | null>(null);
   const [tool, setTool] = useState<ToolId | null>(null);
   const [tab, setTabState] = useState(lastTab);
   const setTab = (t: 'shelf' | 'notes') => { lastTab = t; setTabState(t); };
@@ -330,6 +335,25 @@ export function Library(props: Props) {
   const pickTool = (id: ToolId) => {
     setToolMenu(false);
     setTool(id);
+  };
+
+  /** Makes an empty notebook (in the open folder, if any) and opens it, pen in hand. */
+  const createNote = async (spec: NotebookSpec) => {
+    setMakingNote(true);
+    setNoteError(null);
+    try {
+      const [{ makeNotebook }, { importPdf }] = await Promise.all([import('../lib/blankPdf'), import('../lib/importPdf')]);
+      const file = await makeNotebook(spec);
+      const made = await importPdf(file, current?.id, {});
+      await patchMeta(made.id, { notebook: true });
+      setNewNote(false);
+      void refresh();
+      onOpen(made.id);
+    } catch (err) {
+      setNoteError(err instanceof Error ? err.message : 'The note could not be made.');
+    } finally {
+      setMakingNote(false);
+    }
   };
 
   const refresh = () =>
@@ -784,6 +808,10 @@ export function Library(props: Props) {
               <kbd className="search-key" aria-hidden="true">/</kbd>
             )}
           </div>
+          <button className="tools-button note-button" onClick={() => { setNoteError(null); setNewNote(true); }} aria-label="New note" title="New note: an empty notebook to write on">
+            <PencilIcon />
+            <span>New note</span>
+          </button>
           <button className="tools-button" onClick={openToolMenu} aria-label="PDF tools" title="PDF tools: merge, split, crop, edit">
             <SparkIcon />
             <span>PDF tools</span>
@@ -859,6 +887,9 @@ export function Library(props: Props) {
               <p className="drop-title">{busy ? 'Adding to your library…' : 'Drop PDFs here'}</p>
               <button className="button" disabled={busy} onClick={() => input.current?.click()}>
                 Choose files
+              </button>
+              <button className="chip-button" disabled={busy} aria-label="New note" onClick={() => { setNoteError(null); setNewNote(true); }}>
+                <PencilIcon /> Or start a blank note
               </button>
               <p className="drop-note">You can pick several at once. Word, Excel and PowerPoint support is coming next.</p>
             </div>
@@ -938,6 +969,7 @@ export function Library(props: Props) {
       )}
 
       {toolMenu && <ToolMenu onPick={pickTool} onClose={closeTools} />}
+      {newNote && <NewNote busy={makingNote} error={noteError} onCreate={(spec) => void createNote(spec)} onClose={() => setNewNote(false)} />}
       {tool && (
         <Suspense fallback={<div className="workspace"><div className="tool-backdrop" /><div className="tool-sheet"><div className="note-loading" /></div></div>}>
           <PdfTools

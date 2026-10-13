@@ -2678,3 +2678,20 @@ button.page-tile:active .page-tile-img { transform: scale(0.97); }
 
 .note-snippet.typed { --hl: var(--accent); color: var(--ink); font-style: italic; }
 .sel-menu { width: max-content; }
+
+/* ---- a new notebook ---- */
+.newnote { display: grid; gap: 0.9rem; max-width: 460px; }
+.newnote .tool-menu-head { margin-bottom: 0; }
+.papers { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.6rem; }
+.paper { display: grid; justify-items: center; gap: 0.35rem; padding: 0.5rem 0.2rem 0.4rem; border: 2px solid transparent; border-radius: 14px; background: transparent; font-size: 0.8rem; font-weight: 600; color: var(--muted); transition: border-color 0.2s, background 0.2s, transform 0.25s var(--spring); }
+.paper:hover { background: var(--line); }
+.paper.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); color: var(--ink); transform: translateY(-2px); }
+.paper-art { width: 44px; height: 56px; filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.25)); }
+.paper-sheet { fill: var(--page); stroke: var(--line); }
+.paper-rule { stroke: #a9b6cf; stroke-width: 0.8; }
+.paper-margin { stroke: #e39595; stroke-width: 0.8; }
+.paper-dot { fill: #8a96ad; }
+.newnote-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.7rem; }
+.newnote-row .segmented { margin: 0; }
+.newnote-go { width: 100%; }
+@media (max-width: 420px) { .papers { gap: 0.3rem; } }

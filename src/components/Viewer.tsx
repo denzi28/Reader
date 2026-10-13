@@ -158,6 +158,8 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose }: Props) {
       }
       if (cancelled) return;
       setMeta(m);
+      // A fresh notebook is for writing: the pen is in hand.
+      if (m.notebook && !Object.values(saved).some((list) => list.length)) setToolRaw('pen');
       setInk(saved);
       setPdf(doc);
       setSizes(guess);
