@@ -3337,10 +3337,8 @@ html.reading, html.reading body { touch-action: pan-x pan-y; }
 .view-list .cover-book:hover { transform: translateY(-50%); }
 .library.phone .view-list .cover-book { right: 2.8rem; }
 
-/* eye comfort: a warm tint that comes down over the whole screen */
-.bk-shield { position: fixed; inset: 0; z-index: 100; pointer-events: none; background: #ff9a3c; mix-blend-mode: multiply; animation: bk-shield-in 1.6s ease-out both; }
-@keyframes bk-shield-in { from { transform: translateY(-100%); } to { transform: none; } }
-@media (prefers-reduced-motion: reduce) { .bk-shield { animation: none; } }
+/* eye comfort: a warm tint over the whole screen */
+.bk-shield { position: fixed; inset: 0; z-index: 100; pointer-events: none; background: #ff9a3c; mix-blend-mode: multiply; }
 .bk-comfort { display: grid; gap: 10px; }
 .bk-switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; border-radius: 14px; background: var(--bk-card); border: 1px solid var(--bk-line); cursor: pointer; }
 .bk-panel-pop .bk-switch { background: var(--bk-bg); }
@@ -3407,3 +3405,26 @@ html.reading, html.reading body { touch-action: pan-x pan-y; }
 .bk-pages .bk-spread { position: relative; inset: auto; flex: none; margin: auto; padding: var(--bk-pad, 8px); }
 .bk-zoom { min-width: 54px; height: 32px; padding: 0 8px; border: 0; border-radius: 16px; background: color-mix(in srgb, var(--bk-ink) 8%, transparent); color: var(--bk-ink); font-size: 0.82rem; font-variant-numeric: tabular-nums; cursor: pointer; }
 .bk-fits { display: flex; gap: 8px; margin-top: 8px; }
+
+/* scanned pages in one long strip to scroll through */
+.bk-pages .bk-view.strip { display: block; touch-action: pan-x pan-y; cursor: auto; }
+.bk-pages .bk-view.strip.zoomed { cursor: grab; }
+.bk-strip { position: relative; margin: 0 auto; }
+.bk-slot { position: absolute; left: 0; right: 0; }
+.bk-slot .bk-pg { margin: 0; }
+
+/* "these pages are pictures; read them into text": a line that says so, without having to ask */
+.bk-offer {
+  position: absolute; z-index: 6; left: 50%; top: calc(var(--bk-top) + env(safe-area-inset-top) + 6px); transform: translateX(-50%);
+  width: max-content; max-width: calc(100% - 20px); display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px 10px;
+  padding: 8px 10px 8px 14px; border-radius: 18px; background: var(--bk-card); color: var(--bk-ink); border: 1px solid var(--bk-line); box-shadow: var(--bk-shadow); font-size: 0.82rem; line-height: 1.35;
+  animation: bk-pop 0.25s var(--ease) both;
+}
+.bk-offer-text b { font-weight: 700; }
+.bk-offer .button small { margin-left: 6px; font-weight: 400; opacity: 0.85; font-size: 0.74rem; }
+.bk-offer-x { width: 28px; height: 28px; display: grid; place-items: center; border: 0; border-radius: 50%; background: none; color: var(--bk-muted); cursor: pointer; }
+.bk-offer-x svg { width: 16px; height: 16px; }
+.bk-pill { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border: 0; border-radius: 17px; background: color-mix(in srgb, var(--bk-accent) 16%, transparent); color: var(--bk-accent); font-size: 0.82rem; font-weight: 600; cursor: pointer; }
+.bk-pill svg { width: 16px; height: 16px; }
+.bk-phone .bk-offer { text-align: left; }
+.bk-offer ~ .bk-scan { display: none; }

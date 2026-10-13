@@ -102,9 +102,7 @@ export function ReadingPanel({ settings, change, themeNow, wide, onPdf, imageOnl
         </>
       )}
       <div className="bk-lab">{wide || imageOnly ? 'Layout' : 'Turning pages'}</div>
-      {imageOnly ? (wide ? (
-        <Seg label="Layout" value={settings.spread} options={[['one', 'One page'], ['two', 'Two pages']]} onPick={(spread) => change({ spread })} />
-      ) : <p className="bk-empty" style={{ margin: 0 }}>One page at a time.</p>) : wide ? (
+      {wide ? (
         <Seg label="Layout" value={settings.flow === 'scroll' ? 'scroll' : settings.spread}
           options={[['one', 'One page'], ['two', 'Two pages'], ['scroll', 'Scroll']]}
           onPick={(v) => (v === 'scroll' ? change({ flow: 'scroll' }) : change({ flow: 'pages', spread: v }))} />
