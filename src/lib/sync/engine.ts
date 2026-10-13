@@ -450,6 +450,21 @@ async function syncCover(t: string, s: Staged) {
   }
 }
 
+async function pageCountOf(blob: Blob): Promise<number> {
+  const { PDFDocument } = await import('pdf-lib');
+  return (await PDFDocument.load(await blob.arrayBuffer(), { updateMetadata: false })).getPageCount();
+}
+
+/** Takes another device's longer PDF as this one's, and makes the record say so. */
+async function adoptRemotePdf(id: string, blob: Blob) {
+  const file = new Blob([blob], { type: 'application/pdf' });
+  await storage.putDocFile(id, file);
+  const pages = await pageCountOf(file).catch(() => 0);
+  const meta = await storage.getMeta(id);
+  if (meta && pages && (meta.pages !== pages || meta.size !== file.size)) await storage.patchMeta(id, { pages, size: file.size });
+  pdfListeners.get(id)?.forEach((fn) => fn());
+}
+
 /** Step 3: the PDF (sent once) and the ink, merged stroke by stroke. */
 async function syncContent(t: string, s: Staged) {
   const { id, rec, g, forceInk } = s;
@@ -464,16 +479,27 @@ async function syncContent(t: string, s: Staged) {
     // A page was added here: the copy in Drive is replaced.
     const file = await storage.getDocFile(id);
     if (file) {
-      const f = await drive.updateFile(t, g.pdf.id, new Blob([file], { type: 'application/pdf' }));
-      rec.pdfSeen = f.modifiedTime;
+      let send = true;
+      if (rec.pdfSeen && g.pdf.modifiedTime !== rec.pdfSeen) {
+        // Another device changed it meanwhile. Pages added on both sides are blank copies of
+        // each other, so the longer file has everything: it is kept, here and in Drive.
+        const remote = await drive.downloadBlob(t, g.pdf.id);
+        if ((await pageCountOf(remote)) >= (await pageCountOf(file))) {
+          await adoptRemotePdf(id, remote);
+          rec.pdfSeen = g.pdf.modifiedTime;
+          send = false;
+        }
+      }
+      if (send) {
+        const f = await drive.updateFile(t, g.pdf.id, new Blob([file], { type: 'application/pdf' }));
+        rec.pdfSeen = f.modifiedTime;
+      }
       rec.pdfDirty = false;
     }
   } else if (rec.pdfSeen && g.pdf.modifiedTime !== rec.pdfSeen) {
     // Another device replaced it. A copy kept here is brought up to date.
     if (await storage.getDocFile(id)) {
-      const blob = await drive.downloadBlob(t, g.pdf.id);
-      await storage.putDocFile(id, new Blob([blob], { type: 'application/pdf' }));
-      pdfListeners.get(id)?.forEach((fn) => fn());
+      await adoptRemotePdf(id, await drive.downloadBlob(t, g.pdf.id));
     }
     rec.pdfSeen = g.pdf.modifiedTime;
   } else if (!rec.pdfSeen) {
