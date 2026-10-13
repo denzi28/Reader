@@ -25,6 +25,19 @@ your device.
   number of marks on each document, starred documents, folders shown with
   their covers in a colour of your choice, and sorting by recently opened,
   added, name or progress in a grid or a list.
+- **PDF tools** (the *PDF tools* button on the shelf), all done on the device,
+  nothing is uploaded: **merge** several PDFs, **split** one (page ranges,
+  every N pages, or pick pages; several results come as one ZIP), **crop**
+  margins with a draggable frame (or "trim to content"), and **edit pages**
+  (reorder, rotate, delete, duplicate, add blank pages). A file picked from the
+  device is worked on without being added to the library. The result is held
+  until the reader decides: *Download* first asks "Save to your account?"
+  (Yes, save and download / No, just download), and leaving with a result
+  neither saved nor downloaded asks for confirmation. When saving, the reader
+  can choose to bring the notes made on the original along (placed correctly on
+  cropped, rotated and renumbered pages) and, when signed in, to keep the new
+  file on this device only, off Google Drive (such files show a small badge and
+  can be synced later from their folder menu).
 - **Notes**: every highlight and pen mark in one place, page by page. For
   highlights, the text under them is read from the PDF and quoted. A note
   opens its page; "Copy all" gives the notes as text, and the page prints

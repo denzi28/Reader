@@ -36,6 +36,8 @@ export interface DocMeta {
   folder?: string;
   /** Starred by the user, to keep it at the top of the shelf. */
   starred?: boolean;
+  /** Kept on this device only: never sent to Google Drive. */
+  localOnly?: boolean;
 }
 
 export interface Folder {

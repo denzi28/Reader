@@ -536,8 +536,11 @@ export function syncAll() {
       const files = await drive.listFiles(t);
       await syncFolders(t, files);
       const groups = groupFiles(files);
-      const locals = new Map((await storage.listAllMeta()).map((m) => [m.id, m]));
-      const ids = [...new Set([...groups.keys(), ...locals.keys()])];
+      // Documents kept on this device only are left out of syncing altogether.
+      const all = await storage.listAllMeta();
+      const keep = new Set(all.filter((m) => m.localOnly).map((m) => m.id));
+      const locals = new Map(all.filter((m) => !m.localOnly).map((m) => [m.id, m]));
+      const ids = [...new Set([...groups.keys(), ...locals.keys()])].filter((id) => !keep.has(id));
       // Many documents at once. Every record comes first (so the shelf fills
       // straight away), then covers, then ink and uploads.
       let done = 0;
@@ -569,8 +572,10 @@ export function syncDoc(id: string) {
       const t = await token();
       if (!t) return;
       setStatus({ state: 'syncing', message: undefined });
+      const local = await storage.getMeta(id);
+      if (local?.localOnly) return synced();
       const groups = groupFiles(await drive.listFiles(t, id));
-      await syncOne(t, id, groups.get(id), await storage.getMeta(id));
+      await syncOne(t, id, groups.get(id), local);
       synced();
     } catch (err) {
       fail(err);

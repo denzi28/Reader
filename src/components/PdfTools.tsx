@@ -1,0 +1,532 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { importPdf } from '../lib/importPdf';
+import { movedStrokes, type PageMove } from '../lib/carryNotes';
+import { mergePdfs, pageCount, parseRanges, splitPdf } from '../lib/pdfOps';
+import { createFolder, getMarkCounts, loadInk, recordInkEdit } from '../lib/storage';
+import { makeZip } from '../lib/zip';
+import type { DocMeta } from '../lib/types';
+import { CropTool } from './CropTool';
+import { Cover } from './Cover';
+import { ArrowIcon, CheckIcon, CloseIcon, CloudOffIcon, DownloadIcon, FileIcon, FolderIcon, MarkIcon, PlusIcon, UploadIcon } from './icons';
+import { OrganizeTool } from './OrganizeTool';
+import { TOOLS, type ToolId } from './toolList';
+import {
+  Busy, cleanName, DocList, errorText, fileOf, Notice, NotesAsk, type OutputSpec, PageThumb, PickOne, plural,
+  SaveOption, Shell, usePdf, type ToolContext, type ToolDoc,
+} from './toolKit';
+
+interface Props {
+  tool: ToolId;
+  docs: DocMeta[];
+  folderOf: (d: DocMeta) => string | null;
+  onClose: () => void;
+  /** Signed in to Google: saved files sync, unless kept on the device. */
+  signedIn: boolean;
+  /** The library changed (documents or folders were added). */
+  onChanged: () => void;
+  onOpen: (id: string) => void;
+}
+
+interface Finished {
+  title: string;
+  outputs: OutputSpec[];
+}
+
+/** The documents the tools work on, and the screens they go through. */
+export default function PdfTools({ tool, docs, folderOf, onClose, signedIn, onChanged, onOpen }: Props) {
+  const [finished, setFinished] = useState<Finished | null>(null);
+  const ctx: ToolContext = useMemo(() => ({ docs, folderOf, finish: setFinished }), [docs, folderOf]);
+  if (finished) {
+    return <Ready tool={tool} finished={finished} signedIn={signedIn} onClose={onClose} onChanged={onChanged} onOpen={onOpen} />;
+  }
+  return tool === 'merge' ? <MergeTool ctx={ctx} onClose={onClose} />
+    : tool === 'split' ? <SplitTool ctx={ctx} onClose={onClose} />
+    : tool === 'crop' ? <CropTool ctx={ctx} onClose={onClose} />
+    : <OrganizeTool ctx={ctx} onClose={onClose} />;
+}
+
+// ---- the finished PDFs: download them, and choose whether to keep them --------------------------
+const LOCAL_KEY = 'reader.tools.local';
+const size = (bytes: number) => (bytes > 1e6 ? `${(bytes / 1e6).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1e3))} KB`);
+
+function saveFile(blob: Blob, name: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}
+
+type Then = { kind: 'none' } | { kind: 'download'; index: number } | { kind: 'zip' } | { kind: 'open'; index: number };
+type Dialog = null | { step: 'save' | 'notes' | 'discard'; then: Then };
+
+interface Row {
+  spec: OutputSpec;
+  saved?: DocMeta;
+  carried?: number;
+  downloaded?: boolean;
+}
+
+function Ready({ tool, finished, signedIn, onClose, onChanged, onOpen }: {
+  tool: ToolId;
+  finished: Finished;
+  signedIn: boolean;
+  onClose: () => void;
+  onChanged: () => void;
+  onOpen: (id: string) => void;
+}) {
+  const meta = TOOLS.find((t) => t.id === tool)!;
+  const [rows, setRows] = useState<Row[]>(() => finished.outputs.map((spec) => ({ spec })));
+  const [dialog, setDialog] = useState<Dialog>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [declined, setDeclined] = useState(false);
+  const [marks, setMarks] = useState(0);
+  const [localOn, setLocalOn] = useState(() => {
+    try { return localStorage.getItem(LOCAL_KEY) === '1'; } catch { return false; }
+  });
+  const localOnly = signedIn && localOn;
+  const setLocal = (v: boolean) => {
+    setLocalOn(v);
+    try { localStorage.setItem(LOCAL_KEY, v ? '1' : '0'); } catch { /* ignore */ }
+  };
+  const many = rows.length > 1;
+  const unsaved = rows.filter((r) => !r.saved);
+  const where = signedIn ? 'your account' : 'your library';
+
+  // How many marks the originals hold, for asking whether they should come along.
+  useEffect(() => {
+    const ids = [...new Set(finished.outputs.flatMap((o) => o.sources.map((s) => s.docId)))];
+    let gone = false;
+    void getMarkCounts(ids).then((m) => { if (!gone) setMarks([...m.values()].reduce((a, b) => a + b, 0)); });
+    return () => { gone = true; };
+  }, [finished]);
+
+  const toBlob = (r: Row) => new Blob([r.spec.bytes as BlobPart], { type: 'application/pdf' });
+  const fileName = (r: Row) => `${cleanName(r.spec.name)}.pdf`;
+  const markDownloaded = (indexes: number[]) => setRows((cur) => cur.map((r, i) => (indexes.includes(i) ? { ...r, downloaded: true } : r)));
+
+  const perform = (then: Then, list: Row[]) => {
+    if (then.kind === 'download') {
+      saveFile(toBlob(list[then.index]), fileName(list[then.index]));
+      markDownloaded([then.index]);
+    } else if (then.kind === 'zip') {
+      saveFile(makeZip(list.map((r) => ({ name: fileName(r), bytes: r.spec.bytes }))), `${cleanName(finished.outputs[0].newFolder ?? finished.title)}.zip`);
+      markDownloaded(list.map((_, i) => i));
+    } else if (then.kind === 'open') {
+      const saved = list[then.index].saved;
+      if (saved) onOpen(saved.id);
+    }
+  };
+
+  /** Puts every unsaved file in the library, with its notes if asked. */
+  const save = async (bring: boolean, then: Then) => {
+    setDialog(null);
+    setError(null);
+    setBusy('Saving…');
+    try {
+      const folders = new Map<string, string>();
+      const next = [...rows];
+      for (const [i, row] of next.entries()) {
+        if (row.saved) continue;
+        let folder = row.spec.folder;
+        if (row.spec.newFolder) {
+          if (!folders.has(row.spec.newFolder)) folders.set(row.spec.newFolder, (await createFolder(row.spec.newFolder)).id);
+          folder = folders.get(row.spec.newFolder)!;
+        }
+        const file = new File([row.spec.bytes as BlobPart], fileName(row), { type: 'application/pdf' });
+        const saved = await importPdf(file, folder ?? undefined, { localOnly });
+        let carried = 0;
+        if (bring) {
+          for (const src of row.spec.sources) {
+            const ink = await loadInk(src.docId);
+            for (const { page, strokes } of movedStrokes(ink, src.moves as PageMove[])) {
+              await recordInkEdit(saved.id, page, [], strokes);
+              carried += strokes.length;
+            }
+          }
+        }
+        next[i] = { ...row, saved, carried };
+      }
+      setRows(next);
+      onChanged();
+      setBusy(null);
+      perform(then, next);
+    } catch (err) {
+      setError(errorText(err));
+      setBusy(null);
+    }
+  };
+
+  /** Starts an action; files not yet kept raise the "save to your account?" question first. */
+  const act = (then: Then) => {
+    const needsSave = then.kind === 'open' ? !rows[then.index].saved : unsaved.length > 0 && !declined && then.kind !== 'none';
+    if (then.kind === 'none' && unsaved.length === 0) return;
+    if (then.kind === 'none' || needsSave) setDialog({ step: 'save', then });
+    else perform(then, rows);
+  };
+  const answer = (yes: boolean, then: Then) => {
+    if (!yes) {
+      setDeclined(true);
+      setDialog(null);
+      perform(then, rows);
+    } else if (marks > 0) {
+      setDialog({ step: 'notes', then });
+    } else {
+      void save(false, then);
+    }
+  };
+
+  const leave = () => {
+    if (rows.some((r) => !r.saved && !r.downloaded)) setDialog({ step: 'discard', then: { kind: 'none' } });
+    else onClose();
+  };
+
+  const then = dialog?.then;
+  const downloads = then && (then.kind === 'download' || then.kind === 'zip');
+
+  return (
+    <Shell title={many ? 'Your new PDFs' : 'Your new PDF'} subtitle={finished.title} color={meta.color} onClose={leave}
+      footer={<button className="button" onClick={leave}>Back to library</button>}>
+      {busy && <Busy label={busy} />}
+      {error && <Notice>{error}</Notice>}
+
+      <div className="tool-done">
+        <span className="tool-done-check"><CheckIcon /></span>
+        <h3>{finished.title}</h3>
+        <ul className="tool-done-list">
+          {rows.map((r, i) => (
+            <li key={i}>
+              <span className="docrow-cover">{r.saved ? <Cover meta={r.saved} /> : <span className="cover-fallback"><FileIcon /></span>}</span>
+              <span className="docrow-text">
+                <span className="docrow-name">{r.spec.name}</span>
+                <span className="docrow-meta">{plural(r.spec.pages, 'page', 'pages')} · {size(r.spec.bytes.length)}</span>
+                {r.saved && (
+                  <span className="docrow-status">
+                    {r.saved.localOnly ? <CloudOffIcon /> : <CheckIcon />}
+                    {r.saved.localOnly ? 'Saved on this device only' : signedIn ? 'Saved to your account' : 'Saved to your library'}
+                    {!!r.carried && <> · <MarkIcon /> {plural(r.carried, 'mark', 'marks')} came along</>}
+                  </span>
+                )}
+              </span>
+              <button className="chip-button" onClick={() => act({ kind: 'download', index: i })} aria-label={`Download ${r.spec.name}`}>
+                <DownloadIcon /> Download
+              </button>
+              <button className="chip-button chip-primary" onClick={() => act({ kind: 'open', index: i })} aria-label={`Open ${r.spec.name}`}>
+                Open <ArrowIcon />
+              </button>
+            </li>
+          ))}
+        </ul>
+        {many && (
+          <button className="chip-button" onClick={() => act({ kind: 'zip' })}>
+            <DownloadIcon /> Download all as one ZIP
+          </button>
+        )}
+        {rows[0].spec.newFolder && unsaved.length > 0 && (
+          <p className="tool-done-folder"><FolderIcon /> They will go in a new folder, “{rows[0].spec.newFolder}”</p>
+        )}
+        {unsaved.length > 0 && (
+          <div className="keep-card">
+            <div>
+              <strong>Not saved yet</strong>
+              <p>Keep {many ? 'these' : 'this'} in {where} to read {many ? 'them' : 'it'} here, mark {many ? 'them' : 'it'} up and find {many ? 'them' : 'it'} on your other devices.</p>
+            </div>
+            <button className="button button-small" onClick={() => act({ kind: 'none' })}>Save to {where}</button>
+          </div>
+        )}
+      </div>
+
+      {dialog?.step === 'save' && then && (
+        <div className="tool-busy tool-ask" role="alertdialog" aria-label={`Save to ${where}?`}>
+          <div className="tool-ask-card">
+            <span className="tool-ask-icon save"><CheckIcon /></span>
+            <h3>Save to {where}?</h3>
+            <p>
+              {signedIn
+                ? `Add the new ${many ? 'PDFs' : 'PDF'} to your account, so ${many ? 'they are' : 'it is'} on all your devices.`
+                : `Add the new ${many ? 'PDFs' : 'PDF'} to your library on this device.`}
+            </p>
+            <SaveOption signedIn={signedIn} localOnly={localOnly} onChange={setLocal} />
+            <button className="button" onClick={() => answer(true, then)}>
+              {then.kind === 'open' ? 'Save and open' : downloads ? 'Yes, save and download' : 'Yes, save'}
+            </button>
+            {downloads && <button className="chip-button" onClick={() => answer(false, then)}>No, just download</button>}
+            <button className="link" onClick={() => setDialog(null)}>Cancel</button>
+          </div>
+        </div>
+      )}
+      {dialog?.step === 'notes' && then && (
+        <NotesAsk marks={marks} plural={many} onChoose={(b) => void save(b, then)} onCancel={() => setDialog({ step: 'save', then })} />
+      )}
+      {dialog?.step === 'discard' && (
+        <div className="tool-busy tool-ask" role="alertdialog" aria-label="Leave without keeping it?">
+          <div className="tool-ask-card">
+            <span className="tool-ask-icon warn"><CloseIcon /></span>
+            <h3>Leave without keeping {many ? 'them' : 'it'}?</h3>
+            <p>The new {many ? 'PDFs have' : 'PDF has'} not been saved or downloaded. {many ? 'They' : 'It'} will be lost.</p>
+            <button className="button" onClick={() => setDialog(null)}>Stay</button>
+            <button className="chip-button" onClick={onClose}>Leave without saving</button>
+          </div>
+        </div>
+      )}
+    </Shell>
+  );
+}
+
+// ---- merge ---------------------------------------------------------------------
+interface Item {
+  key: string;
+  name: string;
+  pages?: number;
+  doc?: DocMeta;
+  blob?: Blob;
+}
+
+function MergeTool({ ctx, onClose }: { ctx: ToolContext; onClose: () => void }) {
+  const [items, setItems] = useState<Item[]>([]);
+  const [name, setName] = useState('');
+  const [busy, setBusy] = useState<{ label: string; fraction?: number } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const input = useRef<HTMLInputElement>(null);
+
+  const taken = new Set(items.flatMap((i) => (i.doc ? [i.doc.id] : [])));
+  const available = ctx.docs.filter((d) => !taken.has(d.id));
+  const total = items.reduce((n, i) => n + (i.pages ?? 0), 0);
+  const suggested = items.length ? `${items[0].name} + ${items.length - 1} more` : 'Merged document';
+  const shownName = name || (items.length > 1 ? suggested : 'Merged document');
+
+  const add = (d: DocMeta) => setItems((cur) => [...cur, { key: d.id, name: d.name, pages: d.pages, doc: d }]);
+  const move = (i: number, by: number) => setItems((cur) => {
+    const next = [...cur];
+    const j = i + by;
+    if (j < 0 || j >= next.length) return cur;
+    [next[i], next[j]] = [next[j], next[i]];
+    return next;
+  });
+  const addFiles = (files: FileList | null) => {
+    for (const file of [...(files ?? [])]) {
+      const key = `f${Date.now()}${Math.random().toString(36).slice(2, 6)}`;
+      setItems((cur) => [...cur, { key, name: file.name.replace(/\.pdf$/i, ''), blob: file }]);
+      void pageCount(file).then((pages) => setItems((cur) => cur.map((x) => (x.key === key ? { ...x, pages } : x)))).catch(() => undefined);
+    }
+  };
+
+  const run = async () => {
+    setError(null);
+    setBusy({ label: 'Reading your documents…' });
+    try {
+      const sources = [];
+      for (const i of items) sources.push({ blob: i.blob ?? (await fileOf(i.doc!)), name: i.name });
+      const { bytes, counts } = await mergePdfs(sources, (done, all) => setBusy({ label: `Joining ${done} of ${all}…`, fraction: done / all }));
+      const folders = new Set(items.map((i) => (i.doc ? ctx.folderOf(i.doc) : null)));
+      const folder = folders.size === 1 ? [...folders][0] : null;
+      // Where each page of each library document lands, in case the notes are brought along.
+      let offset = 0;
+      const from: OutputSpec['sources'] = [];
+      for (const [i, it] of items.entries()) {
+        if (it.doc) from.push({ docId: it.doc.id, moves: Array.from({ length: counts[i] }, (_, p) => ({ from: p, to: offset + p })) });
+        offset += counts[i];
+      }
+      ctx.finish({
+        title: `Merged ${items.length} documents into one`,
+        outputs: [{ name: shownName, bytes, pages: offset, folder, sources: from }],
+      });
+    } catch (err) {
+      setError(errorText(err));
+      setBusy(null);
+    }
+  };
+
+  return (
+    <Shell
+      title="Merge PDFs"
+      subtitle="Documents are joined in the order below"
+      color="blue"
+      onClose={onClose}
+      footer={
+        <button className="button" disabled={items.length < 2 || !!busy} onClick={() => void run()}>
+          {items.length < 2 ? 'Choose at least two documents' : `Merge ${items.length} documents${total ? ` · ${plural(total, 'page', 'pages')}` : ''}`}
+        </button>
+      }
+    >
+      {busy && <Busy {...busy} />}
+      {error && <Notice>{error}</Notice>}
+
+      <section className="tool-section">
+        <h3 className="tool-label">Order</h3>
+        {items.length === 0 ? (
+          <p className="empty-note">Tap documents below to add them. They are joined top to bottom.</p>
+        ) : (
+          <ol className="merge-order">
+            {items.map((it, i) => (
+              <li key={it.key} className="merge-item">
+                <span className="merge-num">{i + 1}</span>
+                <span className="docrow-cover">{it.doc ? <Cover meta={it.doc} /> : <span className="cover-fallback"><UploadIcon /></span>}</span>
+                <span className="docrow-text">
+                  <span className="docrow-name">{it.name}</span>
+                  <span className="docrow-meta">{it.pages ? plural(it.pages, 'page', 'pages') : 'from this device'}</span>
+                </span>
+                <button className="icon-button" onClick={() => move(i, -1)} disabled={i === 0} aria-label={`Move ${it.name} up in the order`}><span className="flip"><ArrowIcon /></span></button>
+                <button className="icon-button" onClick={() => move(i, 1)} disabled={i === items.length - 1} aria-label={`Move ${it.name} down in the order`}><span className="down"><ArrowIcon /></span></button>
+                <button className="icon-button" onClick={() => setItems((cur) => cur.filter((x) => x.key !== it.key))} aria-label={`Take ${it.name} out of the list`}><CloseIcon /></button>
+              </li>
+            ))}
+          </ol>
+        )}
+        {items.length > 1 && (
+          <label className="tool-field">
+            <span>Name of the new document</span>
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder={suggested} maxLength={120} />
+          </label>
+        )}
+      </section>
+
+      <section className="tool-section">
+        <h3 className="tool-label">Add documents</h3>
+        <DocList docs={available} onPick={add} empty={ctx.docs.length ? 'Everything is already in the list.' : 'Add a PDF to your library first.'} badge={() => <span className="docrow-plus"><PlusIcon /></span>} />
+        <button className="chip-button pick-device" onClick={() => input.current?.click()}>
+          <UploadIcon /> Add files from this device
+        </button>
+        <input ref={input} type="file" accept="application/pdf,.pdf" multiple hidden onChange={(e) => { addFiles(e.target.files); e.target.value = ''; }} />
+      </section>
+    </Shell>
+  );
+}
+
+// ---- split ---------------------------------------------------------------------
+type SplitMode = 'ranges' | 'every' | 'extract';
+
+function SplitTool({ ctx, onClose }: { ctx: ToolContext; onClose: () => void }) {
+  const [doc, setDoc] = useState<ToolDoc | null>(null);
+  if (!doc) return <PickOne ctx={ctx} tool="split" onPick={setDoc} onClose={onClose} />;
+  return <SplitOptions ctx={ctx} doc={doc} onBack={() => setDoc(null)} onClose={onClose} />;
+}
+
+function SplitOptions({ ctx, doc, onBack, onClose }: { ctx: ToolContext; doc: ToolDoc; onBack: () => void; onClose: () => void }) {
+  const { pdf, error: loadError } = usePdf(doc);
+  const [mode, setMode] = useState<SplitMode>('ranges');
+  const [text, setText] = useState('');
+  const [every, setEvery] = useState(1);
+  const [picked, setPicked] = useState<Set<number>>(new Set());
+  const [busy, setBusy] = useState<{ label: string; fraction?: number } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const pages = doc.pages;
+
+  // What the current settings would make.
+  const plan = useMemo(() => {
+    try {
+      if (mode === 'ranges') {
+        if (!text.trim()) return { groups: [] as number[][], problem: null as string | null };
+        return { groups: parseRanges(text, pages), problem: null };
+      }
+      if (mode === 'every') {
+        const n = Math.max(1, Math.min(pages, Math.floor(every) || 1));
+        const groups: number[][] = [];
+        for (let s = 0; s < pages; s += n) groups.push(Array.from({ length: Math.min(n, pages - s) }, (_, k) => s + k));
+        return { groups, problem: null };
+      }
+      return { groups: picked.size ? [[...picked].sort((a, b) => a - b)] : [], problem: null };
+    } catch (err) {
+      return { groups: [], problem: errorText(err) };
+    }
+  }, [mode, text, every, picked, pages]);
+
+  const label = (g: number[]) =>
+    mode === 'extract' ? `${doc.name} (selected pages)`
+      : g.length === 1 ? `${doc.name} (page ${g[0] + 1})`
+      : `${doc.name} (pages ${g[0] + 1}-${g[g.length - 1] + 1})`;
+
+  const run = async () => {
+    setError(null);
+    setBusy({ label: 'Reading the document…' });
+    try {
+      const blob = await fileOf(doc);
+      const parts = await splitPdf(blob, plan.groups, (done, all) => setBusy({ label: `Cutting ${done} of ${all}…`, fraction: done / all }));
+      const several = parts.length > 1;
+      ctx.finish({
+        title: several ? `Split into ${parts.length} PDFs` : `Pulled out ${plural(plan.groups[0].length, 'page', 'pages')}`,
+        outputs: parts.map((bytes, i) => ({
+          name: label(plan.groups[i]),
+          bytes,
+          pages: plan.groups[i].length,
+          folder: several ? null : ctx.folderOf(doc),
+          newFolder: several ? `${doc.name} (split)` : undefined,
+          sources: doc.temp ? [] : [{ docId: doc.id, moves: plan.groups[i].map((from, to) => ({ from, to })) }],
+        })),
+      });
+    } catch (err) {
+      setError(errorText(err));
+      setBusy(null);
+    }
+  };
+
+  const files = plan.groups.length;
+  const cta = !files ? (mode === 'extract' ? 'Tap the pages to pull out' : 'Set how to split') : mode === 'extract' ? `Extract ${plural(picked.size, 'page', 'pages')}` : `Split into ${plural(files, 'file', 'files')}`;
+
+  return (
+    <Shell title="Split" subtitle={`${doc.name} · ${plural(pages, 'page', 'pages')}`} color="red" onBack={onBack} onClose={onClose}
+      footer={<button className="button" disabled={!files || !!busy} onClick={() => void run()}>{cta}</button>}>
+      {busy && <Busy {...busy} />}
+      {(error || loadError) && <Notice>{error ?? loadError}</Notice>}
+
+      <div className="segmented" role="tablist" aria-label="How to split">
+        {([['ranges', 'Page ranges'], ['every', 'Every N pages'], ['extract', 'Pick pages']] as const).map(([id, text]) => (
+          <button key={id} role="tab" aria-selected={mode === id} className={mode === id ? 'on' : ''} onClick={() => setMode(id)}>{text}</button>
+        ))}
+      </div>
+
+      {mode === 'ranges' && (
+        <section className="tool-section">
+          <label className="tool-field">
+            <span>Pages for each new document, separated by commas</span>
+            <input value={text} onChange={(e) => setText(e.target.value)} placeholder="1-3, 5, 8-10" inputMode="text" autoComplete="off" spellCheck={false} />
+          </label>
+          {plan.problem ? <Notice>{plan.problem}</Notice> : files > 0 && <p className="tool-hint">{plural(files, 'document', 'documents')} will be made: {plan.groups.map((g) => (g.length === 1 ? `p. ${g[0] + 1}` : `pp. ${g[0] + 1}–${g[g.length - 1] + 1}`)).join(' · ')}</p>}
+        </section>
+      )}
+
+      {mode === 'every' && (
+        <section className="tool-section">
+          <div className="stepper">
+            <button className="icon-button" onClick={() => setEvery((n) => Math.max(1, n - 1))} aria-label="Fewer pages">−</button>
+            <label>
+              <span className="sr-only">Pages in each document</span>
+              <input type="number" min={1} max={pages} value={every} onChange={(e) => setEvery(Number(e.target.value))} />
+            </label>
+            <span className="stepper-unit">{every === 1 ? 'page' : 'pages'} in each</span>
+            <button className="icon-button" onClick={() => setEvery((n) => Math.min(pages, n + 1))} aria-label="More pages">+</button>
+          </div>
+          <p className="tool-hint">{files > 0 && `${plural(files, 'document', 'documents')} will be made.`}</p>
+        </section>
+      )}
+
+      {mode === 'extract' && (
+        <section className="tool-section">
+          <div className="tool-bar">
+            <span className="tool-hint">{plural(picked.size, 'page', 'pages')} selected</span>
+            <span className="tool-bar-actions">
+              <button className="link" onClick={() => setPicked(new Set(Array.from({ length: pages }, (_, i) => i)))}>All</button>
+              <button className="link" onClick={() => setPicked(new Set())}>None</button>
+            </span>
+          </div>
+          <ul className="page-grid">
+            {Array.from({ length: pages }, (_, i) => (
+              <li key={i}>
+                <button className={`page-tile${picked.has(i) ? ' on' : ''}`} aria-pressed={picked.has(i)} aria-label={`Page ${i + 1}`}
+                  onClick={() => setPicked((cur) => { const next = new Set(cur); if (!next.delete(i)) next.add(i); return next; })}>
+                  <span className="page-tile-img"><PageThumb pdf={pdf} page={i} /></span>
+                  <span className="page-tile-num">{i + 1}</span>
+                  {picked.has(i) && <span className="page-tile-check"><CheckIcon /></span>}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+    </Shell>
+  );
+}

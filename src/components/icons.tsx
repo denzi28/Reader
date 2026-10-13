@@ -203,3 +203,57 @@ export const ChevronIcon = () => (
     <path d="M7 10l5 5 5-5" />
   </Icon>
 );
+export const MergeIcon = () => (
+  <Icon>
+    <path d="M6 4v5a4 4 0 0 0 4 4h4a4 4 0 0 0 4-4V4" />
+    <path d="M12 13v7M9 17.5l3 3 3-3" />
+  </Icon>
+);
+export const SplitIcon = () => (
+  <Icon>
+    <path d="M12 20v-6" />
+    <path d="M12 14c0-3-6-3-6-8M12 14c0-3 6-3 6-8" />
+    <path d="M3.5 8.5L6 6l2.5 2.5M15.5 8.5L18 6l2.5 2.5" />
+  </Icon>
+);
+export const CropIcon = () => (
+  <Icon>
+    <path d="M7 3v14h14M3 7h14v14" />
+  </Icon>
+);
+export const EditPagesIcon = () => (
+  <Icon>
+    <path d="M13 4H6.5A1.5 1.5 0 0 0 5 5.5v13A1.5 1.5 0 0 0 6.5 20H11" />
+    <path d="M13 4l4 4v2" />
+    <path d="M12.5 19.5l.8-2.8 6-6a1.6 1.6 0 0 1 2.3 2.3l-6 6z" />
+  </Icon>
+);
+export const SparkIcon = () => (
+  <Icon>
+    <path d="M11 3l1.8 4.7L17.5 9.5l-4.7 1.8L11 16l-1.8-4.7L4.5 9.5l4.7-1.8z" />
+    <path d="M18 15l.8 2.2L21 18l-2.2.8L18 21l-.8-2.2L15 18l2.2-.8z" />
+  </Icon>
+);
+export const RotateLeftIcon = () => (
+  <Icon>
+    <path d="M5 11a7.5 7.5 0 1 1 2.3 5.4" />
+    <path d="M4.5 5.5V11H10" />
+  </Icon>
+);
+export const RotateRightIcon = () => (
+  <Icon>
+    <path d="M19 11a7.5 7.5 0 1 0-2.3 5.4" />
+    <path d="M19.5 5.5V11H14" />
+  </Icon>
+);
+export const DownloadIcon = () => (
+  <Icon>
+    <path d="M12 4v11M7.5 11L12 15.5 16.5 11M5 20h14" />
+  </Icon>
+);
+export const CloudOffIcon = () => (
+  <Icon>
+    <path d="M7 18a4.5 4.5 0 0 1-.6-8.96M10 6.4A6 6 0 0 1 18 9.5a4.25 4.25 0 0 1 1.5 7.4M4 4l16 16" />
+    <path d="M9.5 18H17" />
+  </Icon>
+);

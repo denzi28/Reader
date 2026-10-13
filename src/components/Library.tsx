@@ -10,9 +10,11 @@ import { downloadPdf } from '../lib/sync/engine';
 import { useDownloadProgress, useSyncStatus } from '../lib/sync/useSync';
 import type { DocMeta, Folder } from '../lib/types';
 import {
-  ArrowIcon, BackIcon, BooksIcon, GridIcon, ListIcon, MarkIcon, StarIcon, CheckIcon, CloseIcon, CloudIcon, FileIcon, FolderIcon, FolderMoveIcon, FolderPlusIcon, MoonIcon, PencilIcon, SearchIcon, SunIcon,
+  ArrowIcon, BackIcon, CloudOffIcon, SparkIcon, BooksIcon, GridIcon, ListIcon, MarkIcon, StarIcon, CheckIcon, CloseIcon, CloudIcon, FileIcon, FolderIcon, FolderMoveIcon, FolderPlusIcon, MoonIcon, PencilIcon, SearchIcon, SunIcon,
   TrashIcon, UploadIcon,
 } from './icons';
+import { Cover } from './Cover';
+import { ToolMenu, type ToolId } from './toolList';
 import { SyncControl } from './SyncControl';
 
 interface Props {
@@ -41,29 +43,6 @@ function ago(ts: number) {
   return days === 1 ? 'yesterday' : `${days} days ago`;
 }
 
-// Each shelf refresh reads the covers afresh from storage; keeping one picture
-// address per cover means the browser decodes each cover only once.
-const coverUrls = new Map<string, string>();
-function coverUrl(meta: DocMeta) {
-  const thumb = meta.thumb;
-  if (!thumb) return undefined;
-  const key = `${meta.id}:${thumb.size}:${thumb.type}`;
-  let url = coverUrls.get(key);
-  if (!url) {
-    url = URL.createObjectURL(thumb);
-    coverUrls.set(key, url);
-  }
-  return url;
-}
-
-function Cover({ meta }: { meta: DocMeta }) {
-  const url = coverUrl(meta);
-  return url ? (
-    <img src={url} alt="" draggable={false} decoding="async" loading="lazy" />
-  ) : (
-    <span className="cover-fallback"><FileIcon /></span>
-  );
-}
 
 type SortBy = 'opened' | 'added' | 'name' | 'progress';
 const SORTS: { id: SortBy; label: string }[] = [
@@ -120,6 +99,8 @@ function Progress({ doc, className = '' }: { doc: DocMeta; className?: string })
 
 // The notes page reads PDFs, so it comes with the PDF engine, when first opened.
 const Notes = lazy(() => import('./Notes').then((m) => ({ default: m.Notes })));
+// The PDF tools (merge, split, crop, edit) and their library come on first use.
+const PdfTools = lazy(() => import('./PdfTools'));
 // The shelf's tab, kept while the app is open (coming back from a document).
 let lastTab: 'shelf' | 'notes' = 'shelf';
 
@@ -178,8 +159,10 @@ function NameField({ initial = '', label, onSave, onCancel }: {
 }
 
 /** Where a document can be moved: the shelf, any folder, or a new folder. */
-function MoveMenu({ doc, folders, current, anchor, onMove, onClose }: {
+function MoveMenu({ doc, folders, current, anchor, onMove, onClose, onSyncOn }: {
   doc: DocMeta;
+  /** For a document kept off Drive: start syncing it. */
+  onSyncOn?: () => void;
   /** The button that opened it; the menu hangs below it (on phones it is a sheet). */
   anchor: DOMRect;
   folders: Folder[];
@@ -261,6 +244,12 @@ function MoveMenu({ doc, folders, current, anchor, onMove, onClose }: {
             <span>New folder…</span>
           </button>
         )}
+        {onSyncOn && (
+          <button className="move-option move-sync" onClick={onSyncOn}>
+            <CloudOffIcon />
+            <span>Only on this device. Sync with Google Drive</span>
+          </button>
+        )}
       </div>
     </>,
     document.body,
@@ -288,6 +277,8 @@ export function Library(props: Props) {
   const [moving, setMoving] = useState<{ id: string; anchor: DOMRect } | null>(null);
   const [dropOn, setDropOn] = useState<string | null>(null);
   const [query, setQuery] = useState(lastQuery);
+  const [toolMenu, setToolMenu] = useState(false);
+  const [tool, setTool] = useState<ToolId | null>(null);
   const [tab, setTabState] = useState(lastTab);
   const setTab = (t: 'shelf' | 'notes') => { lastTab = t; setTabState(t); };
   const [markCounts, setMarkCounts] = useState<Map<string, number>>(new Map());
@@ -320,6 +311,26 @@ export function Library(props: Props) {
       void import('../lib/pdf').then((m) => m.warmUp());
     });
   }, []);
+
+  // A tool is a step in the browser history, so the Back button closes it.
+  useEffect(() => {
+    const onPop = () => { if (!history.state?.tool) { setTool(null); setToolMenu(false); } };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+  const openToolMenu = () => {
+    history.pushState({ ...history.state, tool: 1 }, '');
+    setToolMenu(true);
+  };
+  const closeTools = () => {
+    setTool(null);
+    setToolMenu(false);
+    if (history.state?.tool) history.back();
+  };
+  const pickTool = (id: ToolId) => {
+    setToolMenu(false);
+    setTool(id);
+  };
 
   const refresh = () =>
     Promise.all([listDocs(), getFolderLog()])
@@ -508,6 +519,11 @@ export function Library(props: Props) {
               {markCounts.get(d.id)}
             </span>
           )}
+          {d.localOnly && sync.connected && (
+            <span className="cover-local" title="Only on this device: not synced to Google Drive">
+              <CloudOffIcon />
+            </span>
+          )}
           {d.cloudOnly && (
             <span className="cover-cloud" title="In your Google Drive; opens after downloading">
               <CloudIcon />
@@ -563,6 +579,11 @@ export function Library(props: Props) {
         <MoveMenu
           doc={d}
           anchor={moving.anchor}
+          onSyncOn={d.localOnly && sync.connected ? async () => {
+            await patchMeta(d.id, { localOnly: undefined });
+            setMoving(null);
+            void refresh();
+          } : undefined}
           folders={folders}
           current={placeOf(d)}
           onMove={(to) => void move(d.id, to)}
@@ -763,6 +784,10 @@ export function Library(props: Props) {
               <kbd className="search-key" aria-hidden="true">/</kbd>
             )}
           </div>
+          <button className="tools-button" onClick={openToolMenu} aria-label="PDF tools" title="PDF tools: merge, split, crop, edit">
+            <SparkIcon />
+            <span>PDF tools</span>
+          </button>
           {addButton}
         </div>
       )}
@@ -910,6 +935,26 @@ export function Library(props: Props) {
             </>
           )}
         </>
+      )}
+
+      {toolMenu && <ToolMenu onPick={pickTool} onClose={closeTools} />}
+      {tool && (
+        <Suspense fallback={<div className="workspace"><div className="tool-backdrop" /><div className="tool-sheet"><div className="note-loading" /></div></div>}>
+          <PdfTools
+            tool={tool}
+            signedIn={sync.connected}
+            docs={docs ?? []}
+            folderOf={placeOf}
+            onClose={closeTools}
+            onChanged={() => void refresh()}
+            onOpen={(id) => {
+              // The tool's history step becomes the shelf's, then the document opens on top.
+              history.replaceState({ ...history.state, tool: undefined }, '');
+              setTool(null);
+              onOpen(id);
+            }}
+          />
+        </Suspense>
       )}
 
       {dragging && (

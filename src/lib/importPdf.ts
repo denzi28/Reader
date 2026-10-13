@@ -12,7 +12,7 @@ function looksLikePdf(buf: ArrayBuffer) {
 }
 
 /** Adds a PDF to the library, filed in `folder` when one is given. */
-export async function importPdf(file: File, folder?: string): Promise<DocMeta> {
+export async function importPdf(file: File, folder?: string, options: { localOnly?: boolean } = {}): Promise<DocMeta> {
   const buf = await file.arrayBuffer();
   if (!looksLikePdf(buf)) throw new Error(UNSUPPORTED);
 
@@ -47,6 +47,7 @@ export async function importPdf(file: File, folder?: string): Promise<DocMeta> {
       openedAt: now,
       lastPage: 0,
       folder,
+      localOnly: options.localOnly || undefined,
       thumb: await makeThumbnail(pdf).catch(() => undefined),
     };
     await saveDoc(meta, new Blob([buf], { type: 'application/pdf' }));
