@@ -790,7 +790,7 @@ function Reader({ data, docId, startPage, dark, onTheme, onClose, onPdf, scan, o
         )}
       </div>
 
-      {scan && (
+      {scan && !phone && (
         <div className="bk-scan" role="status" aria-label={`Reading the pages, ${scan.done} of ${scan.total}`}><span>{scan.done}/{scan.total}</span></div>
       )}
 
@@ -798,11 +798,11 @@ function Reader({ data, docId, startPage, dark, onTheme, onClose, onPdf, scan, o
         <div className="bk-progress">
           {scrub !== null && <div className="bk-scrub" aria-hidden="true">{scrubTitle}</div>}
           {slider}
-          <div className="bk-labels"><span>{pageLabel}</span><span>{Math.round(shownFrac * 100)}% · {formatLeft(bookLeft)}</span></div>
+          <div className="bk-labels"><span>{pageLabel}</span>{scan && phone && <span className="bk-scanchip" role="status" aria-label={`Reading the pages, ${scan.done} of ${scan.total}`}>{scan.done}/{scan.total}</span>}<span>{Math.round(shownFrac * 100)}% · {formatLeft(bookLeft)}</span></div>
         </div>
         {phone && toolRow}
       </footer>
-      {phone && !showChrome && <div className="bk-status" aria-hidden="true"><span>{title}</span><span>{paged ? `${pageLabel} · ` : ''}{Math.round(frac * 100)}%</span></div>}
+      {phone && !showChrome && <div className="bk-status"><span>{title}</span>{scan && phone && <span className="bk-scanchip" role="status" aria-label={`Reading the pages, ${scan.done} of ${scan.total}`}>{scan.done}/{scan.total}</span>}<span>{paged ? `${pageLabel} · ` : ''}{Math.round(frac * 100)}%</span></div>}
 
       {picked && !panel && (
         <MarkBar rect={picked.rect} area={{ width: box.w, height: window.innerHeight }} mode="select" onColor={(c) => highlight(c)} onNote={() => highlight('yellow', true)} onCopy={copyPicked} />

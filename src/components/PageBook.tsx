@@ -564,7 +564,7 @@ export function PageBook({ docId, startPage, dark, onTheme, onClose, onPdf, scan
         </div>
       )}
 
-      {scan && (
+      {scan && !phone && (
         <div className="bk-scan" role="status" aria-label={`Reading the pages, ${scan.done} of ${scan.total}. The text opens in a moment.`}><span>{scan.done}/{scan.total}</span></div>
       )}
 
@@ -578,11 +578,11 @@ export function PageBook({ docId, startPage, dark, onTheme, onClose, onPdf, scan
             onPointerUp={commitScrub} onKeyUp={commitScrub} onBlur={() => setScrub(null)}
             style={{ ['--p' as string]: `${shown * 100}%` }}
           />
-          <div className="bk-labels"><span>{pageLabel}</span><span>{Math.round(shown * 100)}%</span></div>
+          <div className="bk-labels"><span>{pageLabel}</span>{scan && phone && <span className="bk-scanchip" role="status" aria-label={`Reading the pages, ${scan.done} of ${scan.total}. The text opens in a moment.`}>{scan.done}/{scan.total}</span>}<span>{Math.round(shown * 100)}%</span></div>
         </div>
         {phone && toolRow}
       </footer>
-      {phone && !showChrome && <div className="bk-status" aria-hidden="true"><span>{meta?.name}</span><span>{Math.round(frac * 100)}%</span></div>}
+      {phone && !showChrome && <div className="bk-status"><span>{meta?.name}</span>{scan && phone && <span className="bk-scanchip" role="status" aria-label={`Reading the pages, ${scan.done} of ${scan.total}. The text opens in a moment.`}>{scan.done}/{scan.total}</span>}<span>{Math.round(frac * 100)}%</span></div>}
 
       {settings.comfort && <div className="bk-shield" style={{ opacity: settings.warmth / 100 }} aria-hidden="true" />}
 
