@@ -396,3 +396,11 @@ export const ToolsIcon = () => (
     <path d="M20 4 8.12 15.88M14.47 14.48 20 20M8.12 8.12 12 12" />
   </Icon>
 );
+
+export const ImageIcon = () => (
+  <Icon>
+    <rect x="3.5" y="4.5" width="17" height="15" rx="2.5" />
+    <circle cx="9" cy="10" r="1.6" />
+    <path d="M4 17l5-4.5 3.5 3 3-2.5 4.5 4" />
+  </Icon>
+);

@@ -20,6 +20,8 @@ interface Props {
   docs: DocMeta[];
   folderName: (doc: DocMeta) => string | null;
   onOpen: (id: string, page: number) => void;
+  /** Typed notes (docs): listed with their first lines. */
+  typed?: DocMeta[];
 }
 
 /** A highlight made in book mode: the words, the colour, the reader's note, and the PDF page it is on (a PDF book). */
@@ -203,7 +205,7 @@ async function readNotes(id: string): Promise<Loaded> {
   }
 }
 
-export function Notes({ docs, folderName, onOpen }: Props) {
+export function Notes({ docs, folderName, onOpen, typed = [] }: Props) {
   const [loaded, setLoaded] = useState<Map<string, Loaded>>(new Map());
   const [peek, setPeek] = useState<number | null>(null);
   // Documents being brought down from Drive, and the note to show once one is here.
@@ -355,6 +357,32 @@ export function Notes({ docs, folderName, onOpen }: Props) {
     </ol>
   );
 
+  /** The notes typed as docs: a card each, with the first lines. */
+  const docsList = typed.length > 0 && (
+    <section className="note-docs" aria-label={t('Docs')}>
+      <h3>{t('Docs')}</h3>
+      <ul>
+        {typed.map((d) => (
+          <li key={d.id}>
+            <button onClick={() => onOpen(d.id, 0)}>
+              <b>{d.name}</b>
+              {d.preview && <span>{d.preview}</span>}
+              <small>{t('{n} words', { n: d.words ?? 0 })}{folderName(d) ? ` · ${folderName(d)}` : ''}</small>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+
+  if (!docs.length && typed.length) {
+    return (
+      <section className="notes" aria-label={t('Notes')}>
+        <div className="notes-head"><div><h2 className="notes-title">{t('Your notes')}</h2></div></div>
+        {docsList}
+      </section>
+    );
+  }
   if (!docs.length) {
     return (
       <section className="notes-empty">
@@ -374,6 +402,7 @@ export function Notes({ docs, folderName, onOpen }: Props) {
         </div>
       </div>
 
+      {docsList}
       {top.map((d, i) => {
         const l = loaded.get(d.id);
         const isOpen = opened.has(d.id);

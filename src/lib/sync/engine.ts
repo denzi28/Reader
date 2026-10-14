@@ -366,6 +366,8 @@ function groupFiles(files: drive.RemoteFile[]) {
 }
 
 const EPUB_TYPE = 'application/epub+zip';
+const NOTE_TYPE = 'text/markdown';
+const typeOf = (kind?: string) => (kind === 'epub' ? EPUB_TYPE : kind === 'note' ? NOTE_TYPE : 'application/pdf');
 
 const stamp = (m: DocMeta) => m.updatedAt ?? m.openedAt ?? 0;
 
@@ -484,8 +486,21 @@ async function pageCountOf(blob: Blob): Promise<number> {
 
 /** Takes another device's longer PDF as this one's, and makes the record say so. */
 async function adoptRemotePdf(id: string, blob: Blob) {
-  if ((await storage.getMeta(id))?.kind === 'epub') {
+  const kind = (await storage.getMeta(id))?.kind;
+  if (kind === 'epub') {
     await storage.putDocFile(id, new Blob([blob], { type: EPUB_TYPE }));
+    return;
+  }
+  if (kind === 'note') {
+    // A typed note changed on another device: the words here are replaced, and an open editor is told.
+    await storage.putDocFile(id, new Blob([blob], { type: NOTE_TYPE }));
+    const meta = await storage.getMeta(id);
+    if (meta) {
+      const { wordCount } = await import('../typedNote');
+      await storage.putMeta({ ...meta, size: blob.size, words: wordCount(await blob.text()) });
+    }
+    pdfListeners.get(id)?.forEach((fn) => fn());
+    shelfChanged();
     return;
   }
   const file = new Blob([blob], { type: 'application/pdf' });
@@ -516,7 +531,11 @@ async function syncContent(t: string, s: Staged) {
         // Another device changed it meanwhile. Pages added on both sides are blank copies of
         // each other, so the longer file has everything: it is kept, here and in Drive.
         const remote = await drive.downloadBlob(t, g.pdf.id);
-        if ((await pageCountOf(remote)) >= (await pageCountOf(file))) {
+        if ((await storage.getMeta(id))?.kind === 'note') {
+          // Words typed on two devices: what was typed here stays, and the other version is kept as a note of its own.
+          const { keepOtherVersion } = await import('../typedNote');
+          await keepOtherVersion(id, await remote.text(), await file.text());
+        } else if ((await pageCountOf(remote)) >= (await pageCountOf(file))) {
           await adoptRemotePdf(id, remote);
           rec.pdfSeen = g.pdf.modifiedTime;
           send = false;
@@ -543,7 +562,11 @@ async function syncContent(t: string, s: Staged) {
   const unchangedRemote = g.ink ? !forceInk && g.ink.modifiedTime === rec.inkSeen : true;
   if (unchangedRemote) {
     const localStamp = (await storage.getInkStamps([id])).get(id) ?? 0;
-    if (g.ink ? localStamp <= (rec.inkPushed ?? 0) : localStamp === 0) return;
+    if (g.ink ? localStamp <= (rec.inkPushed ?? 0) : localStamp === 0) {
+      // No ink to look at, but the file above may have changed what this device knows of Drive: that is kept.
+      await storage.putSyncRecord(id, rec);
+      return;
+    }
   }
   let remoteLog: InkLog | null = null;
   if (g.ink && (forceInk || g.ink.modifiedTime !== rec.inkSeen)) {
@@ -734,7 +757,7 @@ async function fetchPdf(id: string) {
   if (!pdf) throw new Error(tl('This document is no longer in your Google Drive.'));
   const blob = await drive.downloadWithProgress(t, pdf, (f) => setProgress(id, f));
   const wanted = await storage.getMeta(id);
-  await storage.putDocFile(id, new Blob([blob], { type: wanted?.kind === 'epub' ? EPUB_TYPE : 'application/pdf' }));
+  await storage.putDocFile(id, new Blob([blob], { type: typeOf(wanted?.kind) }));
   const meta = await storage.getMeta(id);
   if (meta) await storage.putMeta({ ...meta, cloudOnly: false });
   shelfChanged();

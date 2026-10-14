@@ -22,7 +22,7 @@ import { Wordmark } from './Wordmark';
 import { AccountMenu } from './SyncControl';
 import { usePhone } from '../lib/usePhone';
 import { Cover } from './Cover';
-import type { NotebookSpec } from '../lib/notebookSpec';
+import type { NoteKind, NotebookSpec } from '../lib/notebookSpec';
 import { DownloadDialog } from './DownloadDialog';
 import { NewNote } from './NewNote';
 import type { ToolId } from './toolList';
@@ -353,12 +353,13 @@ export function Library(props: Props) {
   };
 
   /** Makes an empty notebook (in the open folder, if any) and opens it, pen in hand. */
-  const createNote = async (spec: NotebookSpec) => {
+  const createNote = async (spec: NotebookSpec, kind: NoteKind = 'notebook') => {
     setMakingNote(true);
     setNoteError(null);
     try {
-      const { createNotebook } = await import('../lib/createNote');
-      const made = await createNotebook(spec, { folder: current?.id });
+      const made = kind === 'doc'
+        ? await (await import('../lib/typedNote')).createTypedNote(spec.name, current?.id)
+        : await (await import('../lib/createNote')).createNotebook(spec, { folder: current?.id });
       setNewNote(false);
       void refresh();
       onOpen(made.id);
@@ -582,13 +583,13 @@ export function Library(props: Props) {
         </span>
         <span className="book-name"><Marked text={d.name} ranges={marks} /></span>
         <span className="book-meta">
-          {plural(d.pages, 'page', 'pages')} · {formatSize(d.size)} · {ago(d.openedAt)}
+          {d.kind === 'note' ? t('{n} words', { n: d.words ?? 0 }) : plural(d.pages, 'page', 'pages')} · {formatSize(d.size)} · {ago(d.openedAt)}
         </span>
         {showFolder && placeOf(d) && (
           <span className="book-folder"><FolderIcon />{folderName.get(placeOf(d)!)}</span>
         )}
       </button>
-      {!d.notebook && !d.attached && (
+      {!d.notebook && !d.attached && d.kind !== 'note' && (
         <button className="cover-book" aria-label={t('Read {name} as a book', { name: d.name })} title={t('Read as a book')} disabled={fetching !== null} onClick={() => void openBook(d, 'book')}>
           <BookOpenIcon />
         </button>
@@ -882,12 +883,14 @@ export function Library(props: Props) {
             <Cover meta={resume} />
           </span>
           <span className="resume-text">
-            <span className="resume-eyebrow">{resume.lastPage > 0 ? t('Continue reading') : t('Start reading')}</span>
+            <span className="resume-eyebrow">{resume.kind === 'note' ? t('Continue writing') : resume.lastPage > 0 ? t('Continue reading') : t('Start reading')}</span>
             <span className="resume-title">{resume.name}</span>
             <span className="resume-where">
-              {resume.lastPage > 0
-                ? t('Page {page} of {total}', { page: resume.lastPage + 1, total: resume.pages })
-                : plural(resume.pages, 'page', 'pages')}
+              {resume.kind === 'note'
+                ? t('{n} words', { n: resume.words ?? 0 })
+                : resume.lastPage > 0
+                  ? t('Page {page} of {total}', { page: resume.lastPage + 1, total: resume.pages })
+                  : plural(resume.pages, 'page', 'pages')}
               {placeOf(resume) && <> · <FolderIcon /> {folderName.get(placeOf(resume)!)}</>}
             </span>
             {resume.lastPage > 0 && (
@@ -924,6 +927,7 @@ export function Library(props: Props) {
         <Suspense fallback={<div className="note-loading" />}>
           <Notes
             docs={notesDocs}
+            typed={sortDocs((docs ?? []).filter((d) => d.kind === 'note'), 'opened')}
             folderName={(d) => (placeOf(d) ? folderName.get(placeOf(d)!) ?? null : null)}
             onOpen={(id, page) => onOpen(id, page)}
           />
@@ -1017,14 +1021,14 @@ export function Library(props: Props) {
       )}
 
       {downloading && <DownloadDialog doc={downloading} onClose={() => setDownloading(null)} />}
-      {newNote && <NewNote busy={makingNote} error={noteError} onCreate={(spec) => void createNote(spec)} onClose={() => setNewNote(false)} />}
+      {newNote && <NewNote busy={makingNote} error={noteError} onCreate={(spec, kind) => void createNote(spec, kind)} onClose={() => setNewNote(false)} />}
       {tool && (
         <Suspense fallback={<div className="workspace"><div className="tool-backdrop" /><div className="tool-sheet"><div className="note-loading" /></div></div>}>
           <PdfTools
             tool={tool}
             start={toolStart}
             signedIn={sync.connected}
-            docs={(docs ?? []).filter((d) => d.kind !== 'epub')}
+            docs={(docs ?? []).filter((d) => !d.kind)}
             folderOf={placeOf}
             onClose={closeTools}
             onChanged={() => void refresh()}

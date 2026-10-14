@@ -2,10 +2,12 @@ import { lazy, Suspense, useEffect, useState } from 'react';
 import { BookLoader } from './BookLoader';
 import { t } from '../lib/i18n';
 import { getMeta, patchMeta } from '../lib/storage';
+import { usePhone } from '../lib/usePhone';
 import type { DocMeta } from '../lib/types';
 
 // Each reader is a large download of its own; only the one in use is fetched.
 const Viewer = lazy(() => import('./Viewer').then((m) => ({ default: m.Viewer })));
+const NoteEditor = lazy(() => import('./NoteEditor').then((m) => ({ default: m.NoteEditor })));
 const BookReader = lazy(() => import('./BookReader').then((m) => ({ default: m.BookReader })));
 
 export type DocView = 'book' | 'pdf';
@@ -32,6 +34,7 @@ interface Props {
 /** Opens a document in the reader it asks for: the PDF reader, or book mode (always for an ePub). */
 export function DocScreen({ docId, startPage, view, dark, onTheme, onClose, onOpen, onView }: Props) {
   const [meta, setMeta] = useState<DocMeta | null | undefined>(undefined);
+  const phone = usePhone();
   useEffect(() => {
     let on = true;
     void getMeta(docId).then((m) => { if (on) setMeta(m ?? null); });
@@ -39,6 +42,14 @@ export function DocScreen({ docId, startPage, view, dark, onTheme, onClose, onOp
   }, [docId]);
   if (meta === undefined) return opening;
 
+  // A typed note opens in the editor.
+  if (meta?.kind === 'note') {
+    return (
+      <Suspense fallback={opening}>
+        <NoteEditor docId={docId} dark={dark} onTheme={onTheme} onClose={onClose} phone={phone} />
+      </Suspense>
+    );
+  }
   const epub = meta?.kind === 'epub';
   const mode: DocView = epub ? 'book' : view ?? (meta?.view === 'book' ? 'book' : 'pdf');
   return (

@@ -121,7 +121,7 @@ const DETAIL: Record<ToolId, string> = {
 };
 
 const recent = (docs: DocMeta[]) =>
-  docs.filter((d) => d.kind !== 'epub' && !d.attached).sort((a, b) => b.openedAt - a.openedAt).slice(0, 10);
+  docs.filter((d) => !d.kind && !d.attached).sort((a, b) => b.openedAt - a.openedAt).slice(0, 10);
 
 function DocCover({ d, on, onClick }: { d: DocMeta; on?: boolean; onClick: () => void }) {
   return (

@@ -48,8 +48,11 @@ export interface DocMeta {
   notebook?: boolean;
   /** A note made for one page of a document: it shows beside that page, and that page shows beside it. */
   attached?: { doc: string; page: number; name: string };
-  /** 'epub' when the file is an ePub book; a PDF otherwise. */
-  kind?: 'epub';
+  /** 'epub' when the file is an ePub book, 'note' for a typed note (Markdown text); a PDF otherwise. */
+  kind?: 'epub' | 'note';
+  /** A typed note: its words, and its first lines, for the card on the shelf. */
+  words?: number;
+  preview?: string;
   /** Who wrote it (books). */
   author?: string;
   /** Where the reader was in book mode: block number (over the whole book) and a character in it. */

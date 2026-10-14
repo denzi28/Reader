@@ -35,6 +35,19 @@ your device.
   place. Sync resends the longer PDF (`pdfDirty` on this device's sync record) and
   other devices replace their copy when Drive's `pdf-<id>.pdf` changes, so an open
   note on another device grows live.
+- **Docs (typed notes).** *New note* asks whether to make a **Notebook** (the pen,
+  above) or a **Doc**: a page to type on, like Notion or Word. Headings, bold and
+  italic, bulleted, numbered and to-do lists, quotes, code, dividers and pictures.
+  A `/` on a line opens a menu of blocks that narrows as you type (`/head` finds the
+  three headings; Turkish words work too), and `# `, `- `, `[] `, `> ` work as
+  shortcuts. Pictures are pasted, dropped or picked, made smaller (1600 px, JPEG)
+  and kept inside the note; drag a corner to resize. A doc is **Markdown text**
+  (`kind: 'note'`, in the same slot as a PDF, so the shelf, folders, stars and Drive
+  sync work as for any file; the width of a picture is its title, `leafpage:w=NNN`).
+  It saves as you type. Two devices typing in the same note: this device's words
+  stay and the other version becomes its own note "(other device)". Downloads are
+  Markdown, or a PDF of the words (pictures left out). Docs are listed in Notes.
+  The editor (Tiptap) is loaded only when a doc is opened.
 - **A note for one page.** The note button in a PDF's top bar makes an empty
   notebook dedicated to the page being read. The note says at the top which
   document and page it is for. While you read that page the note waits as a small

@@ -58,6 +58,33 @@ export function DownloadDialog({ doc, onClose }: { doc: DocMeta; onClose: () => 
     }
   };
 
+  /** A typed note goes out as Markdown text, or as a PDF of its words (pictures are left out of the PDF). */
+  const runNote = async (as: 'md' | 'pdf') => {
+    setError(null);
+    try {
+      let file = await getDocFile(doc.id);
+      if (!file) {
+        setBusy(t('Bringing it down from Google Drive…'));
+        await downloadPdf(doc.id);
+        file = await getDocFile(doc.id);
+      }
+      if (!file) throw new Error(t('This document is not on this device yet.'));
+      if (as === 'md') {
+        save(new Blob([await file.text()], { type: 'text/markdown' }), fileName(doc.name, '', 'md'));
+      } else {
+        setBusy(t('Making the PDF…'));
+        const text = (await file.text()).replace(/!\[[^\]]*\]\([^)]*\)/g, '').replace(/^(\s*[-*+]\s+)\[ \]/gm, '$1☐').replace(/^(\s*[-*+]\s+)\[[xX]\]/gm, '$1☑');
+        const { convertOffice } = await import('../lib/office');
+        const pdf = await convertOffice(new File([`# ${doc.name}\n\n${text}`], `${doc.name}.md`, { type: 'text/markdown' }));
+        save(pdf, fileName(doc.name));
+      }
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('It could not be saved.'));
+      setBusy(null);
+    }
+  };
+
   const none = marks === 0;
   const epub = doc.kind === 'epub';
   // A note you made yourself is its writing: the blank paper alone is not what anyone wants.
@@ -77,6 +104,23 @@ export function DownloadDialog({ doc, onClose }: { doc: DocMeta; onClose: () => 
           <div className="download-busy" role="status">
             <BookLoader size={34} label={busy} />
             <p>{busy}</p>
+          </div>
+        ) : doc.kind === 'note' ? (
+          <div className="download-options">
+            <button className="download-option" onClick={() => void runNote('md')}>
+              <span className="download-icon"><DownloadIcon /></span>
+              <span>
+                <strong>{t('Text (Markdown)')}</strong>
+                <small>{t('The note as plain text, with its pictures. Opens in any notes app.')}</small>
+              </span>
+            </button>
+            <button className="download-option" onClick={() => void runNote('pdf')}>
+              <span className="download-icon plain"><DownloadIcon /></span>
+              <span>
+                <strong>{t('PDF')}</strong>
+                <small>{t('The words, headings and lists on pages. Pictures are left out.')}</small>
+              </span>
+            </button>
           </div>
         ) : (
           <div className="download-options">

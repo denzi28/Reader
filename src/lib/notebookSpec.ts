@@ -8,4 +8,7 @@ export interface NotebookSpec {
   pages: number;
 }
 
+/** A new note is either a notebook to write on with the pen, or a doc to type. */
+export type NoteKind = 'notebook' | 'doc';
+
 export const MAX_NOTEBOOK_PAGES = 200;
