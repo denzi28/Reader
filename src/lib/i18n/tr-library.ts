@@ -394,4 +394,5 @@ export const trLibrary: Record<string, string> = {
   'The note as plain text, with its pictures. Opens in any notes app.': 'Not düz metin olarak, resimleriyle birlikte. Her not uygulamasında açılır.',
   'The words, headings and lists on pages. Pictures are left out.': 'Yazılar, başlıklar ve listeler sayfalarda. Resimler dahil edilmez.',
   'Docs': 'Belgeler',
+  'A note that goes with one page. Choose how you want to write.': 'Bir sayfaya özel not. Nasıl yazmak istediğini seç.',
 };

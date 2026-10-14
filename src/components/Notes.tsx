@@ -367,7 +367,7 @@ export function Notes({ docs, folderName, onOpen, typed = [] }: Props) {
             <button onClick={() => onOpen(d.id, 0)}>
               <b>{d.name}</b>
               {d.preview && <span>{d.preview}</span>}
-              <small>{t('{n} words', { n: d.words ?? 0 })}{folderName(d) ? ` · ${folderName(d)}` : ''}</small>
+              <small>{d.attached ? `${t('Dedicated to {name} · page {n}', { name: d.attached.name, n: d.attached.page + 1 })} · ` : ''}{t('{n} words', { n: d.words ?? 0 })}{folderName(d) ? ` · ${folderName(d)}` : ''}</small>
             </button>
           </li>
         ))}

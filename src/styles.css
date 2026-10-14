@@ -3814,3 +3814,10 @@ button.me-row { cursor: pointer; }
 .nt-bar.phone .nt-sep { margin: 0 2px; }
 
 .nt-tools { display: flex; align-items: center; gap: 2px; }
+
+/* the corner card of a typed note: its first lines stand in for a page */
+.link-card-page.typed { background: var(--page); }
+.link-card-words { display: block; width: 100%; height: 100%; padding: 8px 9px; overflow: hidden; font-size: 8.5px; line-height: 1.35; color: var(--muted); text-align: left; }
+.link-card-words b { display: block; margin-bottom: 3px; font-size: 10px; line-height: 1.2; color: var(--ink); }
+
+.nt-for { flex: none; align-self: center; margin: 8px 8px 0; padding: 5px 12px; border: 1px solid var(--line); border-radius: 999px; background: color-mix(in srgb, var(--accent) 9%, var(--card)); color: var(--accent); font: 600 0.8rem var(--sans); max-width: calc(100% - 16px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

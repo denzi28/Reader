@@ -15,6 +15,8 @@ import { onRemotePdf } from '../lib/sync/engine';
 import { readNote, refreshNoteThumb, saveNote, wordCount } from '../lib/typedNote';
 import type { DocMeta } from '../lib/types';
 import { BackIcon, ImageIcon, MoonIcon, SunIcon } from './icons';
+import { LinkCard } from './LinkCard';
+import { LinkStack, loadCorner, type Corner } from './LinkStack';
 
 /** The width of a picture is kept in the Markdown as the picture's title, so the note stays plain, portable text. */
 const WIDTH = /^leafpage:w=(\d+)$/;
@@ -77,13 +79,16 @@ function Toolbar({ editor, onPicture, phone }: { editor: Editor; onPicture: () =
 }
 
 /** A typed note: write with the keyboard (headings, lists, to-dos, pictures); it is saved as Markdown as you go. */
-export function NoteEditor({ docId, dark, onTheme, onClose, phone }: { docId: string; dark: boolean; onTheme: () => void; onClose: () => void; phone: boolean }) {
+export function NoteEditor({ docId, dark, onTheme, onClose, onOpen, phone }: { docId: string; dark: boolean; onTheme: () => void; onClose: () => void; onOpen: (id: string, page?: number) => void; phone: boolean }) {
   const [meta, setMeta] = useState<DocMeta | null | undefined>(undefined);
   const [title, setTitle] = useState('');
   const [status, setStatus] = useState<'saved' | 'saving'>('saved');
   const [words, setWords] = useState(0);
   const [slash, setSlash] = useState<SlashState | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
+  const [target, setTarget] = useState<DocMeta | null>(null);
+  const [cardCorner, setCardCorner] = useState<Corner>(loadCorner);
+  const [cardHidden, setCardHidden] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const dirty = useRef(false);
   const timer = useRef<number>(0);
@@ -171,6 +176,7 @@ export function NoteEditor({ docId, dark, onTheme, onClose, phone }: { docId: st
       if (!on) return;
       setMeta(m);
       setTitle(m?.name ?? '');
+      if (m?.attached) setTarget((await getMeta(m.attached.doc)) ?? null);
       setWords(m?.words ?? 0);
       editorRef.current?.commands.setContent(text, { contentType: 'markdown', emitUpdate: false });
     })();
@@ -237,6 +243,11 @@ export function NoteEditor({ docId, dark, onTheme, onClose, phone }: { docId: st
         <span className="nt-status" role="status">{status === 'saving' ? t('Saving…') : words ? t('{n} words · saved', { n: words }) : t('Saved')}</span>
         <button className="icon-button" onClick={onTheme} aria-label={dark ? t('Switch to day paper') : t('Switch to night paper')}>{dark ? <SunIcon /> : <MoonIcon />}</button>
       </header>
+      {meta?.attached && (
+        <button className="nt-for" onClick={() => onOpen(meta.attached!.doc, meta.attached!.page)} title={t('Go to that page')}>
+          {t('Dedicated to {name} · page {n}', { name: target?.name ?? meta.attached.name, n: meta.attached.page + 1 })}
+        </button>
+      )}
       {editor && !phone && <Toolbar editor={editor} onPicture={pickPicture} phone={false} />}
       <main className="nt-scroll" onClick={(e) => { if (e.target === e.currentTarget) editor?.commands.focus('end'); }}>
         <div className="nt-page">
@@ -244,6 +255,12 @@ export function NoteEditor({ docId, dark, onTheme, onClose, phone }: { docId: st
         </div>
       </main>
       {editor && phone && <Toolbar editor={editor} onPicture={pickPicture} phone />}
+      {meta?.attached && target && !cardHidden && (
+        <LinkStack corner={cardCorner} onCorner={setCardCorner} label={t('The page this note is for')}>
+          <LinkCard doc={target} page={meta.attached.page} label={target.name} sub={t('page {n}', { n: meta.attached.page + 1 })}
+            onOpen={() => onOpen(target.id, meta.attached!.page)} onHide={() => setCardHidden(true)} />
+        </LinkStack>
+      )}
       {slash && slash.items.length > 0 && <SlashMenu state={slash} />}
       {problem && <p className="nt-problem" role="alert" onClick={() => setProblem(null)}>{problem}</p>}
       <input ref={fileInput} type="file" accept="image/*" multiple hidden onChange={(e) => { void addPictures([...(e.target.files ?? [])]); e.target.value = ''; }} />

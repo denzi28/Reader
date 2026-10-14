@@ -46,7 +46,7 @@ export function DocScreen({ docId, startPage, view, dark, onTheme, onClose, onOp
   if (meta?.kind === 'note') {
     return (
       <Suspense fallback={opening}>
-        <NoteEditor docId={docId} dark={dark} onTheme={onTheme} onClose={onClose} phone={phone} />
+        <NoteEditor docId={docId} dark={dark} onTheme={onTheme} onClose={onClose} onOpen={onOpen} phone={phone} />
       </Suspense>
     );
   }

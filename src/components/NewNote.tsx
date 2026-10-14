@@ -73,8 +73,8 @@ export function NewNote({ busy, error, dedicated, onCreate, onClose }: {
     return () => window.removeEventListener('keydown', key);
   }, [onClose]);
   const fallback = dedicated ? t('{name} · p. {page}', { name: dedicated.name, page: dedicated.page }) : t('Untitled note');
-  const go = () => onCreate({ name: name.trim() || fallback, paper, landscape: false, pages: 1 }, dedicated ? 'notebook' : kind);
-  const typed = !dedicated && kind === 'doc';
+  const go = () => onCreate({ name: name.trim() || fallback, paper, landscape: false, pages: 1 }, kind);
+  const typed = kind === 'doc';
 
   return createPortal(
     <div className="tool-menu" role="dialog" aria-modal="true" aria-label={t('New note')}>
@@ -83,7 +83,7 @@ export function NewNote({ busy, error, dedicated, onCreate, onClose }: {
         <header className="tool-menu-head">
           <div>
             <h2>{t('New note')}</h2>
-            <p>{dedicated ? t('An empty notebook that goes with one page.') : t('Choose how you want to write.')}</p>
+            <p>{dedicated ? t('A note that goes with one page. Choose how you want to write.') : t('Choose how you want to write.')}</p>
           </div>
           <button className="icon-button" onClick={onClose} aria-label={t('Close')}><CloseIcon /></button>
         </header>
@@ -95,7 +95,7 @@ export function NewNote({ busy, error, dedicated, onCreate, onClose }: {
             <em>{t('page {page}', { page: dedicated.page })}</em>
           </p>
         )}
-        {!dedicated && (
+        {(
           <div className="kinds" role="radiogroup" aria-label={t('Kind of note')}>
             <button role="radio" aria-checked={kind === 'notebook'} className={`kind${kind === 'notebook' ? ' on' : ''}`} onClick={() => setKind('notebook')}>
               <span className="kind-pic"><PenArt /></span>

@@ -22,9 +22,10 @@ export function LinkCard({ doc, page, label, sub, onOpen, onHide }: {
 }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const [drawn, setDrawn] = useState(false);
+  const typed = doc.kind === 'note';
   useEffect(() => {
     const c = canvas.current;
-    if (!c) return;
+    if (!c || typed) return;
     let gone = false;
     let held = false;
     setDrawn(false);
@@ -45,14 +46,21 @@ export function LinkCard({ doc, page, label, sub, onOpen, onHide }: {
       gone = true;
       if (held) releasePdf(doc.id);
     };
-  }, [doc.id, page, doc.updatedAt]);
+  }, [doc.id, page, doc.updatedAt, typed]);
 
   return (
     <div className="link-card">
       <button className="link-card-open" onClick={onOpen} aria-label={t('{label}, {sub}: open it', { label, sub })} title={`${label} · ${sub}`}>
-        <span className="link-card-page">
-          <canvas ref={canvas} className={drawn ? 'on' : ''} aria-hidden="true" />
-          {!drawn && <span className="link-card-fallback"><Cover meta={doc} /></span>}
+        <span className={`link-card-page${typed ? ' typed' : ''}`}>
+          {typed ? (
+            // A typed note has no page to draw: its first lines stand in for one.
+            <span className="link-card-words">{doc.preview}</span>
+          ) : (
+            <>
+              <canvas ref={canvas} className={drawn ? 'on' : ''} aria-hidden="true" />
+              {!drawn && <span className="link-card-fallback"><Cover meta={doc} /></span>}
+            </>
+          )}
         </span>
         <span className="link-card-text">
           <strong>{label}</strong>

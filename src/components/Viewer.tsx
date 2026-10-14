@@ -6,7 +6,7 @@ import {
 import { t } from '../lib/i18n';
 import { BRUSH_SIZES, TEXT_SIZES } from '../lib/ink';
 import { copies, restyle } from '../lib/inkOps';
-import type { NotebookSpec } from '../lib/notebookSpec';
+import type { NoteKind, NotebookSpec } from '../lib/notebookSpec';
 import { loadPrefs, savePrefs, type ToolPrefs } from '../lib/toolPrefs';
 import { addPage } from '../lib/addPage';
 import { acquirePdf, pageSize, type PageSize, readPageSizes, refreshPdf, releasePdf } from '../lib/pdf';
@@ -976,13 +976,15 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose, onOpen, onBoo
       .slice(0, 3)
       .map((d) => ({ doc: d, page: 0, label: d.name, sub: t('your note') }));
   }, [allDocs, meta, docId, current]);
-  const createDedicated = async (spec: NotebookSpec) => {
+  const createDedicated = async (spec: NotebookSpec, kind: NoteKind = 'notebook') => {
     if (!meta) return;
     setMakingNote(true);
     setNoteError(null);
     try {
-      const { createNotebook } = await import('../lib/createNote');
-      const made = await createNotebook(spec, { folder: meta.folder, attached: { doc: docId, page: currentRef.current, name: meta.name } });
+      const attached = { doc: docId, page: currentRef.current, name: meta.name };
+      const made = kind === 'doc'
+        ? await (await import('../lib/typedNote')).createTypedNote(spec.name, meta.folder, attached)
+        : await (await import('../lib/createNote')).createNotebook(spec, { folder: meta.folder, attached });
       setNoteDialog(false);
       onOpen(made.id);
     } catch (err) {
@@ -1278,7 +1280,7 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose, onOpen, onBoo
       {downloadOpen && meta && <DownloadDialog doc={meta} onClose={() => setDownloadOpen(false)} />}
       {noteDialog && meta && (
         <NewNote busy={makingNote} error={noteError} dedicated={{ name: meta.name, page: current + 1 }}
-          onCreate={(spec) => void createDedicated(spec)} onClose={() => setNoteDialog(false)} />
+          onCreate={(spec, kind) => void createDedicated(spec, kind)} onClose={() => setNoteDialog(false)} />
       )}
 
       {cover !== 'off' && (

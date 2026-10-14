@@ -14,8 +14,8 @@ export const previewOf = (md: string) =>
   md.replace(/<img[^>]*>|!\[[^\]]*\]\([^)]*\)/g, ' ').replace(/^\s{0,3}(#{1,6}|[-*+]|>|\d+\.)\s+(\[[ xX]\]\s+)?/gm, '').replace(/[*_`~]/g, '').replace(/\s+/g, ' ').trim().slice(0, 160);
 
 /** Makes an empty typed note, filed in `folder`. */
-export async function createTypedNote(name: string, folder?: string): Promise<DocMeta> {
-  await assertRoom(); // the free plan keeps a few documents
+export async function createTypedNote(name: string, folder?: string, attached?: DocMeta['attached']): Promise<DocMeta> {
+  if (!attached) await assertRoom(); // the free plan keeps a few documents (a note made for a page is not counted)
   const seed = new Uint8Array(32);
   crypto.getRandomValues(seed);
   const id = await fileId(seed.buffer);
@@ -33,6 +33,7 @@ export async function createTypedNote(name: string, folder?: string): Promise<Do
     openedAt: now,
     lastPage: 0,
     folder,
+    ...(attached ? { attached } : {}),
     thumb: await noteThumbnail(name, text).catch(() => undefined),
   };
   await saveDoc(meta, new Blob([text], { type: NOTE_TYPE }));
