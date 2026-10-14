@@ -252,7 +252,6 @@ export const trLibrary: Record<string, string> = {
   'Back to the welcome page': 'Karşılama sayfasına dön',
   'Free PDF tools': 'Ücretsiz PDF araçları',
   'What would you like to do?': 'Ne yapmak istersin?',
-  'Everything happens on your device. Your files are never uploaded, and you do not need an account.': 'Her şey cihazında olur. Dosyalar asla yüklenmez ve hesap gerekmez.',
   'Want a library of your own?': 'Kendi kütüphaneni ister misin?',
   'Sign in to read and mark up PDFs, keep the ones you make here, and find them on every device.': 'PDF okumak ve işaretlemek, burada yaptıklarını saklamak ve her cihazda bulmak için giriş yap.',
   'Blank': 'Boş',
@@ -415,4 +414,9 @@ export const trLibrary: Record<string, string> = {
   'Get the app': 'Uygulamayı al',
   'Get the Leafpage app': 'Leafpage uygulamasını al',
   'Leafpage now lives in the Google Play app. Install it to read, write and keep your library in your own Drive.': 'Leafpage artık Google Play uygulamasında. Okumak, yazmak ve kütüphaneni kendi Drive\'ında saklamak için yükle.',
+  'Everything happens on your device. Your files are never uploaded.': 'Her şey cihazında olur. Dosyaların asla yüklenmez.',
+  '{n} free tries left. Sign in for no limit.': '{n} ücretsiz deneme hakkın kaldı. Sınırsız için giriş yap.',
+  'Your free tries are used.': 'Ücretsiz denemelerin bitti.',
+  'Keep going, free': 'Ücretsiz devam et',
+  'Sign in with Google to use the PDF tools as much as you like, and keep a library of your own.': 'PDF araçlarını istediğin kadar kullanmak ve kendi kütüphaneni tutmak için Google ile giriş yap.',
 };

@@ -265,6 +265,13 @@ Play" page instead of the app, while the app itself (it starts with the `android
 is remembered) and installed copies get in. `VITE_APP_GATE=all` does the same for every browser; use it only when iPhone and
 computers have an app too. `/?web=1` lets a tester through for the visit. The privacy and terms pages are never gated.
 
+## The PDF tools before sign-in
+
+Someone who has not signed in may finish **2** tool uses on a device (`src/lib/guestUses.ts`, counted in the browser when a
+tool produces its result); after that the tools page shows a "Keep going, free" card with *Continue with Google*, and the
+welcome page's tool chips lead there. It is an invitation, not a lock: clearing the browser's data resets it. Signed-in
+people are not counted.
+
 ## Premium
 
 Premium is bought **only** through Google Play or the App Store (never on the web: the paywall

@@ -29,6 +29,8 @@ interface Props {
   guest?: boolean;
   /** Documents to start from, chosen on the tools page. */
   start?: DocMeta[];
+  /** A tool finished its work (for counting how often someone who is not signed in has used them). */
+  onUsed?: () => void;
   /** The library changed (documents or folders were added). */
   onChanged: () => void;
   onOpen: (id: string) => void;
@@ -40,9 +42,9 @@ interface Finished {
 }
 
 /** The documents the tools work on, and the screens they go through. */
-export default function PdfTools({ tool, docs, folderOf, onClose, signedIn, guest, start, onChanged, onOpen }: Props) {
+export default function PdfTools({ tool, docs, folderOf, onClose, signedIn, guest, start, onUsed, onChanged, onOpen }: Props) {
   const [finished, setFinished] = useState<Finished | null>(null);
-  const ctx: ToolContext = useMemo(() => ({ docs, folderOf, guest, start, finish: setFinished }), [docs, folderOf, guest, start]);
+  const ctx: ToolContext = useMemo(() => ({ docs, folderOf, guest, start, finish: (r) => { onUsed?.(); setFinished(r); } }), [docs, folderOf, guest, start, onUsed]);
   if (finished) {
     return <Ready tool={tool} finished={finished} signedIn={signedIn} guest={guest} onClose={onClose} onChanged={onChanged} onOpen={onOpen} />;
   }
