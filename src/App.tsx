@@ -58,6 +58,9 @@ export function App() {
   // The tools-only page for someone not signed in; a step in the history, so Back leaves it.
   const [guestTools, setGuestTools] = useState<boolean>(() => !!history.state?.tools);
   const sync = useSyncStatus();
+  // How long plain paper may stand in for the answer of the server before the library is shown after all.
+  const [waited, setWaited] = useState(false);
+  useEffect(() => { const id = window.setTimeout(() => setWaited(true), 2500); return () => window.clearTimeout(id); }, []);
 
   // While a document is open the browser must not zoom the whole site (a pinch that
   // starts on a dialog or the bars); the pages have their own zoom.
@@ -165,6 +168,9 @@ export function App() {
   };
 
   // The library is for signed-in people; everyone else gets the welcome page and the tools.
+  // Until the server has said whether there is a session, a signed-out start shows plain paper: the library
+  // must not flash up for a moment, as it did when the language was switched and the page reloaded.
+  if (!docId && sync.available && !sync.connected && !sync.ready && !waited) return <div className="boot-paper" aria-hidden="true" />;
   if (!docId && sync.available && sync.ready && !sync.connected) {
     return guestTools
       ? <GuestTools dark={theme === 'dark'} onTheme={toggleTheme} onBack={closeGuestTools} />
