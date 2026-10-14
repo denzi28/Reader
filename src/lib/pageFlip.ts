@@ -23,6 +23,8 @@ export interface FlipSpec {
   slices?: number;
   /** A picture of the page the leaf lands on (forward) or leaves (backward), kept until the turn is done. */
   cover?: { box: Box; node: HTMLElement };
+  /** Two pages side by side: how wide the shadow in the middle of the book is on each side of it (px). */
+  gutter?: number;
   duration?: number;
 }
 
@@ -34,10 +36,18 @@ const place = (el: HTMLElement, b: Box) => {
   el.style.height = `${b.height}px`;
 };
 
+/** The soft shadow a book has where its pages meet, for the half that belongs to one page. `edge` is the side it hugs. */
+const gutterShade = (width: number, edge: 'left' | 'right') => {
+  const i = document.createElement('i');
+  const dir = edge === 'left' ? '90deg' : '270deg';
+  i.style.cssText = `position:absolute;top:0;bottom:0;${edge}:0;width:${width}px;pointer-events:none;background:linear-gradient(${dir}, rgba(60,40,10,.2), rgba(60,40,10,.1) 12%, rgba(60,40,10,0));`;
+  return i;
+};
+
 const RAD = Math.PI / 180;
 const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 /** Tilting a strip away from the viewer darkens it; the most when it is edge-on. */
-const dim = (deg: number) => 0.04 + 0.42 * (1 - Math.pow(Math.abs(Math.cos(deg * RAD)), 0.8));
+const dim = (deg: number) => 0.46 * (1 - Math.pow(Math.abs(Math.cos(deg * RAD)), 0.8));
 
 /** Runs the turn; resolves when it is over (and everything it added is gone again). */
 export function flipLeaf(spec: FlipSpec): Promise<void> {
@@ -52,6 +62,8 @@ export function flipLeaf(spec: FlipSpec): Promise<void> {
     place(c, cover.box);
     cover.node.style.cssText += ';width:100%;height:100%;display:block;margin:0;';
     c.appendChild(cover.node);
+    // (the page it replaces had the shadow of the middle of the book on it)
+    if (spec.gutter) c.appendChild(gutterShade(spec.gutter, cover.box.left < leaf.left ? 'right' : 'left'));
     wrap.appendChild(c);
   }
 
@@ -80,6 +92,8 @@ export function flipLeaf(spec: FlipSpec): Promise<void> {
       const content = maker(k, S);
       content.style.cssText += ';width:100%;height:100%;display:block;margin:0;box-shadow:none;border-radius:0;';
       f.appendChild(content);
+      // The side of the leaf at the spine carries its share of the shadow in the middle of the book.
+      if (spec.gutter && k === (back ? S - 1 : 0)) f.appendChild(gutterShade(spec.gutter, back ? 'right' : 'left'));
       const shade = document.createElement('i');
       shade.style.cssText = 'position:absolute;inset:0;pointer-events:none;opacity:0;background:rgb(34,20,4);';
       f.appendChild(shade);

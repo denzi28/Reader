@@ -412,7 +412,7 @@ function Reader({ data, docId, startPage, dark, onTheme, onClose, onPdf, scan, o
     const blank = () => { const d = document.createElement('div'); d.className = 'bk-copy'; return d; };
     // A leaf cut into more strips bends better but costs more to draw; a long chapter gets a stiffer leaf.
     const slices = flow.childElementCount <= 200 ? 8 : flow.childElementCount <= 500 ? 4 : 1;
-    const common = { host: sheet, leaf: right, area: { left: 0, top: 0, width: dims.sheetW, height: dims.sheetH }, forward, slices };
+    const common = { host: sheet, leaf: right, area: { left: 0, top: 0, width: dims.sheetW, height: dims.sheetH }, forward, slices, ...(two ? { gutter: 35 } : {}) };
     const spec = two
       ? (forward
         ? { ...common, front: copy(from, 'right'), back: copy(to, 'left'), cover: { box: left, node: copy(from, 'left')() } }

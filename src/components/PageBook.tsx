@@ -372,7 +372,7 @@ export function PageBook({ docId, startPage, dark, onTheme, onClose, onPdf, scan
       return c;
     };
     const area = cols === 2 ? { left: slotL.left, top: slotL.top, width: slotR.left + slotR.width - slotL.left, height: slotL.height } : slotL;
-    const common = { host: sp, leaf: slotR, area, forward, slices: 9 };
+    const common = { host: sp, leaf: slotR, area, forward, slices: 9, ...(cols === 2 ? { gutter: 30 } : {}) };
     let spec: Parameters<typeof flipLeaf>[0];
     if (cols === 2) {
       spec = forward
