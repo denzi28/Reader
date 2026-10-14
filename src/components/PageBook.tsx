@@ -385,8 +385,7 @@ export function PageBook({ docId, startPage, dark, onTheme, onClose, onPdf, scan
         : { ...common, leaf: slotL, front: stripOf(nextFirst), back: stripOf(-1), cover: { box: slotL, node: copyOf(first) } };
     }
     flipping.current = true;
-    view.style.overflow = 'hidden';
-    void flipLeaf({ ...spec, duration: phone ? 620 : 780 }).finally(() => { flipping.current = false; view.style.overflow = ''; });
+    void flipLeaf({ ...spec, clipTo: view, duration: phone ? 620 : 780 }).finally(() => { flipping.current = false; });
   };
 
   const go = useCallback((page: number) => {

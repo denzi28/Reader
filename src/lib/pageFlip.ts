@@ -25,6 +25,11 @@ export interface FlipSpec {
   cover?: { box: Box; node: HTMLElement };
   /** Two pages side by side: how wide the shadow in the middle of the book is on each side of it (px). */
   gutter?: number;
+  /**
+   * Draw the turn over the screen (fixed to where `host` is now), cut off at the edges of this element, instead of
+   * inside `host`: then the turn adds nothing to what `host` scrolls, so no scrollbar comes and goes under it.
+   */
+  clipTo?: HTMLElement;
   duration?: number;
 }
 
@@ -57,6 +62,21 @@ export function flipLeaf(spec: FlipSpec): Promise<void> {
   const sw = leaf.width / S;
   const wrap = document.createElement('div');
   wrap.style.cssText = `position:absolute;inset:0;z-index:5;pointer-events:none;perspective:${Math.round(leaf.width * 4.5)}px;perspective-origin:${Math.round(leaf.left)}px 50%;`;
+  if (spec.clipTo) {
+    const h = host.getBoundingClientRect();
+    const c = spec.clipTo.getBoundingClientRect();
+    const cl = c.left + spec.clipTo.clientLeft;
+    const ct = c.top + spec.clipTo.clientTop;
+    const cr = cl + spec.clipTo.clientWidth;
+    const cb = ct + spec.clipTo.clientHeight;
+    wrap.style.inset = 'auto';
+    wrap.style.position = 'fixed';
+    wrap.style.left = `${h.left}px`;
+    wrap.style.top = `${h.top}px`;
+    wrap.style.width = `${h.width}px`;
+    wrap.style.height = `${h.height}px`;
+    wrap.style.clipPath = `inset(${Math.max(0, ct - h.top)}px ${Math.max(0, h.right - cr)}px ${Math.max(0, h.bottom - cb)}px ${Math.max(0, cl - h.left)}px)`;
+  }
   if (cover) {
     const c = document.createElement('div');
     place(c, cover.box);
@@ -84,7 +104,7 @@ export function flipLeaf(spec: FlipSpec): Promise<void> {
   wrap.appendChild(field);
 
   // The strips: each is hinged on the right edge of the one before.
-  const strips: { el: HTMLElement; shadeA: HTMLElement; shadeB: HTMLElement }[] = [];
+  const strips: { el: HTMLElement; shadeA: HTMLElement; shadeB: HTMLElement; lightA: HTMLElement; lightB: HTMLElement }[] = [];
   let parent: HTMLElement = wrap;
   for (let i = 0; i < S; i++) {
     const el = document.createElement('div');
@@ -103,14 +123,17 @@ export function flipLeaf(spec: FlipSpec): Promise<void> {
       const shade = document.createElement('i');
       shade.style.cssText = 'position:absolute;inset:0;pointer-events:none;opacity:0;background:rgb(34,20,4);';
       f.appendChild(shade);
+      const light = document.createElement('i');
+      light.style.cssText = 'position:absolute;inset:0;pointer-events:none;opacity:0;background:linear-gradient(100deg, rgba(255,250,235,0), rgb(255,250,235) 55%, rgba(255,250,235,0));mix-blend-mode:soft-light;';
+      f.appendChild(light);
       el.appendChild(f);
-      return shade;
+      return { shade, light };
     };
     // (seen from behind, the strip nearest the spine is the one furthest from it on the back page)
-    const shadeA = side(spec.front, i, false);
-    const shadeB = side(spec.back, S - 1 - i, true);
+    const a = side(spec.front, i, false);
+    const b = side(spec.back, S - 1 - i, true);
     parent.appendChild(el);
-    strips.push({ el, shadeA, shadeB });
+    strips.push({ el, shadeA: a.shade, shadeB: b.shade, lightA: a.light, lightB: b.light });
     parent = el;
   }
 
@@ -132,6 +155,11 @@ export function flipLeaf(spec: FlipSpec): Promise<void> {
       const d = dim(phi);
       s.shadeA.style.opacity = String(d);
       s.shadeB.style.opacity = String(d);
+      // A sheen where the paper faces the light: a strip tilted about 55° catches it.
+      const a = Math.abs(phi) > 90 ? 180 - Math.abs(phi) : Math.abs(phi);
+      const sheen = a > 20 && a < 90 ? 0.55 * Math.sin(((a - 20) / 70) * Math.PI) : 0;
+      s.lightA.style.opacity = String(sheen);
+      s.lightB.style.opacity = String(sheen);
       x += sw * Math.cos(phi * RAD);
     });
     // The shadow falls beyond the free edge, on whichever page the leaf is over; it grows with how far the
