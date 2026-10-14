@@ -12,6 +12,7 @@ import type { DocMeta } from '../lib/types';
 import { Cover } from './Cover';
 import { BackIcon, CheckIcon, CloseIcon, MarkIcon, SearchIcon, UploadIcon } from './icons';
 import { TOOLS, type ToolId } from './toolList';
+import { isPhone } from '../lib/usePhone';
 
 /** A document a tool works on: from the library, or a file picked from the device that is not kept. */
 export type ToolDoc = DocMeta & { temp?: Blob };
@@ -211,6 +212,23 @@ export function NotesAsk({ marks, plural: many, onChoose, onCancel }: {
         <button className="link" onClick={onCancel}>{t('Back')}</button>
       </div>
     </div>
+  );
+}
+
+/**
+ * A warning for a lot of data: the tools work on the whole file in the device's memory (a merge of two big files
+ * took about 1.4 GB), which a phone's browser may not have. Nothing is blocked; the reader is told first.
+ */
+export function BigFileNotice({ bytes }: { bytes: number }) {
+  const limit = isPhone() ? 120e6 : 600e6;
+  if (bytes < limit) return null;
+  const mb = Math.round(bytes / 1e6);
+  return (
+    <p className="tool-warn" role="note">
+      {isPhone()
+        ? t('{mb} MB is a lot for a phone. This may be slow, and the browser may close the page. A computer does this better.', { mb })
+        : t('{mb} MB is a lot to work on at once. This may be slow, and the browser may run out of memory.', { mb })}
+    </p>
   );
 }
 

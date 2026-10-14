@@ -324,4 +324,6 @@ export const trBook: Record<string, string> = {
   "“{name}” could not be read.": "“{name}” okunamadı.",
   "“{name}” is not on this device.": "“{name}” bu cihazda değil.",
   "“{part}” is not a page or a range like 3-5.": "“{part}” bir sayfa ya da 3-5 gibi bir aralık değil.",
+  '{mb} MB is a lot for a phone. This may be slow, and the browser may close the page. A computer does this better.': '{mb} MB telefon için çok. Yavaş olabilir ve tarayıcı sayfayı kapatabilir. Bilgisayar bunu daha iyi yapar.',
+  '{mb} MB is a lot to work on at once. This may be slow, and the browser may run out of memory.': '{mb} MB aynı anda işlemek için çok. Yavaş olabilir ve tarayıcının belleği yetmeyebilir.',
 };

@@ -3898,3 +3898,5 @@ button.me-row { cursor: pointer; }
 .gate-go { display: inline-grid; place-items: center; min-height: 52px; margin-top: 8px; padding: 0 28px; text-decoration: none; }
 .gate-note { font-size: 0.85rem; margin-top: 6px !important; }
 .gate-note a { color: var(--muted); }
+
+.tool-warn { margin: 0 0 0.9rem; padding: 10px 14px; border-radius: 12px; background: color-mix(in srgb, #c98a1a 16%, var(--card)); border: 1px solid color-mix(in srgb, #c98a1a 45%, var(--line)); color: var(--ink); font-size: 0.88rem; line-height: 1.45; }

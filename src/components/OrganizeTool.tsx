@@ -4,7 +4,7 @@ import { turnChange, type PageMove } from '../lib/carryNotes';
 import { pageSize } from '../lib/pdf';
 import { arrangePdf } from '../lib/pdfOps';
 import { ArrowIcon, BackIcon, CopyIcon, PlusIcon, RotateLeftIcon, RotateRightIcon, TrashIcon } from './icons';
-import { Busy, errorText, fileOf, Notice, PageThumb, PickOne, plural, Shell, usePdf, type ToolContext, type ToolDoc } from './toolKit';
+import { BigFileNotice, Busy, errorText, fileOf, Notice, PageThumb, PickOne, plural, Shell, usePdf, type ToolContext, type ToolDoc } from './toolKit';
 
 interface Step {
   key: number;
@@ -75,6 +75,7 @@ function Organizer({ ctx, doc, onBack, onClose }: { ctx: ToolContext; doc: ToolD
       footer={<button className="button" disabled={!!busy || !kept.length || !edited} onClick={() => void run()}>
         {!edited ? t('Rotate, move or delete pages to begin') : !kept.length ? t('Keep at least one page') : t('Make a new PDF with {pages}', { pages: plural(kept.length, 'page', 'pages') })}
       </button>}>
+      <BigFileNotice bytes={doc.size} />
       {busy && <Busy label={busy} />}
       {(error || loadError) && <Notice>{error ?? loadError}</Notice>}
 

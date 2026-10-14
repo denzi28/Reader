@@ -5,7 +5,7 @@ import { pageSize } from '../lib/pdf';
 import { loadInk } from '../lib/storage';
 import { cropPdf, type Margins, parseRanges } from '../lib/pdfOps';
 import { BackIcon, ArrowIcon } from './icons';
-import { Busy, drawPage, errorText, fileOf, Notice, PickOne, plural, Shell, usePdf, type ToolContext, type ToolDoc } from './toolKit';
+import { BigFileNotice, Busy, drawPage, errorText, fileOf, Notice, PickOne, plural, Shell, usePdf, type ToolContext, type ToolDoc } from './toolKit';
 
 const MIN = 0.08; // the crop keeps at least this much of the page, each way
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
@@ -143,6 +143,7 @@ function CropEditor({ ctx, doc, onBack, onClose }: { ctx: ToolContext; doc: Tool
       footer={<button className="button" disabled={!!busy || edge || (scope === 'some' && (!count || !!only.problem))} onClick={() => void run()}>
         {edge ? t('Drag the frame to choose what to keep') : t('Crop {pages}', { pages: plural(count, 'page', 'pages') })}
       </button>}>
+      <BigFileNotice bytes={doc.size} />
       {busy && <Busy label={busy.label} />}
       {(error || loadError) && <Notice>{error ?? loadError}</Notice>}
 

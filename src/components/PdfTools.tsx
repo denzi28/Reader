@@ -15,7 +15,7 @@ import { OrganizeTool } from './OrganizeTool';
 import { TOOLS, type ToolId } from './toolList';
 import {
   Busy, cleanName, DocList, errorText, fileOf, Notice, NotesAsk, type OutputSpec, PageThumb, PickOne, plural,
-  SaveOption, Shell, usePdf, type ToolContext, type ToolDoc,
+  BigFileNotice, SaveOption, Shell, usePdf, type ToolContext, type ToolDoc,
 } from './toolKit';
 
 interface Props {
@@ -411,6 +411,7 @@ function MergeTool({ ctx, onClose }: { ctx: ToolContext; onClose: () => void }) 
     >
       {busy && <Busy {...busy} />}
       {error && <Notice>{error}</Notice>}
+      <BigFileNotice bytes={items.reduce((n, i) => n + (i.doc?.size ?? i.blob?.size ?? 0), 0)} />
 
       <button className="chip-button pick-device pick-top" onClick={() => input.current?.click()}>
         <UploadIcon /> {t('Add files from this device')}
@@ -527,6 +528,7 @@ function SplitOptions({ ctx, doc, onBack, onClose }: { ctx: ToolContext; doc: To
   return (
     <Shell title={t('Split')} subtitle={`${doc.name} · ${plural(pages, 'page', 'pages')}`} color="mustard" onBack={onBack} onClose={onClose}
       footer={<button className="button" disabled={!files || !!busy} onClick={() => void run()}>{cta}</button>}>
+      <BigFileNotice bytes={doc.size} />
       {busy && <Busy {...busy} />}
       {(error || loadError) && <Notice>{error ?? loadError}</Notice>}
 
