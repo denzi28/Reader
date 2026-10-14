@@ -386,3 +386,10 @@ export const BookmarkIcon = ({ filled }: { filled?: boolean }) => (
     <path d="M7 4h10v17l-5-4-5 4z" fill={filled ? 'currentColor' : 'none'} />
   </Icon>
 );
+
+/** Two chevrons: fold the side menu in (pointing left), or open it again (`open`, pointing right). */
+export const FoldIcon = ({ open = false }: { open?: boolean }) => (
+  <Icon>
+    <path d={open ? 'M6 6l6 6-6 6M12 6l6 6-6 6' : 'M18 6l-6 6 6 6M12 6l-6 6 6 6'} />
+  </Icon>
+);

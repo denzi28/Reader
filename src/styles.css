@@ -3023,6 +3023,47 @@ html.reading, html.reading body { touch-action: pan-x pan-y; }
 .side .sync-menu { top: auto; bottom: calc(100% + 8px); left: 0; right: auto; }
 .side-links { display: flex; gap: 6px; padding: 0 6px; font-size: 0.78rem; color: var(--muted); }
 .side-links a { color: inherit; }
+
+/* the menu folded into a slim rail of icons (remembered on this device) */
+.side { transition: width 0.22s var(--ease); }
+.side .brand { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.brand-mark { display: none; }
+.side-fold { width: 30px; height: 30px; flex: none; display: grid; place-items: center; border: 0; border-radius: 9px; background: none; color: var(--muted); cursor: pointer; }
+.side-fold svg { width: 18px; height: 18px; }
+@media (hover: hover) { .side-fold:hover { background: var(--line); color: var(--ink); } }
+.side-dot b { display: none; }
+.side.is-rail { width: 76px; padding-left: 10px; padding-right: 10px; align-items: stretch; overflow: visible; z-index: 20; }
+.side.is-rail .brand { justify-content: center; padding: 2px 0 20px; }
+.side.is-rail .brand-full { display: none; }
+.side.is-rail .brand-mark { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 14px; background: var(--accent); color: #fff; font-size: 1.4rem; }
+.side.is-rail .nv { position: relative; justify-content: center; padding: 0; height: 46px; gap: 0; }
+.side.is-rail .nv > span, .side.is-rail .nv > small { display: none; }
+.side.is-rail .nv > svg { width: 22px; height: 22px; }
+.side.is-rail .side-nav, .side.is-rail .side-folders { gap: 4px; }
+.side.is-rail .side-head { justify-content: center; padding: 14px 0 6px; border-top: 1px solid var(--line); margin-top: 12px; }
+.side.is-rail .side-head-text, .side.is-rail .side-empty { display: none; }
+.side.is-rail .side-dot { width: 32px; height: 32px; margin: 0; display: grid; place-items: center; }
+.side.is-rail .side-dot b { display: block; color: #fff; font-size: 0.8rem; font-weight: 700; font-style: normal; text-transform: lowercase; }
+.side.is-rail .nv.on .side-dot { box-shadow: 0 0 0 3px color-mix(in srgb, var(--fc, var(--accent)) 30%, transparent); }
+.side.is-rail .nv-new { display: none; }
+@media (hover: hover) {
+  .side.is-rail .nv:hover::after {
+    content: attr(data-tip); position: absolute; left: calc(100% + 12px); top: 50%; transform: translateY(-50%); z-index: 40; white-space: nowrap;
+    padding: 7px 12px; border-radius: 10px; background: #2b241a; color: #fff; font-size: 0.85rem; font-weight: 500; pointer-events: none; box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
+  }
+}
+.side.is-rail .side-foot { align-items: center; gap: 8px; }
+.side.is-rail .side-foot .plan-card, .side.is-rail .side-foot .install-chip, .side.is-rail .side-links { display: none; }
+.side.is-rail .side-profile { padding: 0; background: none; border: 0; }
+.side.is-rail .side-who { display: none; }
+.side.is-rail .side-account { flex-direction: column; gap: 6px; width: 100%; }
+.side.is-rail .side-account .sync { flex: none; }
+.side.is-rail .sync-chip { width: 44px; height: 44px; padding: 0; justify-content: center; border-radius: 14px; }
+.side.is-rail .sync-chip .sync-state { font-size: 0; gap: 0; }
+.side.is-rail .side-account .sync-chip, .side.is-rail .side-account .google-btn { width: 44px; justify-content: center; }
+.side.is-rail .google-btn { font-size: 0; padding: 0; height: 44px; gap: 0; }
+.side.is-rail .sync-menu { left: calc(100% + 10px); bottom: 0; }
+.side.is-rail .side-unfold { width: 44px; height: 38px; }
 .lib-main { flex: 1; min-width: 0; padding: max(26px, env(safe-area-inset-top)) clamp(24px, 3vw, 44px) 4rem; max-width: 1500px; }
 .page-title { margin: 0 0 1rem; font-family: var(--serif); font-size: 1.9rem; font-weight: 600; }
 .library.desk .shelf { grid-template-columns: repeat(auto-fill, minmax(172px, 1fr)); }

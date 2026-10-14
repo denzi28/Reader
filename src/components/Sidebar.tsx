@@ -1,7 +1,7 @@
 import type { DragEvent, ReactNode } from 'react';
 import { folderColor } from '../lib/folders';
 import type { Folder } from '../lib/types';
-import { BooksIcon, FolderPlusIcon, MarkIcon, MoonIcon, SparkIcon, SunIcon } from './icons';
+import { BooksIcon, FolderPlusIcon, FoldIcon, MarkIcon, MoonIcon, SparkIcon, SunIcon } from './icons';
 import { InstallChip } from './PwaBits';
 import { PlanCard } from './Paywall';
 import { SideProfile, SyncControl } from './SyncControl';
@@ -16,7 +16,7 @@ type DropHandlers = {
 
 /** The desktop library's left column: where to go, the folders, and the account. */
 export function Sidebar({
-  tab, folder, folders, counts, total, creating, newFolder, dropOn, dropTarget, dark, onTheme, onTab, onFolder, onCreate,
+  tab, folder, folders, counts, total, creating, newFolder, dropOn, dropTarget, dark, collapsed, onCollapse, onTheme, onTab, onFolder, onCreate,
 }: {
   tab: SideTab;
   /** The open folder, if any. */
@@ -30,6 +30,9 @@ export function Sidebar({
   dropOn: string | null;
   dropTarget: (id: string | null) => DropHandlers;
   dark: boolean;
+  /** Folded into a slim rail of icons. */
+  collapsed: boolean;
+  onCollapse: (collapsed: boolean) => void;
   onTheme: () => void;
   onTab: (t: SideTab) => void;
   onFolder: (id: string) => void;
@@ -39,6 +42,9 @@ export function Sidebar({
     <button
       className={`nv${tab === id && !folder ? ' on' : ''}${id === 'shelf' && dropOn === 'shelf' ? ' drop' : ''}`}
       onClick={() => onTab(id)}
+      title={collapsed ? label : undefined}
+      data-tip={label}
+      aria-label={collapsed ? label : undefined}
       aria-current={tab === id && !folder ? 'page' : undefined}
       {...(id === 'shelf' ? dropTarget(null) : {})}
     >
@@ -48,15 +54,19 @@ export function Sidebar({
     </button>
   );
   return (
-    <aside className="side" aria-label="Library">
-      <h1 className="brand">The Reader</h1>
+    <aside className={`side${collapsed ? ' is-rail' : ''}`} aria-label="Library">
+      <h1 className="brand">
+        <span className="brand-full">The Reader</span>
+        <span className="brand-mark" aria-hidden="true">R</span>
+        {!collapsed && <button className="side-fold" onClick={() => onCollapse(true)} aria-label="Fold the menu" title="Fold the menu" aria-expanded="true"><FoldIcon /></button>}
+      </h1>
       <nav className="side-nav">
         {nav('shelf', <BooksIcon />, 'Library', <small>{total}</small>)}
         {nav('notes', <MarkIcon />, 'Notes')}
         {nav('tools', <SparkIcon />, 'PDF tools')}
       </nav>
       <div className="side-head">
-        <span>Folders</span>
+        <span className="side-head-text">Folders</span>
         <button className="side-add" onClick={onCreate} disabled={creating} aria-label="New folder" title="New folder"><FolderPlusIcon /></button>
       </div>
       <nav className="side-folders" aria-label="Folders">
@@ -66,9 +76,12 @@ export function Sidebar({
             className={`nv c-${folderColor(f.color)}${folder === f.id ? ' on' : ''}${dropOn === f.id ? ' drop' : ''}`}
             onClick={() => onFolder(f.id)}
             aria-current={folder === f.id ? 'page' : undefined}
+            title={collapsed ? f.name : undefined}
+            aria-label={collapsed ? f.name : undefined}
+            data-tip={f.name}
             {...dropTarget(f.id)}
           >
-            <i className="side-dot" aria-hidden="true" />
+            <i className="side-dot" aria-hidden="true"><b>{[...f.name.trim()][0]?.toLowerCase()}</b></i>
             <span>{f.name}</span>
             <small>{counts.get(f.id) ?? 0}</small>
           </button>
@@ -87,6 +100,7 @@ export function Sidebar({
           </button>
         </div>
         <div className="side-links"><a href="/privacy.html">Privacy</a><span aria-hidden="true">·</span><a href="/terms.html">Terms</a></div>
+        {collapsed && <button className="side-fold side-unfold" onClick={() => onCollapse(false)} aria-label="Open the menu" title="Open the menu" aria-expanded="false"><FoldIcon open /></button>}
       </div>
     </aside>
   );

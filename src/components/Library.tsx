@@ -297,6 +297,7 @@ export function Library(props: Props) {
   const [markCounts, setMarkCounts] = useState<Map<string, number>>(new Map());
   const [sortBy, setSortBy] = usePref<SortBy>('reader.sort', 'opened', SORTS.map((x) => x.id));
   const [view, setView] = usePref<'grid' | 'list'>('reader.view', 'grid', ['grid', 'list']);
+  const [sideMode, setSideMode] = usePref<'open' | 'rail'>('reader.side', 'open', ['open', 'rail']);
   const input = useRef<HTMLInputElement>(null);
   const searchBox = useRef<HTMLInputElement>(null);
   const sync = useSyncStatus();
@@ -1061,10 +1062,12 @@ export function Library(props: Props) {
           dropOn={dropOn}
           dropTarget={dropTarget}
           dark={dark}
+          collapsed={sideMode === 'rail'}
+          onCollapse={(c) => setSideMode(c ? 'rail' : 'open')}
           onTheme={onTheme}
           onTab={(t) => { if (current) onFolder(null); setQuery(''); setTab(t); }}
           onFolder={(id) => { setQuery(''); setTab('shelf'); onFolder(id); }}
-          onCreate={() => setCreating(true)}
+          onCreate={() => { setSideMode('open'); setCreating(true); }}
         />
       )}
           <div className="lib-main">{content}</div>
