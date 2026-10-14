@@ -373,6 +373,17 @@ export function Library(props: Props) {
     }
   };
 
+  // Shortcuts on the home screen (and the store listing) open a place directly: /?tab=tools, /?new=note.
+  useEffect(() => {
+    const q = new URLSearchParams(location.search);
+    const tab = q.get('tab');
+    const make = q.get('new');
+    if (!tab && !make) return;
+    if (tab === 'tools' || tab === 'notes') setTab(tab);
+    if (make === 'note') { setNoteError(null); setNewNote(true); }
+    history.replaceState(history.state, '', location.pathname);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Someone new, with an empty library, is shown a short tour once; anyone who already has documents never is.
   useEffect(() => {
     if (!docs) return;

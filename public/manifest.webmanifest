@@ -1,18 +1,26 @@
 {
   "id": "/",
   "name": "Leafpage",
-  "short_name": "Reader",
+  "short_name": "Leafpage",
   "description": "A PDF reader that feels like paper: write on your pages, make notes, and keep everything in your own Google Drive.",
+  "lang": "en",
+  "dir": "ltr",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
   "orientation": "any",
   "background_color": "#efe6d2",
   "theme_color": "#efe6d2",
-  "categories": ["productivity", "education"],
+  "categories": ["productivity", "education", "books"],
+  "prefer_related_applications": false,
   "icons": [
     { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
     { "src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "New note", "short_name": "New note", "description": "Start a notebook or a doc", "url": "/?new=note", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }] },
+    { "name": "PDF tools", "short_name": "PDF tools", "description": "Merge, split, crop and edit PDFs", "url": "/?tab=tools", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }] }
   ]
 }
