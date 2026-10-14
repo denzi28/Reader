@@ -3392,6 +3392,10 @@ html.reading, html.reading body { touch-action: pan-x pan-y; }
 .bk-t-mist .bk-pg { filter: grayscale(0.3) contrast(0.97); }
 .bk-pages .bk-gutter { left: 50%; width: 60px; margin-left: -30px; top: var(--bk-pad, 8px); bottom: var(--bk-pad, 8px); }
 .bk-blank { background: #fff; }
+/* a copy of one side of the book's paper, for a page turn */
+.bk-copy { position: relative; overflow: hidden; background: var(--bk-bg); }
+.bk-desk .bk-copy { background: var(--bk-page); }
+.bk-copy .bk-flow { position: absolute; top: 0; }
 .bk-ask { position: fixed; z-index: 31; right: 16px; top: calc(var(--bk-top) + env(safe-area-inset-top) + 8px); width: min(340px, calc(100% - 24px)); padding: 14px 16px; border-radius: 16px; background: var(--bk-card); color: var(--bk-ink); border: 1px solid var(--bk-line); box-shadow: 0 14px 40px -8px rgba(0, 0, 0, 0.45); animation: bk-pop 0.18s var(--ease) both; }
 .bk-phone .bk-ask { top: auto; right: auto; left: 50%; bottom: calc(14px + env(safe-area-inset-bottom)); transform: translateX(-50%); }
 .bk-ask b { display: block; margin-bottom: 4px; font-family: var(--serif); font-size: 1.02rem; }

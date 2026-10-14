@@ -14,6 +14,7 @@ import { onRemoteInk, syncDoc } from '../lib/sync/engine';
 import type { BookMark } from '../lib/types';
 import { usePhone } from '../lib/usePhone';
 import { BlockView, type MarkRange } from './BookText';
+import { flipLeaf, type Box } from '../lib/pageFlip';
 import { BookSheet, ContentsPanel, MarkBar, NoteEditor, ReadingPanel } from './BookSheets';
 import { BookLoader } from './BookLoader';
 import { PageBook } from './PageBook';
@@ -383,11 +384,50 @@ function Reader({ data, docId, startPage, dark, onTheme, onClose, onPdf, scan, o
   useLayoutEffect(() => { measure(); }, [measure, chapter, dims.clipW, dims.clipH, dims.cols, settings.font, settings.size, settings.spacing, settings.flow, box.w, box.h]);
   useEffect(() => { void document.fonts?.ready.then(measure); }, [measure]);
 
+  // A page turn swings a leaf (the paper and its text, copied) round the spine while the new screen is set underneath.
+  const sheetRef = useRef<HTMLDivElement>(null);
+  const flipping = useRef(false);
+  const flipPage = useCallback((from: number, to: number): boolean => {
+    const sheet = sheetRef.current;
+    const flow = flowRef.current;
+    if (!sheet || !flow || reduced || flipping.current || Math.abs(to - from) !== 1 || flow.childElementCount > 1200) return false;
+    const two = dims.cols === 2;
+    const half = two ? dims.sheetW / 2 : dims.sheetW;
+    const right: Box = { left: two ? half : 0, top: 0, width: half, height: dims.sheetH };
+    const left: Box = { left: 0, top: 0, width: half, height: dims.sheetH };
+    /** One side of the sheet as it looks on a screen: its paper, and the text of that screen cut to fit. */
+    const copy = (screenIdx: number, side: 'left' | 'right') => {
+      const d = document.createElement('div');
+      d.className = 'bk-copy';
+      const clip = document.createElement('div');
+      clip.style.cssText = `position:absolute;overflow:hidden;left:${dims.clipLeft - (side === 'right' ? right.left : 0)}px;top:${dims.clipTop}px;width:${dims.clipW}px;height:${dims.clipH}px;pointer-events:none;`;
+      const f = flow.cloneNode(true) as HTMLElement;
+      f.removeAttribute('data-flow');
+      f.style.left = `${-screenIdx * dims.stride}px`;
+      clip.appendChild(f);
+      d.appendChild(clip);
+      return d;
+    };
+    const forward = to > from;
+    const blank = () => { const d = document.createElement('div'); d.className = 'bk-copy'; return d; };
+    const spec = two
+      ? (forward
+        ? { leaf: right, front: copy(from, 'right'), back: copy(to, 'left'), cover: { box: left, node: copy(from, 'left') } }
+        : { leaf: right, front: copy(to, 'right'), back: copy(from, 'left'), cover: { box: right, node: copy(from, 'right') } })
+      : (forward
+        ? { leaf: right, front: copy(from, 'right'), back: blank() }
+        : { leaf: right, front: copy(to, 'right'), back: blank(), cover: { box: right, node: copy(from, 'right') } });
+    flipping.current = true;
+    void flipLeaf({ host: sheet, forward, duration: phone ? 480 : 620, ...spec }).finally(() => { flipping.current = false; });
+    return true;
+  }, [dims, reduced, phone]);
+
   const turnTo = useCallback((s: number) => {
-    setAnim(!reduced);
+    const flipped = flipPage(screen, s);
+    setAnim(!flipped && !reduced);
     setScreen(s);
     commitPos(posOfScreen(s));
-  }, [reduced, posOfScreen, commitPos]);
+  }, [reduced, posOfScreen, commitPos, flipPage, screen]);
 
   const shown = useRef(0);
   useLayoutEffect(() => {
@@ -758,7 +798,7 @@ function Reader({ data, docId, startPage, dark, onTheme, onClose, onPdf, scan, o
 
       <div className="bk-view" ref={viewRef} onPointerDown={onDown} onPointerUp={onUp} onPointerCancel={() => { down.current = null; }}>
         {paged ? (
-          <div className="bk-sheet" style={{ left: dims.sheetLeft, top: dims.sheetTop, width: dims.sheetW, height: dims.sheetH }}>
+          <div className="bk-sheet" ref={sheetRef} style={{ left: dims.sheetLeft, top: dims.sheetTop, width: dims.sheetW, height: dims.sheetH }}>
             {!phone && dims.cols === 2 && <i className="bk-gutter" aria-hidden="true" />}
             <div className="bk-clip" style={{ left: dims.clipLeft, top: dims.clipTop, width: dims.clipW, height: dims.clipH }}>
               <div

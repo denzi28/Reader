@@ -42,7 +42,7 @@ export function flipLeaf(spec: FlipSpec): Promise<void> {
   const { host, leaf, front, back, forward, cover } = spec;
   const duration = spec.duration ?? 620;
   const wrap = document.createElement('div');
-  wrap.style.cssText = `position:absolute;inset:0;z-index:5;pointer-events:none;perspective:${Math.round(leaf.width * 3.2)}px;perspective-origin:${Math.round(leaf.left)}px 50%;`;
+  wrap.style.cssText = `position:absolute;inset:0;z-index:5;pointer-events:none;perspective:${Math.round(leaf.width * 5)}px;perspective-origin:${Math.round(leaf.left)}px 50%;`;
   if (cover) {
     const c = document.createElement('div');
     place(c, cover.box);
