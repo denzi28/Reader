@@ -1,0 +1,60 @@
+# Builds the Android app (a Trusted Web Activity around https://leafpage.app) as a signed bundle for Google Play.
+# Run it by hand: Actions > Android app > Run workflow. It needs four repository secrets (see android/README.md).
+name: Android app
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_name:
+        description: 'Version name shown to people (for example 1.0.0)'
+        default: '1.0.0'
+
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 17 }
+
+      - name: Bubblewrap needs to know where Java and the Android SDK are
+        run: |
+          mkdir -p ~/.bubblewrap
+          cat > ~/.bubblewrap/config.json <<JSON
+          { "jdkPath": "$JAVA_HOME", "androidSdkPath": "${ANDROID_SDK_ROOT:-$ANDROID_HOME}" }
+          JSON
+          cat ~/.bubblewrap/config.json
+
+      - name: Upload key
+        working-directory: android
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+        run: echo "$KEYSTORE_B64" | base64 -d > upload.keystore
+
+      - name: Version
+        working-directory: android
+        run: |
+          node -e "
+            const f='twa-manifest.json', m=JSON.parse(require('fs').readFileSync(f,'utf8'));
+            m.appVersionName='${{ inputs.version_name }}'; m.appVersion=String(process.env.GITHUB_RUN_NUMBER); m.appVersionCode=Number(process.env.GITHUB_RUN_NUMBER);
+            require('fs').writeFileSync(f, JSON.stringify(m,null,2));"
+
+      - name: Build
+        working-directory: android
+        env:
+          BUBBLEWRAP_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          BUBBLEWRAP_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          npx --yes @bubblewrap/cli@1.27.0 update --manifest=./twa-manifest.json --skipVersionUpgrade
+          npx --yes @bubblewrap/cli@1.27.0 build --manifest=./twa-manifest.json --skipPwaValidation
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: leafpage-android
+          path: |
+            android/app-release-bundle.aab
+            android/app-release-signed.apk
+            android/assetlinks.json
