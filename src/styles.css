@@ -3708,3 +3708,16 @@ button.me-row { cursor: pointer; }
 .landing-brand .wordmark { font-size: 2.1rem; margin-bottom: 0.45em; }
 .landing-brand.small .wordmark { font-size: 1.5rem; }
 .guest-back .wordmark { font-size: 1.6rem; margin-bottom: 0.3em; }
+
+/* Lamps on the vine: dark glass by day, they light up and breathe softly in the night theme. */
+.wm-wire { fill: none; stroke: var(--ivy-stem); stroke-width: 1.2; stroke-linecap: round; }
+.wm-cap { fill: var(--ivy-stem); }
+.wm-bulb { fill: color-mix(in srgb, var(--page) 70%, #d8cfba); stroke: var(--ivy-stem); stroke-width: 0.9; transition: fill 0.9s ease, stroke 0.9s ease; }
+.wm-glow { fill: url(#wm-warm); opacity: 0; transition: opacity 0.9s ease; }
+:root[data-theme='dark'] .wm-bulb { fill: #ffd98a; stroke: #ffe9b8; }
+:root[data-theme='dark'] .wm-glow { opacity: 1; animation: wm-breathe 3.6s ease-in-out infinite alternate; animation-delay: var(--d, 0s); }
+:root[data-theme='dark'] .wm-lamp .wm-bulb { animation: wm-flicker 3.6s ease-in-out infinite alternate; animation-delay: var(--d, 0s); }
+@keyframes wm-breathe { from { opacity: 0.45; transform: scale(0.92); } to { opacity: 1; transform: scale(1.08); } }
+@keyframes wm-flicker { from { fill: #e8b562; } 55% { fill: #ffd98a; } to { fill: #fff0c2; } }
+.wm-glow { transform-box: fill-box; transform-origin: center; }
+@media (prefers-reduced-motion: reduce) { :root[data-theme='dark'] .wm-glow, :root[data-theme='dark'] .wm-lamp .wm-bulb { animation: none; } }

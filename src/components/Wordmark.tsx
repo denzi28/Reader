@@ -36,17 +36,44 @@ const LEAVES = (() => {
   return out;
 })();
 
+// Three small lamps hang from the vine where it dips lowest; they light up in the night theme.
+const LAMPS = [
+  { x: 62, drop: 5, delay: 0 },
+  { x: 90, drop: 6, delay: 1.3 },
+  { x: 296, drop: 7, delay: 2.4 },
+].map((l) => ({ ...l, y: r(Y(l.x)) }));
+
 const CURL = `M${W + 8} ${r(Y(W + 8))}c8 0 12 -8 6 -12c-5 -3 -10 2 -6 6`;
 
 // Every other half wave runs in front of the letters.
 const HALF = W / (WAVES * 2);
 const FRONT = [0, 2].map((k) => r(k * HALF - 4 + HALF * 0.3));
 
+function Lamps() {
+  return (
+    <g className="wm-lamps">
+      {LAMPS.map((l) => (
+        <g key={l.x} className="wm-lamp" transform={`translate(${l.x} ${l.y}) scale(1.5)`} style={{ ['--d' as string]: `${l.delay}s` }}>
+          <circle className="wm-glow" cx="0" cy={l.drop + 5} r="11" />
+          <path className="wm-wire" d={`M0 0V${l.drop}`} />
+          <rect className="wm-cap" x="-1.6" y={l.drop} width="3.2" height="2.6" rx=".8" />
+          <path className="wm-bulb" transform={`translate(0 ${l.drop})`} d="M-1.5 2.5c-3 1.5-3.6 6-.2 7.2c1.1.4 2.3.4 3.4 0c3.4-1.2 2.8-5.7-.2-7.2z" />
+        </g>
+      ))}
+    </g>
+  );
+}
+
 function Vine({ front }: { front?: boolean }) {
   return (
     <svg className={`wm-vine${front ? ' front' : ''}`} viewBox={`0 0 ${W} 116`} aria-hidden="true" focusable="false">
       {front && (
         <defs>
+          <radialGradient id="wm-warm">
+            <stop offset="0" stopColor="#ffd98a" stopOpacity=".85" />
+            <stop offset=".45" stopColor="#ffc060" stopOpacity=".28" />
+            <stop offset="1" stopColor="#ffb040" stopOpacity="0" />
+          </radialGradient>
           <clipPath id="wm-front">
             {FRONT.map((x) => <rect key={x} x={x} y="-20" width={r(HALF)} height="160" />)}
           </clipPath>
@@ -63,6 +90,7 @@ function Vine({ front }: { front?: boolean }) {
           </g>
         ))}
       </g>
+      {front && <Lamps />}
     </svg>
   );
 }
