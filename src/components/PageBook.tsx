@@ -362,13 +362,14 @@ export function PageBook({ docId, startPage, dark, onTheme, onClose, onPdf, scan
     const stripOf = (i: number) => (k: number, count: number): HTMLElement => {
       const src = i >= 0 && i < n ? sp.querySelector<HTMLCanvasElement>(`canvas[data-i="${i}"]`) : null;
       if (!src) return blank();
-      const w = src.width / count;
-      const scale = Math.min(1, 1500 / src.width);
+      // (as sharp as the page itself, so that the leaf and the page it lands as are alike to the eye)
+      const x0 = Math.round((k * src.width) / count);
+      const x1 = Math.round(((k + 1) * src.width) / count);
       const c = document.createElement('canvas');
-      c.width = Math.max(1, Math.ceil(w * scale));
-      c.height = Math.max(1, Math.round(src.height * scale));
+      c.width = Math.max(1, x1 - x0);
+      c.height = Math.max(1, src.height);
       c.className = 'bk-pg';
-      c.getContext('2d')?.drawImage(src, k * w, 0, w, src.height, 0, 0, c.width, c.height);
+      c.getContext('2d')?.drawImage(src, x0, 0, x1 - x0, src.height, 0, 0, c.width, c.height);
       return c;
     };
     const area = cols === 2 ? { left: slotL.left, top: slotL.top, width: slotR.left + slotR.width - slotL.left, height: slotL.height } : slotL;

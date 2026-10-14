@@ -71,10 +71,16 @@ export function flipLeaf(spec: FlipSpec): Promise<void> {
   const field = document.createElement('div');
   place(field, area);
   field.style.overflow = 'hidden';
-  const cast = document.createElement('i');
   const castW = Math.round(leaf.width * 0.28);
-  cast.style.cssText = `position:absolute;top:0;bottom:0;width:${castW}px;opacity:0;will-change:transform,opacity;`;
-  field.appendChild(cast);
+  // One shadow for each side of the spine, so that when the leaf crosses it the shadow fades from one to the other.
+  const makeCast = (dir: string) => {
+    const el = document.createElement('i');
+    el.style.cssText = `position:absolute;top:0;bottom:0;width:${castW}px;opacity:0;will-change:transform,opacity;background:linear-gradient(${dir}, rgba(25,14,2,.5), rgba(25,14,2,.18) 45%, rgba(25,14,2,0));`;
+    field.appendChild(el);
+    return el;
+  };
+  const castRight = makeCast('90deg');
+  const castLeft = makeCast('270deg');
   wrap.appendChild(field);
 
   // The strips: each is hinged on the right edge of the one before.
@@ -111,11 +117,8 @@ export function flipLeaf(spec: FlipSpec): Promise<void> {
   host.appendChild(wrap);
 
   const BEND = S > 1 ? 40 : 0;
-  const castSide = { right: '' as string, left: '' as string };
-  castSide.right = 'linear-gradient(90deg, rgba(25,14,2,.5), rgba(25,14,2,.18) 45%, rgba(25,14,2,0))';
-  castSide.left = 'linear-gradient(270deg, rgba(25,14,2,.5), rgba(25,14,2,.18) 45%, rgba(25,14,2,0))';
-  let shown = '';
 
+  const glow = { right: 0, left: 0 };
   /** One moment of the turn: `q` is how far on it is (0 to 1). */
   const frame = (q: number) => {
     const theta = forward ? -180 * q : -180 * (1 - q);
@@ -131,14 +134,19 @@ export function flipLeaf(spec: FlipSpec): Promise<void> {
       s.shadeB.style.opacity = String(d);
       x += sw * Math.cos(phi * RAD);
     });
-    // The shadow falls beyond the free edge, on whichever page the leaf is over.
+    // The shadow falls beyond the free edge, on whichever page the leaf is over; it grows with how far the
+    // edge is from the spine, so it is nothing at the very moment the leaf stands on its edge.
     const spine = leaf.left;
-    const over = x >= spine ? 'right' : 'left';
-    if (over !== shown) { cast.style.background = castSide[over]; shown = over; }
+    const reach = Math.max(1, leaf.width * 0.45);
     const lift = Math.abs(Math.sin(theta * RAD));
-    cast.style.opacity = String(Math.min(1, lift * 1.15));
-    const at = (over === 'right' ? x : x - castW) - area.left;
-    cast.style.transform = `translateX(${at}px)`;
+    // (and it eases toward that, so a quick swing never makes it jump)
+    const toward = (now: number, target: number) => now + (target - now) * 0.3;
+    glow.right = toward(glow.right, x > spine ? Math.min(1, (x - spine) / reach) * lift : 0);
+    glow.left = toward(glow.left, x < spine ? Math.min(1, (spine - x) / reach) * lift : 0);
+    castRight.style.opacity = String(glow.right);
+    castLeft.style.opacity = String(glow.left);
+    castRight.style.transform = `translateX(${x - area.left}px)`;
+    castLeft.style.transform = `translateX(${x - castW - area.left}px)`;
   };
   frame(0);
 
