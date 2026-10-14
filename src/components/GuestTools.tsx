@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect, useState } from 'react';
 import { t } from '../lib/i18n';
 import { BackIcon, MoonIcon, SunIcon } from './icons';
 import { TOOLS, type ToolId } from './toolList';
-import { GoogleButton } from './SyncControl';
+import { GoogleButton, LangButton } from './SyncControl';
 
 const PdfTools = lazy(() => import('./PdfTools'));
 const noFolder = () => null;
@@ -46,6 +46,7 @@ export function GuestTools({ dark, onTheme, onBack }: Props) {
           <span>The Reader</span>
         </button>
         <div className="guest-bar-actions">
+          <LangButton />
           <button className="icon-button" onClick={onTheme} aria-label={dark ? t('Switch to day paper') : t('Switch to night paper')}>
             {dark ? <SunIcon /> : <MoonIcon />}
           </button>

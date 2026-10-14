@@ -20,6 +20,16 @@ const signOutQuestion = () => (getStatus().state === 'idle'
   ? t('Sign out on this device? Your documents will be removed from this device. They stay in your Google Drive and come back when you sign in again.')
   : t('Some changes have not reached your Google Drive yet and will be lost if you sign out now. Sign out anyway?'));
 
+/** For the pages before sign-in: a globe that switches to the other language. */
+export function LangButton() {
+  const other = lang === 'tr' ? 'en' : 'tr';
+  return (
+    <button className="icon-button lang-button" onClick={() => setLang(other)} aria-label={other === 'tr' ? 'Türkçe' : 'English'} title={other === 'tr' ? 'Türkçe' : 'English'}>
+      <GlobeIcon /><span>{other.toUpperCase()}</span>
+    </button>
+  );
+}
+
 /** A small globe, for the language row. */
 export function GlobeIcon() {
   return (

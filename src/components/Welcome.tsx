@@ -5,7 +5,7 @@ import { InkArt, PhoneMirror, PrivacyArt, SyncArt } from './landing/Art';
 import { delay, PenScene } from './landing/PenScene';
 import { ToolChips } from './landing/ToolChips';
 import type { ToolId } from './toolList';
-import { GoogleButton } from './SyncControl';
+import { GoogleButton, LangButton } from './SyncControl';
 
 interface Props {
   /** Opens the tools-only page, straight into one tool when given (the library itself is behind sign-in). */
@@ -84,6 +84,7 @@ export function Welcome({ onTools, dark, onTheme }: Props) {
         <ToolChips onTry={onTools} />
         <div className="landing-nav-actions">
           <button className="link nav-link" onClick={() => onTools()}>{t('Try the PDF tools')}</button>
+          <LangButton />
           <button
             className="icon-button"
             onClick={onTheme}
