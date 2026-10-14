@@ -33,6 +33,8 @@ export interface ToolContext {
   folderOf: (d: DocMeta) => string | null;
   /** The tools page shown before sign-in: no library, files come from the device. */
   guest?: boolean;
+  /** Documents chosen before the tool opened (on the tools page); they are where it starts. */
+  start?: DocMeta[];
   /** The work is done: show the finished files. */
   finish: (result: { title: string; outputs: OutputSpec[] }) => void;
 }

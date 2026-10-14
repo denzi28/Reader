@@ -11,7 +11,7 @@ const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v
 const HANDLES = ['tl', 't', 'tr', 'l', 'r', 'bl', 'b', 'br'] as const;
 
 export function CropTool({ ctx, onClose }: { ctx: ToolContext; onClose: () => void }) {
-  const [doc, setDoc] = useState<ToolDoc | null>(null);
+  const [doc, setDoc] = useState<ToolDoc | null>(ctx.start?.[0] ?? null);
   if (!doc) return <PickOne ctx={ctx} tool="crop" onPick={setDoc} onClose={onClose} />;
   return <CropEditor ctx={ctx} doc={doc} onBack={() => setDoc(null)} onClose={onClose} />;
 }
@@ -138,7 +138,7 @@ function CropEditor({ ctx, doc, onBack, onClose }: { ctx: ToolContext; doc: Tool
   const edge = (m.l + m.r + m.t + m.b) === 0;
 
   return (
-    <Shell title="Crop" subtitle={`${doc.name} · ${plural(doc.pages, 'page', 'pages')}`} color="green" onBack={onBack} onClose={onClose}
+    <Shell title="Crop" subtitle={`${doc.name} · ${plural(doc.pages, 'page', 'pages')}`} color="sage" onBack={onBack} onClose={onClose}
       footer={<button className="button" disabled={!!busy || edge || (scope === 'some' && (!count || !!only.problem))} onClick={() => void run()}>
         {edge ? 'Drag the frame to choose what to keep' : `Crop ${plural(count, 'page', 'pages')}`}
       </button>}>

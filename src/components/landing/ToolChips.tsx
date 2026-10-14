@@ -53,10 +53,10 @@ function EditArt() {
 }
 
 const CHIPS: { id: ToolId; name: string; colour: string; art: React.ReactNode }[] = [
-  { id: 'merge', name: 'Merge', colour: 'c-blue', art: <MergeArt /> },
-  { id: 'split', name: 'Split', colour: 'c-red', art: <SplitArt /> },
-  { id: 'crop', name: 'Crop', colour: 'c-green', art: <CropArt /> },
-  { id: 'edit', name: 'Edit', colour: 'c-purple', art: <EditArt /> },
+  { id: 'merge', name: 'Merge', colour: 'c-terra', art: <MergeArt /> },
+  { id: 'split', name: 'Split', colour: 'c-mustard', art: <SplitArt /> },
+  { id: 'crop', name: 'Crop', colour: 'c-sage', art: <CropArt /> },
+  { id: 'edit', name: 'Edit', colour: 'c-plum', art: <EditArt /> },
 ];
 
 /** Sits beside the brand on the landing page: what the PDF tools are, before anyone signs in. Each opens its own tool. */

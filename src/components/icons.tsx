@@ -198,15 +198,15 @@ export const ChevronIcon = () => (
 );
 export const MergeIcon = () => (
   <Icon>
-    <path d="M6 4v5a4 4 0 0 0 4 4h4a4 4 0 0 0 4-4V4" />
-    <path d="M12 13v7M9 17.5l3 3 3-3" />
+    <rect x="3.5" y="3.5" width="9" height="11" rx="2" />
+    <rect x="11.5" y="9.5" width="9" height="11" rx="2" />
   </Icon>
 );
 export const SplitIcon = () => (
   <Icon>
-    <path d="M12 20v-6" />
-    <path d="M12 14c0-3-6-3-6-8M12 14c0-3 6-3 6-8" />
-    <path d="M3.5 8.5L6 6l2.5 2.5M15.5 8.5L18 6l2.5 2.5" />
+    <path d="M6 3h8l4 4v14H6z" />
+    <path d="M14 3v4h4" />
+    <path d="M3 13h18" strokeDasharray="2.4 2.4" />
   </Icon>
 );
 export const CropIcon = () => (
@@ -216,9 +216,10 @@ export const CropIcon = () => (
 );
 export const EditPagesIcon = () => (
   <Icon>
-    <path d="M13 4H6.5A1.5 1.5 0 0 0 5 5.5v13A1.5 1.5 0 0 0 6.5 20H11" />
-    <path d="M13 4l4 4v2" />
-    <path d="M12.5 19.5l.8-2.8 6-6a1.6 1.6 0 0 1 2.3 2.3l-6 6z" />
+    <rect x="3" y="4" width="7.5" height="9.5" rx="1.8" />
+    <rect x="13.5" y="10.5" width="7.5" height="9.5" rx="1.8" />
+    <path d="M13 5.5h4.5M15.5 3l2.5 2.5-2.5 2.5" />
+    <path d="M11 18.5H6.5M9 16l-2.5 2.5L9 21" />
   </Icon>
 );
 export const SparkIcon = () => (

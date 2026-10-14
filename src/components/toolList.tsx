@@ -11,10 +11,10 @@ export const TOOLS: {
   color: string;
   Icon: () => React.JSX.Element;
 }[] = [
-  { id: 'merge', title: 'Merge', blurb: 'Combine several PDFs into one', color: 'blue', Icon: MergeIcon },
-  { id: 'split', title: 'Split', blurb: 'Cut a PDF apart, or pull out pages', color: 'red', Icon: SplitIcon },
-  { id: 'crop', title: 'Crop', blurb: 'Trim the margins off every page', color: 'green', Icon: CropIcon },
-  { id: 'edit', title: 'Edit pages', blurb: 'Reorder, rotate, delete or add pages', color: 'purple', Icon: EditPagesIcon },
+  { id: 'merge', title: 'Merge', blurb: 'Combine several PDFs into one', color: 'terra', Icon: MergeIcon },
+  { id: 'split', title: 'Split', blurb: 'Cut a PDF apart, or pull out pages', color: 'mustard', Icon: SplitIcon },
+  { id: 'crop', title: 'Crop', blurb: 'Trim the margins off every page', color: 'sage', Icon: CropIcon },
+  { id: 'edit', title: 'Edit pages', blurb: 'Reorder, rotate, delete or add pages', color: 'plum', Icon: EditPagesIcon },
 ];
 
 /** The four tools to choose from: a dialog on desktop, a sheet from the bottom on phones. */

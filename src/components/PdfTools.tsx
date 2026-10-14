@@ -26,6 +26,8 @@ interface Props {
   signedIn: boolean;
   /** Shown before sign-in: files come from the device and can only be downloaded. */
   guest?: boolean;
+  /** Documents to start from, chosen on the tools page. */
+  start?: DocMeta[];
   /** The library changed (documents or folders were added). */
   onChanged: () => void;
   onOpen: (id: string) => void;
@@ -37,9 +39,9 @@ interface Finished {
 }
 
 /** The documents the tools work on, and the screens they go through. */
-export default function PdfTools({ tool, docs, folderOf, onClose, signedIn, guest, onChanged, onOpen }: Props) {
+export default function PdfTools({ tool, docs, folderOf, onClose, signedIn, guest, start, onChanged, onOpen }: Props) {
   const [finished, setFinished] = useState<Finished | null>(null);
-  const ctx: ToolContext = useMemo(() => ({ docs, folderOf, guest, finish: setFinished }), [docs, folderOf, guest]);
+  const ctx: ToolContext = useMemo(() => ({ docs, folderOf, guest, start, finish: setFinished }), [docs, folderOf, guest, start]);
   if (finished) {
     return <Ready tool={tool} finished={finished} signedIn={signedIn} guest={guest} onClose={onClose} onChanged={onChanged} onOpen={onOpen} />;
   }
@@ -339,7 +341,7 @@ interface Item {
 }
 
 function MergeTool({ ctx, onClose }: { ctx: ToolContext; onClose: () => void }) {
-  const [items, setItems] = useState<Item[]>([]);
+  const [items, setItems] = useState<Item[]>(() => (ctx.start ?? []).map((d) => ({ key: d.id, name: d.name, pages: d.pages, doc: d })));
   const [name, setName] = useState('');
   const [busy, setBusy] = useState<{ label: string; fraction?: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -397,7 +399,7 @@ function MergeTool({ ctx, onClose }: { ctx: ToolContext; onClose: () => void }) 
     <Shell
       title="Merge PDFs"
       subtitle="Documents are joined in the order below"
-      color="blue"
+      color="terra"
       onClose={onClose}
       footer={
         <button className="button" disabled={items.length < 2 || !!busy} onClick={() => void run()}>
@@ -453,7 +455,7 @@ function MergeTool({ ctx, onClose }: { ctx: ToolContext; onClose: () => void }) 
 type SplitMode = 'ranges' | 'every' | 'extract';
 
 function SplitTool({ ctx, onClose }: { ctx: ToolContext; onClose: () => void }) {
-  const [doc, setDoc] = useState<ToolDoc | null>(null);
+  const [doc, setDoc] = useState<ToolDoc | null>(ctx.start?.[0] ?? null);
   if (!doc) return <PickOne ctx={ctx} tool="split" onPick={setDoc} onClose={onClose} />;
   return <SplitOptions ctx={ctx} doc={doc} onBack={() => setDoc(null)} onClose={onClose} />;
 }
@@ -520,7 +522,7 @@ function SplitOptions({ ctx, doc, onBack, onClose }: { ctx: ToolContext; doc: To
   const cta = !files ? (mode === 'extract' ? 'Tap the pages to pull out' : 'Set how to split') : mode === 'extract' ? `Extract ${plural(picked.size, 'page', 'pages')}` : `Split into ${plural(files, 'file', 'files')}`;
 
   return (
-    <Shell title="Split" subtitle={`${doc.name} · ${plural(pages, 'page', 'pages')}`} color="red" onBack={onBack} onClose={onClose}
+    <Shell title="Split" subtitle={`${doc.name} · ${plural(pages, 'page', 'pages')}`} color="mustard" onBack={onBack} onClose={onClose}
       footer={<button className="button" disabled={!files || !!busy} onClick={() => void run()}>{cta}</button>}>
       {busy && <Busy {...busy} />}
       {(error || loadError) && <Notice>{error ?? loadError}</Notice>}

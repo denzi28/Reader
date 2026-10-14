@@ -13,7 +13,7 @@ interface Step {
 }
 
 export function OrganizeTool({ ctx, onClose }: { ctx: ToolContext; onClose: () => void }) {
-  const [doc, setDoc] = useState<ToolDoc | null>(null);
+  const [doc, setDoc] = useState<ToolDoc | null>(ctx.start?.[0] ?? null);
   if (!doc) return <PickOne ctx={ctx} tool="edit" onPick={setDoc} onClose={onClose} />;
   return <Organizer ctx={ctx} doc={doc} onBack={() => setDoc(null)} onClose={onClose} />;
 }
@@ -70,7 +70,7 @@ function Organizer({ ctx, doc, onBack, onClose }: { ctx: ToolContext; doc: ToolD
   };
 
   return (
-    <Shell title="Edit pages" subtitle={`${doc.name} · ${plural(kept.length, 'page', 'pages')}`} color="purple" onBack={onBack} onClose={onClose}
+    <Shell title="Edit pages" subtitle={`${doc.name} · ${plural(kept.length, 'page', 'pages')}`} color="plum" onBack={onBack} onClose={onClose}
       footer={<button className="button" disabled={!!busy || !kept.length || !edited} onClick={() => void run()}>
         {!edited ? 'Rotate, move or delete pages to begin' : !kept.length ? 'Keep at least one page' : `Make a new PDF with ${plural(kept.length, 'page', 'pages')}`}
       </button>}>

@@ -287,6 +287,7 @@ export function Library(props: Props) {
   const [makingNote, setMakingNote] = useState(false);
   const [noteError, setNoteError] = useState<string | null>(null);
   const [tool, setTool] = useState<ToolId | null>(null);
+  const [toolStart, setToolStart] = useState<DocMeta[] | undefined>(undefined);
   const [tab, setTabState] = useState(lastTab);
   const setTab = (t: PhoneTab) => { lastTab = t; setTabState(t); };
   const phone = usePhone();
@@ -340,8 +341,9 @@ export function Library(props: Props) {
     if (history.state?.tool) history.back();
   };
   /** A tool picked on the phone's Tools page: a history step, so Back closes it. */
-  const pickFromTools = (id: ToolId) => {
+  const pickFromTools = (id: ToolId, start?: DocMeta[]) => {
     history.pushState({ ...history.state, tool: 1 }, '');
+    setToolStart(start);
     setTool(id);
   };
 
@@ -855,7 +857,7 @@ export function Library(props: Props) {
       )}
 
       {!phone && (onTools || onNotes) && <h2 className="page-title">{onTools ? 'PDF tools' : 'Notes'}</h2>}
-      {onTools && <ToolsPage onPick={pickFromTools} />}
+      {onTools && <ToolsPage phone={phone} docs={docs ?? []} onPick={pickFromTools} />}
       {onMe && <MePage dark={dark} onTheme={onTheme} docCount={(docs ?? []).filter((d) => !d.attached).length} />}
 
       {resume && (
@@ -996,6 +998,7 @@ export function Library(props: Props) {
         <Suspense fallback={<div className="workspace"><div className="tool-backdrop" /><div className="tool-sheet"><div className="note-loading" /></div></div>}>
           <PdfTools
             tool={tool}
+            start={toolStart}
             signedIn={sync.connected}
             docs={(docs ?? []).filter((d) => d.kind !== 'epub')}
             folderOf={placeOf}
