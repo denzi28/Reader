@@ -13,11 +13,12 @@ import { downloadPdf } from '../lib/sync/engine';
 import { useDownloadProgress, useSyncStatus } from '../lib/sync/useSync';
 import type { DocMeta, Folder } from '../lib/types';
 import {
-  ArrowIcon, BackIcon, BookOpenIcon, LeafMark, CloudOffIcon, DownloadIcon, GridIcon, ListIcon, MarkIcon, StarIcon, CheckIcon, CloseIcon, CloudIcon, FileIcon, FolderIcon, FolderMoveIcon, FolderPlusIcon, PencilIcon, SearchIcon,
+  ArrowIcon, BackIcon, BookOpenIcon, CloudOffIcon, DownloadIcon, GridIcon, ListIcon, MarkIcon, StarIcon, CheckIcon, CloseIcon, CloudIcon, FileIcon, FolderIcon, FolderMoveIcon, FolderPlusIcon, PencilIcon, SearchIcon,
   MoreVIcon, SortIcon, TrashIcon, UploadIcon,
 } from './icons';
 import { AddSheet, BookSheet, MePage, PhoneNav, type PhoneTab, ToolsPage } from './PhoneParts';
 import { TopBar } from './TopBar';
+import { Wordmark } from './Wordmark';
 import { AccountMenu } from './SyncControl';
 import { usePhone } from '../lib/usePhone';
 import { Cover } from './Cover';
@@ -661,7 +662,7 @@ export function Library(props: Props) {
     <>
       {phone ? (
         <header className="library-head phone-head">
-          <h1 className="brand">{onTools ? t('Tools') : onMe ? t('Me') : <><LeafMark />Leafpage</>}</h1>
+          <h1 className="brand">{onTools ? t('Tools') : onMe ? t('Me') : <Wordmark />}</h1>
           {!onTools && !onMe && !onNotes && !current && docs && docs.length > 0 && (
             <button className="icon-button" aria-label={t('Search')} aria-pressed={searchOpen || Boolean(query)} onClick={() => { if (query) setQuery(''); setSearchOpen((v) => !v); }}>
               <SearchIcon />

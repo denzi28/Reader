@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { t } from '../lib/i18n';
-import { LeafMark, MoonIcon, SunIcon } from './icons';
+import { MoonIcon, SunIcon } from './icons';
+import { Wordmark } from './Wordmark';
 import { InkArt, PhoneMirror, PrivacyArt, SyncArt } from './landing/Art';
 import { delay, PenScene } from './landing/PenScene';
 import { ToolChips } from './landing/ToolChips';
@@ -36,10 +37,6 @@ function useReveal() {
   return root;
 }
 
-function Logo() {
-  return <LeafMark className="logo" />;
-}
-
 function SignIn({ label, onError }: { label: string; onError: (m: string) => void }) {
   return <GoogleButton label={label} onError={onError} />;
 }
@@ -73,7 +70,7 @@ export function Welcome({ onTools, dark, onTheme }: Props) {
       <div className="landing-glow" aria-hidden="true" />
 
       <header className="landing-nav">
-        <span className="landing-brand"><Logo /> Leafpage</span>
+        <span className="landing-brand"><Wordmark /></span>
         <ToolChips onTry={onTools} />
         <div className="landing-nav-actions">
           <button className="link nav-link" onClick={() => onTools()}>{t('Try the PDF tools')}</button>
@@ -168,7 +165,7 @@ export function Welcome({ onTools, dark, onTheme }: Props) {
       </main>
 
       <footer className="landing-foot">
-        <span className="landing-brand small"><Logo /> Leafpage</span>
+        <span className="landing-brand small"><Wordmark /></span>
         <nav>
           <a href="/privacy.html">{t('Privacy')}</a>
           <a href="/terms.html">{t('Terms')}</a>

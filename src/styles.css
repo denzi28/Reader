@@ -2997,7 +2997,7 @@ html.reading, html.reading body { touch-action: pan-x pan-y; }
   padding: max(14px, env(safe-area-inset-top)) clamp(24px, 3vw, 44px) 14px;
   background: color-mix(in srgb, var(--desk) 88%, transparent); backdrop-filter: blur(10px);
 }
-.deskbar .brand { margin: 0; font-size: 1.4rem; white-space: nowrap; }
+.deskbar .brand { margin: 0; font-size: 1.75rem; white-space: nowrap; }
 .top-tabs { display: flex; gap: 4px; padding: 4px; border-radius: 14px; background: color-mix(in srgb, var(--ink) 6%, transparent); margin-right: auto; }
 .top-tabs button { display: inline-flex; align-items: center; gap: 8px; padding: 7px 14px; border: 0; border-radius: 11px; background: none; color: var(--muted); font: inherit; font-weight: 500; cursor: pointer; transition: background 0.15s, color 0.15s; }
 .top-tabs button svg { width: 18px; height: 18px; flex: none; }
@@ -3692,14 +3692,19 @@ button.me-row { cursor: pointer; }
 .boot-paper { min-height: 100dvh; background: var(--desk); }
 .feature-text h2, .hero h1 { text-wrap: balance; }
 
-/* The Leafpage mark: a leaf in the sage of the brand, with its vein in paper. */
-:root { --leaf: #5f8060; --leaf-2: #86a687; --leaf-vein: #fbf5e6; }
-:root[data-theme='dark'] { --leaf: #7fa380; --leaf-2: #a9c8aa; --leaf-vein: #1b1712; }
-.leaf-mark, .logo { flex: none; }
-.leaf-body { fill: var(--leaf); }
-.leaf-body.two { fill: var(--leaf-2); }
-.leaf-vein { fill: none; stroke: var(--leaf-vein); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
-.brand .leaf-mark { width: 1.15em; height: 1.15em; margin-right: 0.12em; vertical-align: -0.2em; }
-.guest-back .leaf-mark { width: 28px; height: 28px; }
 .deskbar .brand { display: inline-flex; align-items: center; }
-.deskbar .brand .leaf-mark { width: 1.5em; height: 1.5em; margin-right: 0.1em; vertical-align: 0; }
+
+/* The Leafpage logo: the name with an ivy vine through it (see Wordmark.tsx). */
+:root { --ivy-stem: #6f6247; --ivy-1: #4f7352; --ivy-2: #7a9f7b; --leaf-vein: #fbf5e6; }
+:root[data-theme='dark'] { --ivy-stem: #a38d6a; --ivy-1: #7fa380; --ivy-2: #a9c8aa; --leaf-vein: #1b1712; }
+.wordmark { position: relative; display: inline-block; line-height: 1.1; white-space: nowrap; margin-right: 0.95em; }
+.wm-text { position: relative; color: var(--ink); font-family: var(--sans); font-weight: 600; letter-spacing: -0.02em; }
+.wm-vine { position: absolute; left: 0; top: 0; width: 4.85em; height: 1.7em; overflow: visible; pointer-events: none; }
+.wm-stem { fill: none; stroke: var(--ivy-stem); stroke-width: 3.6; stroke-linecap: round; stroke-linejoin: round; }
+.wm-stem.thin { stroke-width: 2.4; }
+.wm-halo { fill: none; stroke: var(--ivy-halo, var(--desk)); stroke-width: 8; stroke-linecap: round; stroke-linejoin: round; }
+.wm-leaf.t1 { fill: var(--ivy-1); } .wm-leaf.t2 { fill: var(--ivy-2); }
+.wm-vein { fill: none; stroke: var(--leaf-vein); stroke-width: 0.5; stroke-linecap: round; }
+.landing-brand .wordmark { font-size: 2.1rem; margin-bottom: 0.45em; }
+.landing-brand.small .wordmark { font-size: 1.5rem; }
+.guest-back .wordmark { font-size: 1.6rem; margin-bottom: 0.3em; }

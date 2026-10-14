@@ -396,14 +396,3 @@ export const ToolsIcon = () => (
     <path d="M20 4 8.12 15.88M14.47 14.48 20 20M8.12 8.12 12 12" />
   </Icon>
 );
-
-/** The Leafpage mark: two leaves that open like the pages of a book, in the greens of the brand (`--leaf`). */
-export function LeafMark({ className = 'leaf-mark' }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 32 32" aria-hidden="true" focusable="false">
-      <path className="leaf-body" d="M16 27C6 27 2.5 17 4.5 7c8.5.6 12.5 6.8 11.5 20z" />
-      <path className="leaf-body two" d="M16 27c1-13 5-19.4 11.5-20 2 10-1.5 20-11.5 20z" />
-      <path className="leaf-vein" d="M15.6 26C14 19 11 13.5 7 10.2M16.4 26c1.6-7 4.6-12.5 8.6-15.8" />
-    </svg>
-  );
-}
