@@ -390,28 +390,70 @@ function Reader({ data, docId, startPage, dark, onTheme, onClose, onPdf, scan, o
   const flipPage = useCallback((from: number, to: number): boolean => {
     const sheet = sheetRef.current;
     const flow = flowRef.current;
-    if (!sheet || !flow || reduced || flipping.current || Math.abs(to - from) !== 1 || flow.childElementCount > 1200) return false;
+    if (!sheet || !flow || reduced || flipping.current || Math.abs(to - from) !== 1 || flow.childElementCount === 0) return false;
     const two = dims.cols === 2;
     const half = two ? dims.sheetW / 2 : dims.sheetW;
     const right: Box = { left: two ? half : 0, top: 0, width: half, height: dims.sheetH };
     const left: Box = { left: 0, top: 0, width: half, height: dims.sheetH };
+    /**
+     * The text of one screen, as a copy that holds only the paragraphs on that screen (a long chapter is not copied
+     * whole): the copy starts with a spacer as tall as the paragraph's top was in its column, so its lines break
+     * exactly where the real ones do.
+     */
+    const colStride = (dims.clipW - (dims.cols - 1) * dims.gap) / dims.cols + dims.gap;
+    const screenCopy = (screenIdx: number) => {
+      const kids = Array.from(flow.children) as HTMLElement[];
+      const base = flow.getBoundingClientRect();
+      const x0 = screenIdx * dims.stride;
+      const x1 = x0 + dims.stride;
+      const lastRight = (el: HTMLElement) => { const rs = el.getClientRects(); return (rs.length ? rs[rs.length - 1].right : el.getBoundingClientRect().right) - base.left; };
+      const firstLeft = (el: HTMLElement) => { const rs = el.getClientRects(); return (rs.length ? rs[0].left : el.getBoundingClientRect().left) - base.left; };
+      let lo = 0;
+      let hi = kids.length - 1;
+      let i0 = kids.length - 1;
+      while (lo <= hi) { const mid = (lo + hi) >> 1; if (lastRight(kids[mid]) > x0 + 2) { i0 = mid; hi = mid - 1; } else lo = mid + 1; }
+      lo = i0;
+      hi = kids.length - 1;
+      let i1 = i0;
+      while (lo <= hi) { const mid = (lo + hi) >> 1; if (firstLeft(kids[mid]) < x1 - 2) { i1 = mid; lo = mid + 1; } else hi = mid - 1; }
+      const head = kids[i0];
+      const rs = head.getClientRects();
+      const r0 = rs.length ? rs[0] : head.getBoundingClientRect();
+      const col0 = Math.max(0, Math.floor((r0.left - base.left + 2) / colStride));
+      const top0 = r0.top - base.top;
+      const css = getComputedStyle(head);
+      const margin = parseFloat(css.marginTop) || 0;
+      return () => {
+        const f = flow.cloneNode(false) as HTMLElement;
+        f.removeAttribute('data-flow');
+        f.style.left = `${-(screenIdx * dims.cols - col0) * colStride}px`;
+        const spacer = document.createElement('div');
+        spacer.style.height = `${top0 > 0.5 ? Math.max(0, top0 - margin) : 0}px`;
+        f.appendChild(spacer);
+        for (let i = i0; i <= i1; i++) {
+          const c = kids[i].cloneNode(true) as HTMLElement;
+          if (i === i0) { c.style.marginTop = top0 > 0.5 ? css.marginTop : '0px'; c.style.textIndent = css.textIndent; }
+          f.appendChild(c);
+        }
+        return f;
+      };
+    };
+    const copies = new Map<number, () => HTMLElement>();
     /** One side of the sheet as it looks on a screen: its paper and the text of that screen; the strip of it that is asked for. */
     const copy = (screenIdx: number, side: 'left' | 'right') => (k = 0, count = 1) => {
+      let make = copies.get(screenIdx);
+      if (!make) { make = screenCopy(screenIdx); copies.set(screenIdx, make); }
       const d = document.createElement('div');
       d.className = 'bk-copy';
       const clip = document.createElement('div');
       clip.style.cssText = `position:absolute;overflow:hidden;left:${dims.clipLeft - (side === 'right' ? right.left : 0) - k * (half / count)}px;top:${dims.clipTop}px;width:${dims.clipW}px;height:${dims.clipH}px;pointer-events:none;`;
-      const f = flow.cloneNode(true) as HTMLElement;
-      f.removeAttribute('data-flow');
-      f.style.left = `${-screenIdx * dims.stride}px`;
-      clip.appendChild(f);
+      clip.appendChild(make());
       d.appendChild(clip);
       return d;
     };
     const forward = to > from;
     const blank = () => { const d = document.createElement('div'); d.className = 'bk-copy'; return d; };
-    // A leaf cut into more strips bends better but costs more to draw; a long chapter gets a stiffer leaf.
-    const slices = flow.childElementCount <= 200 ? 8 : flow.childElementCount <= 500 ? 4 : 1;
+    const slices = 8;
     const common = { host: sheet, leaf: right, area: { left: 0, top: 0, width: dims.sheetW, height: dims.sheetH }, forward, slices, ...(two ? { gutter: 35 } : {}) };
     const spec = two
       ? (forward
