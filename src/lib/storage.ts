@@ -231,8 +231,8 @@ function dropInkCache(id: string) {
   inkCache.delete(id);
 }
 
-/** Strokes still on the page (erased ones stay in the log as markers). */
-const countMarks = (log: InkLog) => Object.values(log).reduce((n, e) => n + (e.d || !e.s ? 0 : 1), 0);
+/** Strokes still on the page and highlights made in book mode (erased ones stay in the log as markers). */
+const countMarks = (log: InkLog) => Object.values(log).reduce((n, e) => n + (e.d ? 0 : e.s || e.m?.k === 'hl' ? 1 : 0), 0);
 
 // The number of marks is saved beside each log, so the shelf can show it
 // without reading every document's ink.

@@ -5,11 +5,13 @@ import { drawStrokes } from '../lib/ink';
 import { collectNotes, type PageNotes } from '../lib/notes';
 import { pageText } from '../lib/ocr';
 import { acquirePdf, releasePdf, renderPagePreview } from '../lib/pdf';
-import { getCachedNotes, getDocFile, getInkStamps, loadInk, putCachedNotes } from '../lib/storage';
+import { STABLE_BASE } from '../lib/book/model';
+import { getBookMarks, getCachedNotes, getDocFile, getInkStamps, loadInk, putCachedNotes } from '../lib/storage';
 import type { DocMeta } from '../lib/types';
 import { BookLoader } from './BookLoader';
 import { downloadPdf } from '../lib/sync/engine';
 import { useDownloadProgress } from '../lib/sync/useSync';
+import { HIGHLIGHTS, type HighlightColor } from '../lib/book/settings';
 import { ArrowIcon, BackIcon, ChevronIcon, CloseIcon, CopyIcon, FolderIcon, MarkIcon, PenIcon, PrintIcon, TextNoteIcon } from './icons';
 
 interface Props {
@@ -19,8 +21,13 @@ interface Props {
   onOpen: (id: string, page: number) => void;
 }
 
+/** A highlight made in book mode: the words, the colour, the reader's note, and the PDF page it is on (a PDF book). */
+interface BookNote { text: string; color: string; note?: string; page?: number }
+
 interface Loaded {
   notes: PageNotes[];
+  /** Highlights made in book mode (left out of notes kept before they were shown here). */
+  book?: BookNote[];
   /** False when the PDF is only in Drive, so its text could not be read. */
   hasFile: boolean;
 }
@@ -180,9 +187,18 @@ function Peek({ stops, at, onMove, onOpen, onClose }: {
 
 /** Works out a document's notes from its ink and the PDF's text. */
 async function readNotes(id: string): Promise<Loaded> {
-  const [ink, pdf] = await Promise.all([loadInk(id), acquirePdf(id, () => getDocFile(id))]);
+  const [ink, pdf, marks] = await Promise.all([loadInk(id), acquirePdf(id, () => getDocFile(id)), getBookMarks(id)]);
+  const book = Object.values(marks)
+    .filter((m) => m.k === 'hl' && m.q)
+    .sort((a, b) => a.a[0] - b.a[0] || a.a[1] - b.a[1])
+    .map((m): BookNote => ({
+      text: m.q!.replace(/\s+/g, ' ').trim(),
+      color: HIGHLIGHTS[m.c as HighlightColor] ?? HIGHLIGHTS.yellow,
+      ...(m.n?.trim() ? { note: m.n.trim() } : {}),
+      ...(m.a[0] >= STABLE_BASE ? { page: Math.floor((m.a[0] - STABLE_BASE) / 4096) } : {}),
+    }));
   try {
-    return { notes: await collectNotes(ink, pdf ? (p) => pageText(pdf, id, p).then((t) => t.boxes) : null), hasFile: Boolean(pdf) };
+    return { notes: await collectNotes(ink, pdf ? (p) => pageText(pdf, id, p).then((t) => t.boxes) : null), book, hasFile: Boolean(pdf) };
   } finally {
     releasePdf(id);
   }
@@ -217,7 +233,7 @@ export function Notes({ docs, folderName, onOpen }: Props) {
       for (const id of list) {
         const c = cached.get(id);
         // Notes made while the PDF was only in Drive lack its text: redo them once it is here.
-        const usable = c && c.stamp === stamps.get(id) && (c.notes.hasFile || docs.find((d) => d.id === id)?.cloudOnly);
+        const usable = c && c.stamp === stamps.get(id) && c.notes.book !== undefined && (c.notes.hasFile || docs.find((d) => d.id === id)?.cloudOnly);
         if (usable) ready.set(id, c.notes);
         else stale.push(id);
       }
@@ -246,7 +262,7 @@ export function Notes({ docs, folderName, onOpen }: Props) {
     .sort((a, b) => a.attached!.page - b.attached!.page || a.addedAt - b.addedAt);
   const top = docs.filter((d) => !(d.attached && docs.some((x) => x.id === d.attached!.doc)));
   const ordered = top.flatMap((d) => [d, ...linkedTo(d.id)]);
-  const markCount = (id: string) => loaded.get(id)?.notes.reduce((a, p) => a + p.highlights.length + p.untextedHighlights + p.pens + (p.texts?.length ?? 0), 0) ?? 0;
+  const markCount = (id: string) => (loaded.get(id)?.notes.reduce((a, p) => a + p.highlights.length + p.untextedHighlights + p.pens + (p.texts?.length ?? 0), 0) ?? 0) + (loaded.get(id)?.book?.length ?? 0);
 
   // Every noted page in order, for stepping through them in the large view.
   const stops = ordered.flatMap((d) => {
@@ -281,13 +297,14 @@ export function Notes({ docs, folderName, onOpen }: Props) {
     }
   };
 
-  const total = docs.reduce((n, d) => n + (loaded.get(d.id)?.notes.reduce((a, p) => a + p.highlights.length + p.untextedHighlights + p.pens + (p.texts?.length ?? 0), 0) ?? 0), 0);
+  const total = docs.reduce((n, d) => n + markCount(d.id), 0);
 
-  const linesOf = (id: string) => (loaded.get(id)?.notes ?? []).flatMap((p) => [
+  const bookLines = (id: string) => (loaded.get(id)?.book ?? []).map((b) => `- ${b.page !== undefined ? `p. ${b.page + 1}: ` : ''}“${b.text}”${b.note ? ` — note: ${b.note.replace(/\s*\n\s*/g, ' ')}` : ''}`);
+  const linesOf = (id: string) => [...(loaded.get(id)?.notes ?? []).flatMap((p) => [
     ...p.highlights.map((h) => `- p. ${p.page + 1}: “${h.text}”`),
     ...(p.texts ?? []).map((t) => `- p. ${p.page + 1}: note: ${t.replace(/\s*\n\s*/g, ' ')}`),
     ...(p.pens ? [`- p. ${p.page + 1}: ${plural(p.pens, 'pen mark', 'pen marks')}`] : []),
-  ]);
+  ]), ...bookLines(id)];
   const asText = () => top.map((d) => {
     const own = linesOf(d.id);
     const extra = linkedTo(d.id).map((n) => `### ${n.name} (a note for page ${n.attached!.page + 1})\n${linesOf(n.id).join('\n')}`);
@@ -301,6 +318,24 @@ export function Notes({ docs, folderName, onOpen }: Props) {
       setTimeout(() => setCopied(false), 1800);
     } catch { /* clipboard refused */ }
   };
+
+  /** What was highlighted and noted while reading it as a book: the words, the note, and where to find it. */
+  const bookList = (d: DocMeta, l: Loaded) => (l.book?.length ? (
+    <section className="note-book" aria-label="Highlights from book mode">
+      <h3>From reading as a book</h3>
+      <ul>
+        {l.book.map((b, i) => (
+          <li key={i}>
+            <button onClick={() => onOpen(d.id, b.page ?? 0)} style={{ ['--hl' as string]: b.color }}>
+              <q>{b.text}</q>
+              {b.note && <span className="note-book-note">{b.note}</span>}
+              {b.page !== undefined && <span className="note-book-page">p. {b.page + 1}</span>}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  ) : null);
 
   /** A document's noted pages as small pictures, with the highlighted text. */
   const grid = (d: DocMeta, l: Loaded) => (
@@ -347,7 +382,7 @@ export function Notes({ docs, folderName, onOpen }: Props) {
       <section className="notes-empty">
         <span className="drop-icon"><MarkIcon /></span>
         <h2>No notes yet</h2>
-        <p>Highlight or write on any page and it shows up here: the highlighted text, page by page, ready to copy or print.</p>
+        <p>Highlight or write on any page, or highlight while reading as a book, and it shows up here: the highlighted text, ready to copy or print.</p>
       </section>
     );
   }
@@ -402,6 +437,7 @@ export function Notes({ docs, folderName, onOpen }: Props) {
             ) : (
               <>
                 {l.notes.length > 0 && grid(d, l)}
+                {bookList(d, l)}
                 {linked.map((n) => {
                   const nl = loaded.get(n.id);
                   return (

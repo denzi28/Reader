@@ -786,6 +786,7 @@ function Reader({ data, docId, startPage, dark, onTheme, onClose, onPdf, scan, o
           </div>
         ) : (
           <div className="bk-actions">
+            {unread > 0 && !scan && <button className="bk-pill" onClick={onScan} title={`Reads the pages that have no text yet · ${ocrEstimate(unread)}`}>Read the other {unread} pages</button>}
             <button className="bk-icon" onClick={() => open('contents', 'contents')} aria-label="Contents" aria-pressed={panel === 'contents' && tab === 'contents'}><ListIcon /></button>
             <button className="bk-icon" onClick={() => open('contents', 'search')} aria-label="Search" aria-pressed={panel === 'contents' && tab === 'search'}><SearchIcon /></button>
             <button className={`bk-icon${marked ? ' on' : ''}`} onClick={toggleBookmark} aria-label={marked ? 'Remove bookmark' : 'Add bookmark'} aria-pressed={marked}><BookmarkIcon filled={marked} /></button>

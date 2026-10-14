@@ -2029,6 +2029,14 @@ mark {
   font-size: 0.68rem;
   line-height: 1.35;
 }
+.note-book { margin: 0.6rem 0 0.2rem; }
+.note-book h3 { margin: 0 0 0.35rem; font-size: 0.78rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+.note-book ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.4rem; }
+.note-book button { display: grid; gap: 0.2rem; width: 100%; text-align: left; padding: 0.5rem 0.7rem; border: 0; border-left: 3px solid var(--hl, #ffd84d); border-radius: 8px; background: color-mix(in srgb, var(--ink) 4%, transparent); color: var(--ink); font: inherit; cursor: pointer; }
+.note-book q { quotes: none; font-size: 0.9rem; line-height: 1.45; }
+.note-book-note { color: var(--muted); font-style: italic; font-size: 0.84rem; line-height: 1.4; }
+.note-book-page { color: var(--accent); font-weight: 700; font-size: 0.74rem; font-variant-numeric: tabular-nums; }
+@media (hover: hover) { .note-book button:hover { background: color-mix(in srgb, var(--ink) 8%, transparent); } }
 .note-loading {
   height: 72px;
   margin: 0.5rem 0;

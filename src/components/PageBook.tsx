@@ -173,6 +173,16 @@ export function PageBook({ docId, startPage, dark, onTheme, onClose, onPdf, scan
   const fitWidthZoom = scrollMode ? 1 : clamp(((box.w - 2 * pad) / cols) / fitW, 1, ZOOM_MAX);
   /** The zoom that puts a whole page in view. */
   const fitPageZoom = scrollMode ? clamp(((box.h - 2 * pad) * ratio) / fitW, ZOOM_MIN, 1) : 1;
+  // A document opened for the first time (nothing kept for it) shows its pages at the width of the screen, when
+  // a whole page in view would leave the page narrower than that. Two pages side by side keep to the spread.
+  const widthDefault = useRef(false);
+  useLayoutEffect(() => {
+    if (widthDefault.current || !pdf || box.w === 0) return;
+    widthDefault.current = true;
+    if (!start.current.fresh || scrollMode || cols !== 1 || fitWidthZoom <= 1.02) return;
+    setZoomState(fitWidthZoom);
+    setZoomDrawn(fitWidthZoom);
+  }, [pdf, box.w, scrollMode, cols, fitWidthZoom]);
 
   // The strip: where each page sits (the pages are assumed alike until their real sizes are known).
   const heights = useMemo(
@@ -327,7 +337,7 @@ export function PageBook({ docId, startPage, dark, onTheme, onClose, onPdf, scan
   flipRef.current = (target) => {
     const sp = spreadRef.current;
     const view = viewRef.current;
-    if (!sp || !view || scrollMode || zoom > 1.02 || flipping.current || reduced || box.w === 0) return;
+    if (!sp || !view || scrollMode || flipping.current || reduced || box.w === 0) return;
     const nextFirst = cols === 2 ? target - (target % 2) : target;
     if (Math.abs(nextFirst - first) !== cols || nextFirst < 0 || nextFirst >= n) return;
     const forward = nextFirst > first;
