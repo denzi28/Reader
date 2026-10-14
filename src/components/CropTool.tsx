@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { t } from '../lib/i18n';
 import { cropChange, type PageMove } from '../lib/carryNotes';
 import { pageSize } from '../lib/pdf';
 import { loadInk } from '../lib/storage';
@@ -110,7 +111,7 @@ function CropEditor({ ctx, doc, onBack, onClose }: { ctx: ToolContext; doc: Tool
 
   const run = async () => {
     setError(null);
-    setBusy({ label: 'Cropping…' });
+    setBusy({ label: t('Cropping…') });
     try {
       const bytes = await cropPdf(await fileOf(doc), m, only.set);
       // Where each mark of the original lands on the cut pages, in case the notes are brought along.
@@ -125,8 +126,8 @@ function CropEditor({ ctx, doc, onBack, onClose }: { ctx: ToolContext; doc: Tool
         }
       }
       ctx.finish({
-        title: `Cropped ${plural(count, 'page', 'pages')}`,
-        outputs: [{ name: `${doc.name} (cropped)`, bytes, pages: doc.pages, folder: ctx.folderOf(doc), sources: moves.length ? [{ docId: doc.id, moves }] : [] }],
+        title: t('Cropped {pages}', { pages: plural(count, 'page', 'pages') }),
+        outputs: [{ name: t('{name} (cropped)', { name: doc.name }), bytes, pages: doc.pages, folder: ctx.folderOf(doc), sources: moves.length ? [{ docId: doc.id, moves }] : [] }],
       });
     } catch (err) {
       setError(errorText(err));
@@ -138,17 +139,17 @@ function CropEditor({ ctx, doc, onBack, onClose }: { ctx: ToolContext; doc: Tool
   const edge = (m.l + m.r + m.t + m.b) === 0;
 
   return (
-    <Shell title="Crop" subtitle={`${doc.name} · ${plural(doc.pages, 'page', 'pages')}`} color="sage" onBack={onBack} onClose={onClose}
+    <Shell title={t('Crop')} subtitle={`${doc.name} · ${plural(doc.pages, 'page', 'pages')}`} color="sage" onBack={onBack} onClose={onClose}
       footer={<button className="button" disabled={!!busy || edge || (scope === 'some' && (!count || !!only.problem))} onClick={() => void run()}>
-        {edge ? 'Drag the frame to choose what to keep' : `Crop ${plural(count, 'page', 'pages')}`}
+        {edge ? t('Drag the frame to choose what to keep') : t('Crop {pages}', { pages: plural(count, 'page', 'pages') })}
       </button>}>
       {busy && <Busy label={busy.label} />}
       {(error || loadError) && <Notice>{error ?? loadError}</Notice>}
 
       <div className="crop-pager">
-        <button className="icon-button" disabled={cur === 0} onClick={() => setCur(cur - 1)} aria-label="Previous page"><BackIcon /></button>
-        <span>Page {cur + 1} of {doc.pages}</span>
-        <button className="icon-button" disabled={cur >= doc.pages - 1} onClick={() => setCur(cur + 1)} aria-label="Next page"><span className="turn"><ArrowIcon /></span></button>
+        <button className="icon-button" disabled={cur === 0} onClick={() => setCur(cur - 1)} aria-label={t('Previous page')}><BackIcon /></button>
+        <span>{t('Page {a} of {b}', { a: cur + 1, b: doc.pages })}</span>
+        <button className="icon-button" disabled={cur >= doc.pages - 1} onClick={() => setCur(cur + 1)} aria-label={t('Next page')}><span className="turn"><ArrowIcon /></span></button>
       </div>
 
       <div className={`crop-stage${drawn ? ' ready' : ''}`} ref={stage}>
@@ -167,7 +168,7 @@ function CropEditor({ ctx, doc, onBack, onClose }: { ctx: ToolContext; doc: Tool
             onPointerUp={end}
             onPointerCancel={end}
             role="group"
-            aria-label="Crop frame"
+            aria-label={t('Crop frame')}
           >
             {HANDLES.map((h) => (
               <span key={h} className={`crop-handle h-${h}`} data-handle={h} onPointerDown={begin(h)} onPointerMove={move} onPointerUp={end} onPointerCancel={end} />
@@ -178,25 +179,25 @@ function CropEditor({ ctx, doc, onBack, onClose }: { ctx: ToolContext; doc: Tool
       </div>
 
       <div className="crop-controls">
-        <button className="chip-button" onClick={autoTrim} disabled={!drawn}>Trim to content</button>
-        <button className="chip-button" onClick={() => setM({ l: 0, t: 0, r: 0, b: 0 })}>Reset</button>
-        <span className="tool-hint">Keeps {kept.w}% × {kept.h}% of the page</span>
+        <button className="chip-button" onClick={autoTrim} disabled={!drawn}>{t('Trim to content')}</button>
+        <button className="chip-button" onClick={() => setM({ l: 0, t: 0, r: 0, b: 0 })}>{t('Reset')}</button>
+        <span className="tool-hint">{t('Keeps {w}% × {h}% of the page', { w: kept.w, h: kept.h })}</span>
       </div>
 
       <section className="tool-section">
-        <h3 className="tool-label">Crop</h3>
-        <div className="segmented" role="tablist" aria-label="Pages to crop">
-          <button role="tab" aria-selected={scope === 'all'} className={scope === 'all' ? 'on' : ''} onClick={() => setScope('all')}>All pages</button>
-          <button role="tab" aria-selected={scope === 'some'} className={scope === 'some' ? 'on' : ''} onClick={() => setScope('some')}>Only some pages</button>
+        <h3 className="tool-label">{t('Crop')}</h3>
+        <div className="segmented" role="tablist" aria-label={t('Pages to crop')}>
+          <button role="tab" aria-selected={scope === 'all'} className={scope === 'all' ? 'on' : ''} onClick={() => setScope('all')}>{t('All pages')}</button>
+          <button role="tab" aria-selected={scope === 'some'} className={scope === 'some' ? 'on' : ''} onClick={() => setScope('some')}>{t('Only some pages')}</button>
         </div>
         {scope === 'some' && (
           <label className="tool-field">
-            <span>Pages to crop</span>
-            <input value={rangeText} onChange={(e) => setRangeText(e.target.value)} placeholder={`1-3, 5 (of ${doc.pages})`} autoComplete="off" spellCheck={false} />
+            <span>{t('Pages to crop')}</span>
+            <input value={rangeText} onChange={(e) => setRangeText(e.target.value)} placeholder={t('1-3, 5 (of {n})', { n: doc.pages })} autoComplete="off" spellCheck={false} />
             {only.problem && <Notice>{only.problem}</Notice>}
           </label>
         )}
-        <p className="tool-hint">The same frame is used on every chosen page, as a share of each page, so pages of different sizes are cut evenly.</p>
+        <p className="tool-hint">{t('The same frame is used on every chosen page, as a share of each page, so pages of different sizes are cut evenly.')}</p>
       </section>
     </Shell>
   );

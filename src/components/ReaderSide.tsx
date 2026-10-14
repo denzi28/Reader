@@ -1,5 +1,6 @@
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { useEffect, useRef, useState } from 'react';
+import { count, t } from '../lib/i18n';
 import { displayColor } from '../lib/ink';
 import { collectNotes, type PageNotes } from '../lib/notes';
 import { pageText } from '../lib/ocr';
@@ -41,7 +42,7 @@ function Thumb({ pdf, index, aspect, active, dark, onGo }: {
     return () => { dead = true; };
   }, [near, pdf, index]);
   return (
-    <button ref={wrap} className={`rail-thumb${active ? ' on' : ''}`} data-thumb={index} onClick={() => onGo(index + 1)} aria-label={`Page ${index + 1}`} aria-current={active ? 'page' : undefined}>
+    <button ref={wrap} className={`rail-thumb${active ? ' on' : ''}`} data-thumb={index} onClick={() => onGo(index + 1)} aria-label={t('Page {n}', { n: index + 1 })} aria-current={active ? 'page' : undefined}>
       <span className="rail-sheet" style={{ aspectRatio: `1 / ${aspect}` }}>
         <canvas ref={canvas} className={dark ? 'night' : ''} />
       </span>
@@ -59,7 +60,7 @@ export function PageRail({ pdf, sizes, current, dark, onGo }: {
     box.current?.querySelector(`[data-thumb="${current}"]`)?.scrollIntoView({ block: 'nearest' });
   }, [current]);
   return (
-    <aside className="rail" aria-label="Pages" ref={box}>
+    <aside className="rail" aria-label={t('Pages')} ref={box}>
       {sizes.map((s, i) => (
         <Thumb key={i} pdf={pdf} index={i} aspect={s.h / s.w} active={i === current} dark={dark} onGo={onGo} />
       ))}
@@ -85,23 +86,23 @@ export function DocPanel({ pdf, docId, ink, current, dark, links, canNote, onGo,
   // Looked at again a moment after the marks stop changing.
   useEffect(() => {
     let dead = false;
-    const t = setTimeout(() => {
+    const timer = setTimeout(() => {
       void collectNotes(ink, pdf ? (p) => pageText(pdf, docId, p).then((x) => x.boxes) : null)
         .then((n) => { if (!dead) setNotes(n); })
         .catch(() => { if (!dead) setNotes([]); });
     }, 600);
-    return () => { dead = true; clearTimeout(t); };
+    return () => { dead = true; clearTimeout(timer); };
   }, [ink, pdf, docId]);
   const total = (notes ?? []).reduce((a, n) => a + n.highlights.length + n.untextedHighlights + n.pens + (n.texts?.length ?? 0), 0);
   return (
-    <aside className="docpanel" aria-label="This document">
-      <h2>This document</h2>
-      <p className="docpanel-sub">{notes === null ? 'Looking…' : total ? `${total} ${total === 1 ? 'mark' : 'marks'} on ${notes.length} ${notes.length === 1 ? 'page' : 'pages'}` : 'Nothing marked yet'}</p>
-      {notes && notes.length === 0 && <p className="docpanel-empty">Highlights, typed notes and pen marks collect here, page by page.</p>}
+    <aside className="docpanel" aria-label={t('This document')}>
+      <h2>{t('This document')}</h2>
+      <p className="docpanel-sub">{notes === null ? t('Looking…') : total ? t('{marks} on {pages}', { marks: count(total, 'mark', 'marks'), pages: count(notes.length, 'page', 'pages') }) : t('Nothing marked yet')}</p>
+      {notes && notes.length === 0 && <p className="docpanel-empty">{t('Highlights, typed notes and pen marks collect here, page by page.')}</p>}
       <div className="docpanel-list">
         {(notes ?? []).map((n) => (
           <section key={n.page} className={`dp-page${n.page === current ? ' here' : ''}`}>
-            <button className="dp-head" onClick={() => onGo(n.page + 1)}>Page {n.page + 1}</button>
+            <button className="dp-head" onClick={() => onGo(n.page + 1)}>{t('Page {n}', { n: n.page + 1 })}</button>
             {n.highlights.map((h, i) => (
               <button key={`h${i}`} className="dp-item" onClick={() => onGo(n.page + 1)}>
                 <i className="dp-swatch" style={{ background: displayColor(h.color, dark) }} aria-hidden="true" />
@@ -110,17 +111,17 @@ export function DocPanel({ pdf, docId, ink, current, dark, links, canNote, onGo,
             ))}
             {n.untextedHighlights > 0 && (
               <button className="dp-item muted" onClick={() => onGo(n.page + 1)}>
-                <i className="dp-swatch" aria-hidden="true" /><span>{n.untextedHighlights} {n.untextedHighlights === 1 ? 'highlight' : 'highlights'}</span>
+                <i className="dp-swatch" aria-hidden="true" /><span>{count(n.untextedHighlights, 'highlight', 'highlights')}</span>
               </button>
             )}
-            {n.texts?.map((t, i) => (
+            {n.texts?.map((txt, i) => (
               <button key={`t${i}`} className="dp-item" onClick={() => onGo(n.page + 1)}>
-                <TextNoteIcon /><span>{t}</span>
+                <TextNoteIcon /><span>{txt}</span>
               </button>
             ))}
             {n.pens > 0 && (
               <button className="dp-item muted" onClick={() => onGo(n.page + 1)}>
-                <PenIcon /><span>{n.pens} pen {n.pens === 1 ? 'mark' : 'marks'}</span>
+                <PenIcon /><span>{n.pens === 1 ? t('1 pen mark') : t('{n} pen marks', { n: n.pens })}</span>
               </button>
             )}
           </section>
@@ -128,13 +129,13 @@ export function DocPanel({ pdf, docId, ink, current, dark, links, canNote, onGo,
       </div>
       {(links.length > 0 || canNote) && (
         <section className="dp-notes">
-          <h3>Notes for page {current + 1}</h3>
+          <h3>{t('Notes for page {n}', { n: current + 1 })}</h3>
           {links.map((l) => (
             <button key={`${l.doc.id}:${l.page}`} className="dp-item" onClick={() => onOpen(l.doc.id, l.page)}>
               <NotePlusIcon /><span>{l.label}<small>{l.sub}</small></span>
             </button>
           ))}
-          {canNote && <button className="dp-add" onClick={onNote}><NotePlusIcon />Add a note for this page</button>}
+          {canNote && <button className="dp-add" onClick={onNote}><NotePlusIcon />{t('Add a note for this page')}</button>}
         </section>
       )}
     </aside>

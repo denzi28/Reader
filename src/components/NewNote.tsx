@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { NotebookSpec, Paper } from '../lib/notebookSpec';
+import { t } from '../lib/i18n';
 import { CloseIcon } from './icons';
 
 const PAPERS: { id: Paper; label: string }[] = [
-  { id: 'blank', label: 'Blank' },
-  { id: 'lined', label: 'Lined' },
-  { id: 'grid', label: 'Squared' },
-  { id: 'dotted', label: 'Dotted' },
+  { id: 'blank', label: t('Blank') },
+  { id: 'lined', label: t('Lined') },
+  { id: 'grid', label: t('Squared') },
+  { id: 'dotted', label: t('Dotted') },
 ];
 
 /** A little picture of each kind of paper. */
@@ -52,36 +53,36 @@ export function NewNote({ busy, error, dedicated, onCreate, onClose }: {
     window.addEventListener('keydown', key);
     return () => window.removeEventListener('keydown', key);
   }, [onClose]);
-  const fallback = dedicated ? `${dedicated.name} · p. ${dedicated.page}` : 'Untitled note';
+  const fallback = dedicated ? t('{name} · p. {page}', { name: dedicated.name, page: dedicated.page }) : t('Untitled note');
   const go = () => onCreate({ name: name.trim() || fallback, paper, landscape: false, pages: 1 });
 
   return createPortal(
-    <div className="tool-menu" role="dialog" aria-modal="true" aria-label="New note">
+    <div className="tool-menu" role="dialog" aria-modal="true" aria-label={t('New note')}>
       <div className="tool-menu-backdrop" onClick={onClose} />
       <div className="tool-menu-sheet newnote">
         <header className="tool-menu-head">
           <div>
-            <h2>New note</h2>
-            <p>{dedicated ? 'An empty notebook that goes with one page.' : 'An empty notebook to write on with the pen.'}</p>
+            <h2>{t('New note')}</h2>
+            <p>{dedicated ? t('An empty notebook that goes with one page.') : t('An empty notebook to write on with the pen.')}</p>
           </div>
-          <button className="icon-button" onClick={onClose} aria-label="Close"><CloseIcon /></button>
+          <button className="icon-button" onClick={onClose} aria-label={t('Close')}><CloseIcon /></button>
         </header>
 
         {dedicated && (
           <p className="dedicated" role="note">
-            <b>Dedicated to</b>
+            <b>{t('Dedicated to')}</b>
             <span>{dedicated.name}</span>
-            <em>page {dedicated.page}</em>
+            <em>{t('page {page}', { page: dedicated.page })}</em>
           </p>
         )}
         <label className="tool-field">
-          <span>Name</span>
+          <span>{t('Name')}</span>
           <input ref={field} value={name} onChange={(e) => setName(e.target.value)} placeholder={fallback} maxLength={120}
             onKeyDown={(e) => { if (e.key === 'Enter') go(); }} />
         </label>
 
-        <h3 className="tool-label">Paper</h3>
-        <div className="papers" role="radiogroup" aria-label="Paper">
+        <h3 className="tool-label">{t('Paper')}</h3>
+        <div className="papers" role="radiogroup" aria-label={t('Paper')}>
           {PAPERS.map((p) => (
             <button key={p.id} role="radio" aria-checked={paper === p.id} className={`paper${paper === p.id ? ' on' : ''}`} onClick={() => setPaper(p.id)}>
               <Swatch paper={p.id} />
@@ -90,9 +91,11 @@ export function NewNote({ busy, error, dedicated, onCreate, onClose }: {
           ))}
         </div>
 
-        <p className="tool-hint">It starts with one page; a button at the end adds the next one whenever you need it. Pages are always upright, so every note lines up with the others.{dedicated ? ' It shows in the corner of that page, and that page shows in the corner of the note.' : ''}</p>
+        <p className="tool-hint">{dedicated
+          ? t('It starts with one page; a button at the end adds the next one whenever you need it. Pages are always upright, so every note lines up with the others. It shows in the corner of that page, and that page shows in the corner of the note.')
+          : t('It starts with one page; a button at the end adds the next one whenever you need it. Pages are always upright, so every note lines up with the others.')}</p>
         {error && <p className="tool-error" role="alert">{error}</p>}
-        <button className="button newnote-go" disabled={busy} onClick={go}>{busy ? 'Making it…' : 'Create note'}</button>
+        <button className="button newnote-go" disabled={busy} onClick={go}>{busy ? t('Making it…') : t('Create note')}</button>
       </div>
     </div>,
     document.body,

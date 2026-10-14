@@ -1,5 +1,6 @@
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { t } from '../lib/i18n';
 import { displayColor, drawStroke, drawStrokes, newId, SELECT_COLOR, strokeHit, TEXT_BOX } from '../lib/ink';
 import { boxOf, eraseArea, lassoPick, simStroke, type Sim } from '../lib/inkOps';
 import { PALM_WINDOW_MS, type PointerHub } from '../lib/pointerHub';
@@ -596,10 +597,10 @@ function PageViewImpl(props: Props) {
         <textarea
           ref={field}
           className="note-editor"
-          aria-label="Note text"
+          aria-label={t('Note text')}
           rows={1}
           value={editor.text}
-          placeholder="Type a note"
+          placeholder={t('Type a note')}
           style={{ left: editor.x * width, top: editor.y * width, width: editor.w * width, fontSize: editor.size * width, lineHeight: 1.3, color: displayColor(editor.color, dark) }}
           onChange={(e) => setEditor({ ...editor, text: e.target.value })}
           onBlur={() => finishEditor(true)}

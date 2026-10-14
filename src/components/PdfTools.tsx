@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { importPdf } from '../lib/importPdf';
+import { t } from '../lib/i18n';
 import { openPaywall, PlanLimit } from '../lib/plan';
 import { movedStrokes, type PageMove } from '../lib/carryNotes';
 import { mergePdfs, pageCount, parseRanges, splitPdf } from '../lib/pdfOps';
@@ -85,7 +86,7 @@ function Ready({ tool, finished, signedIn, guest, onClose, onChanged, onOpen }: 
   onChanged: () => void;
   onOpen: (id: string) => void;
 }) {
-  const meta = TOOLS.find((t) => t.id === tool)!;
+  const meta = TOOLS.find((x) => x.id === tool)!;
   const [rows, setRows] = useState<Row[]>(() => finished.outputs.map((spec) => ({ spec })));
   const [dialog, setDialog] = useState<Dialog>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -102,8 +103,7 @@ function Ready({ tool, finished, signedIn, guest, onClose, onChanged, onOpen }: 
   };
   const many = rows.length > 1;
   const unsaved = rows.filter((r) => !r.saved);
-  const where = signedIn ? 'your account' : 'your library';
-
+  
   // How many marks the originals hold, for asking whether they should come along.
   useEffect(() => {
     const ids = [...new Set(finished.outputs.flatMap((o) => o.sources.map((s) => s.docId)))];
@@ -133,7 +133,7 @@ function Ready({ tool, finished, signedIn, guest, onClose, onChanged, onOpen }: 
   const save = async (bring: boolean, then: Then) => {
     setDialog(null);
     setError(null);
-    setBusy('Saving…');
+    setBusy(t('Saving…'));
     try {
       const folders = new Map<string, string>();
       const next = [...rows];
@@ -201,8 +201,8 @@ function Ready({ tool, finished, signedIn, guest, onClose, onChanged, onOpen }: 
   const downloads = then && (then.kind === 'download' || then.kind === 'zip');
 
   return (
-    <Shell title={many ? 'Your new PDFs' : 'Your new PDF'} subtitle={finished.title} color={meta.color} onClose={leave}
-      footer={<button className="button" onClick={leave}>{guest ? 'Done' : 'Back to library'}</button>}>
+    <Shell title={many ? t('Your new PDFs') : t('Your new PDF')} subtitle={finished.title} color={meta.color} onClose={leave}
+      footer={<button className="button" onClick={leave}>{guest ? t('Done') : t('Back to library')}</button>}>
       {busy && <Busy label={busy} />}
       {error && <Notice>{error}</Notice>}
 
@@ -219,17 +219,17 @@ function Ready({ tool, finished, signedIn, guest, onClose, onChanged, onOpen }: 
                 {r.saved && (
                   <span className="docrow-status">
                     {r.saved.localOnly ? <CloudOffIcon /> : <CheckIcon />}
-                    {r.saved.localOnly ? 'Saved on this device only' : signedIn ? 'Saved to your account' : 'Saved to your library'}
-                    {!!r.carried && <> · <MarkIcon /> {plural(r.carried, 'mark', 'marks')} came along</>}
+                    {r.saved.localOnly ? t('Saved on this device only') : signedIn ? t('Saved to your account') : t('Saved to your library')}
+                    {!!r.carried && <> · <MarkIcon /> {t('{marks} came along', { marks: plural(r.carried, 'mark', 'marks') })}</>}
                   </span>
                 )}
               </span>
-              <button className="chip-button" onClick={() => act({ kind: 'download', index: i })} aria-label={`Download ${r.spec.name}`}>
-                <DownloadIcon /> Download
+              <button className="chip-button" onClick={() => act({ kind: 'download', index: i })} aria-label={t('Download {name}', { name: r.spec.name })}>
+                <DownloadIcon /> {t('Download')}
               </button>
               {guest ? null : (
-                <button className="chip-button chip-primary" onClick={() => act({ kind: 'open', index: i })} aria-label={`Open ${r.spec.name}`}>
-                  Open <ArrowIcon />
+                <button className="chip-button chip-primary" onClick={() => act({ kind: 'open', index: i })} aria-label={t('Open {name}', { name: r.spec.name })}>
+                  {t('Open')} <ArrowIcon />
                 </button>
               )}
             </li>
@@ -237,27 +237,29 @@ function Ready({ tool, finished, signedIn, guest, onClose, onChanged, onOpen }: 
         </ul>
         {many && (
           <button className="chip-button" onClick={() => act({ kind: 'zip' })}>
-            <DownloadIcon /> Download all as one ZIP
+            <DownloadIcon /> {t('Download all as one ZIP')}
           </button>
         )}
         {!guest && rows[0].spec.newFolder && unsaved.length > 0 && (
-          <p className="tool-done-folder"><FolderIcon /> They will go in a new folder, “{rows[0].spec.newFolder}”</p>
+          <p className="tool-done-folder"><FolderIcon /> {t('They will go in a new folder, “{name}”', { name: rows[0].spec.newFolder })}</p>
         )}
         {guest && (
           <div className="keep-card">
             <div>
-              <strong>Download {many ? 'them' : 'it'} now</strong>
-              <p>Nothing is kept here, so save {many ? 'them' : 'it'} to your device.</p>
+              <strong>{many ? t('Download them now') : t('Download it now')}</strong>
+              <p>{many ? t('Nothing is kept here, so save them to your device.') : t('Nothing is kept here, so save it to your device.')}</p>
             </div>
           </div>
         )}
         {!guest && unsaved.length > 0 && (
           <div className="keep-card">
             <div>
-              <strong>Not saved yet</strong>
-              <p>Keep {many ? 'these' : 'this'} in {where} to read {many ? 'them' : 'it'} here, mark {many ? 'them' : 'it'} up and find {many ? 'them' : 'it'} on your other devices.</p>
+              <strong>{t('Not saved yet')}</strong>
+              <p>{signedIn
+                ? many ? t('Keep these in your account to read them here, mark them up and find them on your other devices.') : t('Keep this in your account to read it here, mark it up and find it on your other devices.')
+                : many ? t('Keep these in your library to read them here, mark them up and find them on your other devices.') : t('Keep this in your library to read it here, mark it up and find it on your other devices.')}</p>
             </div>
-            <button className="button button-small" onClick={() => act({ kind: 'none' })}>Save to {where}</button>
+            <button className="button button-small" onClick={() => act({ kind: 'none' })}>{signedIn ? t('Save to your account') : t('Save to your library')}</button>
           </div>
         )}
         <Promo guest={guest} />
@@ -266,21 +268,21 @@ function Ready({ tool, finished, signedIn, guest, onClose, onChanged, onOpen }: 
       </div>
 
       {dialog?.step === 'save' && then && (
-        <div className="tool-busy tool-ask" role="alertdialog" aria-label={`Save to ${where}?`}>
+        <div className="tool-busy tool-ask" role="alertdialog" aria-label={signedIn ? t('Save to your account?') : t('Save to your library?')}>
           <div className="tool-ask-card">
             <span className="tool-ask-icon save"><CheckIcon /></span>
-            <h3>Save to {where}?</h3>
+            <h3>{signedIn ? t('Save to your account?') : t('Save to your library?')}</h3>
             <p>
               {signedIn
-                ? `Add the new ${many ? 'PDFs' : 'PDF'} to your account, so ${many ? 'they are' : 'it is'} on all your devices.`
-                : `Add the new ${many ? 'PDFs' : 'PDF'} to your library on this device.`}
+                ? many ? t('Add the new PDFs to your account, so they are on all your devices.') : t('Add the new PDF to your account, so it is on all your devices.')
+                : many ? t('Add the new PDFs to your library on this device.') : t('Add the new PDF to your library on this device.')}
             </p>
             <SaveOption signedIn={signedIn} localOnly={localOnly} onChange={setLocal} />
             <button className="button" onClick={() => answer(true, then)}>
-              {then.kind === 'open' ? 'Save and open' : downloads ? 'Yes, save and download' : 'Yes, save'}
+              {then.kind === 'open' ? t('Save and open') : downloads ? t('Yes, save and download') : t('Yes, save')}
             </button>
-            {downloads && <button className="chip-button" onClick={() => answer(false, then)}>No, just download</button>}
-            <button className="link" onClick={() => setDialog(null)}>Cancel</button>
+            {downloads && <button className="chip-button" onClick={() => answer(false, then)}>{t('No, just download')}</button>}
+            <button className="link" onClick={() => setDialog(null)}>{t('Cancel')}</button>
           </div>
         </div>
       )}
@@ -288,13 +290,13 @@ function Ready({ tool, finished, signedIn, guest, onClose, onChanged, onOpen }: 
         <NotesAsk marks={marks} plural={many} onChoose={(b) => void save(b, then)} onCancel={() => setDialog({ step: 'save', then })} />
       )}
       {dialog?.step === 'discard' && (
-        <div className="tool-busy tool-ask" role="alertdialog" aria-label="Leave without keeping it?">
+        <div className="tool-busy tool-ask" role="alertdialog" aria-label={many ? t('Leave without keeping them?') : t('Leave without keeping it?')}>
           <div className="tool-ask-card">
             <span className="tool-ask-icon warn"><CloseIcon /></span>
-            <h3>Leave without keeping {many ? 'them' : 'it'}?</h3>
-            <p>The new {many ? 'PDFs have' : 'PDF has'} not been saved or downloaded. {many ? 'They' : 'It'} will be lost.</p>
-            <button className="button" onClick={() => setDialog(null)}>Stay</button>
-            <button className="chip-button" onClick={onClose}>Leave without saving</button>
+            <h3>{many ? t('Leave without keeping them?') : t('Leave without keeping it?')}</h3>
+            <p>{many ? t('The new PDFs have not been saved or downloaded. They will be lost.') : t('The new PDF has not been saved or downloaded. It will be lost.')}</p>
+            <button className="button" onClick={() => setDialog(null)}>{t('Stay')}</button>
+            <button className="chip-button" onClick={onClose}>{t('Leave without saving')}</button>
           </div>
         </div>
       )}
@@ -306,7 +308,7 @@ function Ready({ tool, finished, signedIn, guest, onClose, onChanged, onOpen }: 
 function Promo({ guest }: { guest?: boolean }) {
   const [copied, setCopied] = useState(false);
   const share = async () => {
-    const data = { title: 'The Reader', text: 'A PDF reader that feels like paper: write on your pages, keep everything in your own Google Drive.', url: location.origin };
+    const data = { title: 'The Reader', text: t('A PDF reader that feels like paper: write on your pages, keep everything in your own Google Drive.'), url: location.origin };
     try {
       if (navigator.share) await navigator.share(data);
       else {
@@ -319,14 +321,14 @@ function Promo({ guest }: { guest?: boolean }) {
     <aside className="promo">
       <span className="promo-mark"><ToolsIcon /></span>
       <div className="promo-text">
-        <strong>{guest ? 'Like it? There is more in The Reader.' : 'Like The Reader? Tell a friend.'}</strong>
+        <strong>{guest ? t('Like it? There is more in The Reader.') : t('Like The Reader? Tell a friend.')}</strong>
         <p>
           {guest
-            ? 'Write on your PDFs with a pen and highlighter, and find them on every device, kept in your own Google Drive.'
-            : 'A PDF reader that feels like paper, free to use.'}
+            ? t('Write on your PDFs with a pen and highlighter, and find them on every device, kept in your own Google Drive.')
+            : t('A PDF reader that feels like paper, free to use.')}
         </p>
       </div>
-      {guest ? <GoogleButton label="Continue with Google" /> : <button className="chip-button" onClick={() => void share()}>{copied ? 'Link copied' : 'Share'}</button>}
+      {guest ? <GoogleButton label={t('Continue with Google')} /> : <button className="chip-button" onClick={() => void share()}>{copied ? t('Link copied') : t('Share')}</button>}
     </aside>
   );
 }
@@ -350,8 +352,8 @@ function MergeTool({ ctx, onClose }: { ctx: ToolContext; onClose: () => void }) 
   const taken = new Set(items.flatMap((i) => (i.doc ? [i.doc.id] : [])));
   const available = ctx.docs.filter((d) => !taken.has(d.id));
   const total = items.reduce((n, i) => n + (i.pages ?? 0), 0);
-  const suggested = items.length ? `${items[0].name} + ${items.length - 1} more` : 'Merged document';
-  const shownName = name || (items.length > 1 ? suggested : 'Merged document');
+  const suggested = items.length ? t('{name} + {n} more', { name: items[0].name, n: items.length - 1 }) : t('Merged document');
+  const shownName = name || (items.length > 1 ? suggested : t('Merged document'));
 
   const add = (d: DocMeta) => setItems((cur) => [...cur, { key: d.id, name: d.name, pages: d.pages, doc: d }]);
   const move = (i: number, by: number) => setItems((cur) => {
@@ -371,11 +373,11 @@ function MergeTool({ ctx, onClose }: { ctx: ToolContext; onClose: () => void }) 
 
   const run = async () => {
     setError(null);
-    setBusy({ label: 'Reading your documents…' });
+    setBusy({ label: t('Reading your documents…') });
     try {
       const sources = [];
       for (const i of items) sources.push({ blob: i.blob ?? (await fileOf(i.doc!)), name: i.name });
-      const { bytes, counts } = await mergePdfs(sources, (done, all) => setBusy({ label: `Joining ${done} of ${all}…`, fraction: done / all }));
+      const { bytes, counts } = await mergePdfs(sources, (done, all) => setBusy({ label: t('Joining {done} of {all}…', { done, all }), fraction: done / all }));
       const folders = new Set(items.map((i) => (i.doc ? ctx.folderOf(i.doc) : null)));
       const folder = folders.size === 1 ? [...folders][0] : null;
       // Where each page of each library document lands, in case the notes are brought along.
@@ -386,7 +388,7 @@ function MergeTool({ ctx, onClose }: { ctx: ToolContext; onClose: () => void }) 
         offset += counts[i];
       }
       ctx.finish({
-        title: `Merged ${items.length} documents into one`,
+        title: t('Merged {n} documents into one', { n: items.length }),
         outputs: [{ name: shownName, bytes, pages: offset, folder, sources: from }],
       });
     } catch (err) {
@@ -397,13 +399,13 @@ function MergeTool({ ctx, onClose }: { ctx: ToolContext; onClose: () => void }) 
 
   return (
     <Shell
-      title="Merge PDFs"
-      subtitle="Documents are joined in the order below"
+      title={t('Merge PDFs')}
+      subtitle={t('Documents are joined in the order below')}
       color="terra"
       onClose={onClose}
       footer={
         <button className="button" disabled={items.length < 2 || !!busy} onClick={() => void run()}>
-          {items.length < 2 ? 'Choose at least two documents' : `Merge ${items.length} documents${total ? ` · ${plural(total, 'page', 'pages')}` : ''}`}
+          {items.length < 2 ? t('Choose at least two documents') : total ? t('Merge {n} documents · {pages}', { n: items.length, pages: plural(total, 'page', 'pages') }) : t('Merge {n} documents', { n: items.length })}
         </button>
       }
     >
@@ -411,14 +413,14 @@ function MergeTool({ ctx, onClose }: { ctx: ToolContext; onClose: () => void }) 
       {error && <Notice>{error}</Notice>}
 
       <button className="chip-button pick-device pick-top" onClick={() => input.current?.click()}>
-        <UploadIcon /> Add files from this device
+        <UploadIcon /> {t('Add files from this device')}
       </button>
       <input ref={input} type="file" accept="application/pdf,.pdf" multiple hidden onChange={(e) => { addFiles(e.target.files); e.target.value = ''; }} />
 
       <section className="tool-section">
-        <h3 className="tool-label">Order</h3>
+        <h3 className="tool-label">{t('Order')}</h3>
         {items.length === 0 ? (
-          <p className="empty-note">{ctx.guest ? 'Add PDFs from your device below. They are joined top to bottom.' : 'Tap documents below to add them. They are joined top to bottom.'}</p>
+          <p className="empty-note">{ctx.guest ? t('Add PDFs from your device below. They are joined top to bottom.') : t('Tap documents below to add them. They are joined top to bottom.')}</p>
         ) : (
           <ol className="merge-order">
             {items.map((it, i) => (
@@ -427,26 +429,26 @@ function MergeTool({ ctx, onClose }: { ctx: ToolContext; onClose: () => void }) 
                 <span className="docrow-cover">{it.doc ? <Cover meta={it.doc} /> : <span className="cover-fallback"><UploadIcon /></span>}</span>
                 <span className="docrow-text">
                   <span className="docrow-name">{it.name}</span>
-                  <span className="docrow-meta">{it.pages ? plural(it.pages, 'page', 'pages') : 'from this device'}</span>
+                  <span className="docrow-meta">{it.pages ? plural(it.pages, 'page', 'pages') : t('from this device')}</span>
                 </span>
-                <button className="icon-button" onClick={() => move(i, -1)} disabled={i === 0} aria-label={`Move ${it.name} up in the order`}><span className="flip"><ArrowIcon /></span></button>
-                <button className="icon-button" onClick={() => move(i, 1)} disabled={i === items.length - 1} aria-label={`Move ${it.name} down in the order`}><span className="down"><ArrowIcon /></span></button>
-                <button className="icon-button" onClick={() => setItems((cur) => cur.filter((x) => x.key !== it.key))} aria-label={`Take ${it.name} out of the list`}><CloseIcon /></button>
+                <button className="icon-button" onClick={() => move(i, -1)} disabled={i === 0} aria-label={t('Move {name} up in the order', { name: it.name })}><span className="flip"><ArrowIcon /></span></button>
+                <button className="icon-button" onClick={() => move(i, 1)} disabled={i === items.length - 1} aria-label={t('Move {name} down in the order', { name: it.name })}><span className="down"><ArrowIcon /></span></button>
+                <button className="icon-button" onClick={() => setItems((cur) => cur.filter((x) => x.key !== it.key))} aria-label={t('Take {name} out of the list', { name: it.name })}><CloseIcon /></button>
               </li>
             ))}
           </ol>
         )}
         {items.length > 1 && (
           <label className="tool-field">
-            <span>Name of the new document</span>
+            <span>{t('Name of the new document')}</span>
             <input value={name} onChange={(e) => setName(e.target.value)} placeholder={suggested} maxLength={120} />
           </label>
         )}
       </section>
 
       <section className="tool-section">
-        <h3 className="tool-label">From your library</h3>
-        {!ctx.guest && <DocList docs={available} onPick={add} empty={ctx.docs.length ? 'Everything is already in the list.' : 'Add a PDF to your library first.'} badge={() => <span className="docrow-plus"><PlusIcon /></span>} />}
+        <h3 className="tool-label">{t('From your library')}</h3>
+        {!ctx.guest && <DocList docs={available} onPick={add} empty={ctx.docs.length ? t('Everything is already in the list.') : t('Add a PDF to your library first.')} badge={() => <span className="docrow-plus"><PlusIcon /></span>} />}
       </section>
     </Shell>
   );
@@ -491,25 +493,25 @@ function SplitOptions({ ctx, doc, onBack, onClose }: { ctx: ToolContext; doc: To
   }, [mode, text, every, picked, pages]);
 
   const label = (g: number[]) =>
-    mode === 'extract' ? `${doc.name} (selected pages)`
-      : g.length === 1 ? `${doc.name} (page ${g[0] + 1})`
-      : `${doc.name} (pages ${g[0] + 1}-${g[g.length - 1] + 1})`;
+    mode === 'extract' ? t('{name} (selected pages)', { name: doc.name })
+      : g.length === 1 ? t('{name} (page {n})', { name: doc.name, n: g[0] + 1 })
+      : t('{name} (pages {a}-{b})', { name: doc.name, a: g[0] + 1, b: g[g.length - 1] + 1 });
 
   const run = async () => {
     setError(null);
-    setBusy({ label: 'Reading the document…' });
+    setBusy({ label: t('Reading the document…') });
     try {
       const blob = await fileOf(doc);
-      const parts = await splitPdf(blob, plan.groups, (done, all) => setBusy({ label: `Cutting ${done} of ${all}…`, fraction: done / all }));
+      const parts = await splitPdf(blob, plan.groups, (done, all) => setBusy({ label: t('Cutting {done} of {all}…', { done, all }), fraction: done / all }));
       const several = parts.length > 1;
       ctx.finish({
-        title: several ? `Split into ${parts.length} PDFs` : `Pulled out ${plural(plan.groups[0].length, 'page', 'pages')}`,
+        title: several ? t('Split into {n} PDFs', { n: parts.length }) : t('Pulled out {pages}', { pages: plural(plan.groups[0].length, 'page', 'pages') }),
         outputs: parts.map((bytes, i) => ({
           name: label(plan.groups[i]),
           bytes,
           pages: plan.groups[i].length,
           folder: several ? null : ctx.folderOf(doc),
-          newFolder: several ? `${doc.name} (split)` : undefined,
+          newFolder: several ? t('{name} (split)', { name: doc.name }) : undefined,
           sources: doc.temp ? [] : [{ docId: doc.id, moves: plan.groups[i].map((from, to) => ({ from, to })) }],
         })),
       });
@@ -520,58 +522,58 @@ function SplitOptions({ ctx, doc, onBack, onClose }: { ctx: ToolContext; doc: To
   };
 
   const files = plan.groups.length;
-  const cta = !files ? (mode === 'extract' ? 'Tap the pages to pull out' : 'Set how to split') : mode === 'extract' ? `Extract ${plural(picked.size, 'page', 'pages')}` : `Split into ${plural(files, 'file', 'files')}`;
+  const cta = !files ? (mode === 'extract' ? t('Tap the pages to pull out') : t('Set how to split')) : mode === 'extract' ? t('Extract {pages}', { pages: plural(picked.size, 'page', 'pages') }) : t('Split into {files}', { files: plural(files, 'file', 'files') });
 
   return (
-    <Shell title="Split" subtitle={`${doc.name} · ${plural(pages, 'page', 'pages')}`} color="mustard" onBack={onBack} onClose={onClose}
+    <Shell title={t('Split')} subtitle={`${doc.name} · ${plural(pages, 'page', 'pages')}`} color="mustard" onBack={onBack} onClose={onClose}
       footer={<button className="button" disabled={!files || !!busy} onClick={() => void run()}>{cta}</button>}>
       {busy && <Busy {...busy} />}
       {(error || loadError) && <Notice>{error ?? loadError}</Notice>}
 
-      <div className="segmented" role="tablist" aria-label="How to split">
-        {([['ranges', 'Page ranges'], ['every', 'Every N pages'], ['extract', 'Pick pages']] as const).map(([id, text]) => (
-          <button key={id} role="tab" aria-selected={mode === id} className={mode === id ? 'on' : ''} onClick={() => setMode(id)}>{text}</button>
+      <div className="segmented" role="tablist" aria-label={t('How to split')}>
+        {([['ranges', t('Page ranges')], ['every', t('Every N pages')], ['extract', t('Pick pages')]] as const).map(([id, label]) => (
+          <button key={id} role="tab" aria-selected={mode === id} className={mode === id ? 'on' : ''} onClick={() => setMode(id)}>{label}</button>
         ))}
       </div>
 
       {mode === 'ranges' && (
         <section className="tool-section">
           <label className="tool-field">
-            <span>Pages for each new document, separated by commas</span>
+            <span>{t('Pages for each new document, separated by commas')}</span>
             <input value={text} onChange={(e) => setText(e.target.value)} placeholder="1-3, 5, 8-10" inputMode="text" autoComplete="off" spellCheck={false} />
           </label>
-          {plan.problem ? <Notice>{plan.problem}</Notice> : files > 0 && <p className="tool-hint">{plural(files, 'document', 'documents')} will be made: {plan.groups.map((g) => (g.length === 1 ? `p. ${g[0] + 1}` : `pp. ${g[0] + 1}–${g[g.length - 1] + 1}`)).join(' · ')}</p>}
+          {plan.problem ? <Notice>{plan.problem}</Notice> : files > 0 && <p className="tool-hint">{t('{docs} will be made: {list}', { docs: plural(files, 'document', 'documents'), list: plan.groups.map((g) => (g.length === 1 ? t('p. {n}', { n: g[0] + 1 }) : t('pp. {a}–{b}', { a: g[0] + 1, b: g[g.length - 1] + 1 }))).join(' · ') })}</p>}
         </section>
       )}
 
       {mode === 'every' && (
         <section className="tool-section">
           <div className="stepper">
-            <button className="icon-button" onClick={() => setEvery((n) => Math.max(1, n - 1))} aria-label="Fewer pages">−</button>
+            <button className="icon-button" onClick={() => setEvery((n) => Math.max(1, n - 1))} aria-label={t('Fewer pages')}>−</button>
             <label>
-              <span className="sr-only">Pages in each document</span>
+              <span className="sr-only">{t('Pages in each document')}</span>
               <input type="number" min={1} max={pages} value={every} onChange={(e) => setEvery(Number(e.target.value))} />
             </label>
-            <span className="stepper-unit">{every === 1 ? 'page' : 'pages'} in each</span>
-            <button className="icon-button" onClick={() => setEvery((n) => Math.min(pages, n + 1))} aria-label="More pages">+</button>
+            <span className="stepper-unit">{every === 1 ? t('page in each') : t('pages in each')}</span>
+            <button className="icon-button" onClick={() => setEvery((n) => Math.min(pages, n + 1))} aria-label={t('More pages')}>+</button>
           </div>
-          <p className="tool-hint">{files > 0 && `${plural(files, 'document', 'documents')} will be made.`}</p>
+          <p className="tool-hint">{files > 0 && t('{docs} will be made.', { docs: plural(files, 'document', 'documents') })}</p>
         </section>
       )}
 
       {mode === 'extract' ? (
         <section className="tool-section">
           <div className="tool-bar">
-            <span className="tool-hint">{plural(picked.size, 'page', 'pages')} selected</span>
+            <span className="tool-hint">{t('{pages} selected', { pages: plural(picked.size, 'page', 'pages') })}</span>
             <span className="tool-bar-actions">
-              <button className="link" onClick={() => setPicked(new Set(Array.from({ length: pages }, (_, i) => i)))}>All</button>
-              <button className="link" onClick={() => setPicked(new Set())}>None</button>
+              <button className="link" onClick={() => setPicked(new Set(Array.from({ length: pages }, (_, i) => i)))}>{t('All')}</button>
+              <button className="link" onClick={() => setPicked(new Set())}>{t('None')}</button>
             </span>
           </div>
           <ul className="page-grid">
             {Array.from({ length: pages }, (_, i) => (
               <li key={i}>
-                <button className={`page-tile${picked.has(i) ? ' on' : ''}`} aria-pressed={picked.has(i)} aria-label={`Page ${i + 1}`}
+                <button className={`page-tile${picked.has(i) ? ' on' : ''}`} aria-pressed={picked.has(i)} aria-label={t('Page {n}', { n: i + 1 })}
                   onClick={() => setPicked((cur) => { const next = new Set(cur); if (!next.delete(i)) next.add(i); return next; })}>
                   <span className="page-tile-img"><PageThumb pdf={pdf} page={i} /></span>
                   <span className="page-tile-num">{i + 1}</span>
@@ -583,8 +585,8 @@ function SplitOptions({ ctx, doc, onBack, onClose }: { ctx: ToolContext; doc: To
         </section>
       ) : (
         <section className="tool-section">
-          <p className="tool-hint">{files > 0 ? 'Each colour is one new document.' : 'Every page of the document, so you can see where to cut.'}</p>
-          <ul className="page-grid split-preview" aria-label="Pages and the documents they go into">
+          <p className="tool-hint">{files > 0 ? t('Each colour is one new document.') : t('Every page of the document, so you can see where to cut.')}</p>
+          <ul className="page-grid split-preview" aria-label={t('Pages and the documents they go into')}>
             {Array.from({ length: pages }, (_, i) => {
               const owners = plan.groups.flatMap((g, n) => (g.includes(i) ? [n] : []));
               const first = owners[0];
@@ -594,7 +596,7 @@ function SplitOptions({ ctx, doc, onBack, onClose }: { ctx: ToolContext; doc: To
                   <span className="page-tile">
                     <span className="page-tile-img"><PageThumb pdf={pdf} page={i} /></span>
                     <span className="page-tile-num">{i + 1}</span>
-                    {first !== undefined && <span className="split-badge" aria-label={`Goes into document ${owners.map((n) => n + 1).join(' and ')}`}>{owners.map((n) => n + 1).join('·')}</span>}
+                    {first !== undefined && <span className="split-badge" aria-label={owners.length === 1 ? t('Goes into document {list}', { list: owners[0] + 1 }) : t('Goes into documents {list}', { list: owners.map((n) => n + 1).join(', ') })}>{owners.map((n) => n + 1).join('·')}</span>}
                   </span>
                 </li>
               );

@@ -7,6 +7,7 @@ import { matchRanges, searchTerms } from '../lib/search';
 import { getDocFile } from '../lib/storage';
 import type { PageMove } from '../lib/carryNotes';
 import { downloadPdf } from '../lib/sync/engine';
+import { count, t } from '../lib/i18n';
 import type { DocMeta } from '../lib/types';
 import { Cover } from './Cover';
 import { BackIcon, CheckIcon, CloseIcon, MarkIcon, SearchIcon, UploadIcon } from './icons';
@@ -39,10 +40,10 @@ export interface ToolContext {
   finish: (result: { title: string; outputs: OutputSpec[] }) => void;
 }
 
-export const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
-export const cleanName = (s: string) => s.replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120) || 'Document';
+export const plural = (n: number, one: string, many: string) => count(n, one, many);
+export const cleanName = (s: string) => s.replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120) || t('Document');
 export const errorText = (err: unknown) =>
-  err instanceof PdfOpError ? err.message : err instanceof Error ? err.message : 'Something went wrong.';
+  err instanceof PdfOpError ? err.message : err instanceof Error ? err.message : t('Something went wrong.');
 
 /** The stored file for a document, fetched from Drive first if it is only there. */
 export async function fileOf(doc: ToolDoc): Promise<Blob> {
@@ -52,7 +53,7 @@ export async function fileOf(doc: ToolDoc): Promise<Blob> {
     await downloadPdf(doc.id);
     file = await getDocFile(doc.id);
   }
-  if (!file) throw new PdfOpError(`“${doc.name}” is not on this device.`);
+  if (!file) throw new PdfOpError(t('“{name}” is not on this device.', { name: doc.name }));
   return file;
 }
 
@@ -69,7 +70,7 @@ export function usePdf(doc: ToolDoc | null) {
       held = true;
       const pdf = await acquirePdf(doc.id, async () => blob);
       if (gone) return;
-      setState(pdf ? { pdf, error: null } : { pdf: null, error: `“${doc.name}” could not be read.` });
+      setState(pdf ? { pdf, error: null } : { pdf: null, error: t('“{name}” could not be read.', { name: doc.name }) });
     })().catch((err) => { if (!gone) setState({ pdf: null, error: errorText(err) }); });
     return () => {
       gone = true;
@@ -146,12 +147,12 @@ export function Shell({ title, subtitle, color, onBack, onClose, footer, childre
       <div className="tool-backdrop" onClick={onClose} />
       <section className={`tool-sheet c-${color}`}>
         <header className="tool-head">
-          {onBack && <button className="icon-button" onClick={onBack} aria-label="Back"><BackIcon /></button>}
+          {onBack && <button className="icon-button" onClick={onBack} aria-label={t('Back')}><BackIcon /></button>}
           <div className="tool-head-text">
             <h2>{title}</h2>
             {subtitle && <p>{subtitle}</p>}
           </div>
-          <button className="icon-button" onClick={onClose} aria-label="Close"><CloseIcon /></button>
+          <button className="icon-button" onClick={onClose} aria-label={t('Close')}><CloseIcon /></button>
         </header>
         <div className="tool-body">{children}</div>
         {footer && <footer className="tool-foot">{footer}</footer>}
@@ -180,8 +181,8 @@ export function SaveOption({ signedIn, localOnly, onChange }: { signedIn: boolea
       <input type="checkbox" checked={localOnly} onChange={(e) => onChange(e.target.checked)} />
       <span className="save-option-box" aria-hidden="true"><CheckIcon /></span>
       <span className="save-option-text">
-        <strong>Keep only on this device</strong>
-        <small>{localOnly ? 'It will not be uploaded to Google Drive.' : 'It will sync with your Google Drive.'}</small>
+        <strong>{t('Keep only on this device')}</strong>
+        <small>{localOnly ? t('It will not be uploaded to Google Drive.') : t('It will sync with your Google Drive.')}</small>
       </span>
     </label>
   );
@@ -196,16 +197,18 @@ export function NotesAsk({ marks, plural: many, onChoose, onCancel }: {
   onCancel: () => void;
 }) {
   return (
-    <div className="tool-busy tool-ask" role="alertdialog" aria-label="Bring your notes along?">
+    <div className="tool-busy tool-ask" role="alertdialog" aria-label={t('Bring your notes along?')}>
       <div className="tool-ask-card">
         <span className="tool-ask-icon"><MarkIcon /></span>
-        <h3>Bring your notes along?</h3>
+        <h3>{t('Bring your notes along?')}</h3>
         <p>
-          The original has {plural(marks, 'mark', 'marks')} (highlights and pen). Copy them onto the new {many ? 'files' : 'file'}, in the right place?
+          {many
+            ? t('The original has {marks} (highlights and pen). Copy them onto the new files, in the right place?', { marks: plural(marks, 'mark', 'marks') })
+            : t('The original has {marks} (highlights and pen). Copy them onto the new file, in the right place?', { marks: plural(marks, 'mark', 'marks') })}
         </p>
-        <button className="button" onClick={() => onChoose(true)}>Yes, bring my notes</button>
-        <button className="chip-button" onClick={() => onChoose(false)}>No, a clean copy</button>
-        <button className="link" onClick={onCancel}>Back</button>
+        <button className="button" onClick={() => onChoose(true)}>{t('Yes, bring my notes')}</button>
+        <button className="chip-button" onClick={() => onChoose(false)}>{t('No, a clean copy')}</button>
+        <button className="link" onClick={onCancel}>{t('Back')}</button>
       </div>
     </div>
   );
@@ -232,7 +235,7 @@ export function DocList({ docs, selected, onPick, empty, badge }: {
       {docs.length > 6 && (
         <label className="doclist-search">
           <SearchIcon />
-          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search your documents" aria-label="Search your documents" />
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t('Search your documents')} aria-label={t('Search your documents')} />
         </label>
       )}
       <ul>
@@ -242,21 +245,21 @@ export function DocList({ docs, selected, onPick, empty, badge }: {
               <span className="docrow-cover"><Cover meta={d} /></span>
               <span className="docrow-text">
                 <span className="docrow-name">{d.name}</span>
-                <span className="docrow-meta">{plural(d.pages, 'page', 'pages')}{d.cloudOnly ? ' · in Drive' : ''}</span>
+                <span className="docrow-meta">{plural(d.pages, 'page', 'pages')}{d.cloudOnly ? ` · ${t('in Drive')}` : ''}</span>
               </span>
               {badge?.(d) ?? (selected?.has(d.id) ? <span className="docrow-check"><CheckIcon /></span> : null)}
             </button>
           </li>
         ))}
       </ul>
-      {!shown.length && <p className="empty-note">{terms.length ? 'Nothing matches.' : empty ?? 'No documents.'}</p>}
+      {!shown.length && <p className="empty-note">{terms.length ? t('Nothing matches.') : empty ?? t('No documents.')}</p>}
     </div>
   );
 }
 
 /** The first screen of a one-document tool: choose the document. */
 export function PickOne({ ctx, tool, onPick, onClose }: { ctx: ToolContext; tool: ToolId; onPick: (d: ToolDoc) => void; onClose: () => void }) {
-  const meta = TOOLS.find((t) => t.id === tool)!;
+  const meta = TOOLS.find((x) => x.id === tool)!;
   const input = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [reading, setReading] = useState(false);
@@ -285,15 +288,15 @@ export function PickOne({ ctx, tool, onPick, onClose }: { ctx: ToolContext; tool
     }
   };
   return (
-    <Shell title={meta.title} subtitle="Choose a document" color={meta.color} onClose={onClose}>
-      {reading && <Busy label="Reading the file…" />}
+    <Shell title={meta.title} subtitle={t('Choose a document')} color={meta.color} onClose={onClose}>
+      {reading && <Busy label={t('Reading the file…')} />}
       {error && <Notice>{error}</Notice>}
       <button className={`chip-button pick-device pick-top${ctx.guest ? ' pick-big' : ''}`} onClick={() => input.current?.click()}>
-        <UploadIcon /> Choose a PDF from this device
+        <UploadIcon /> {t('Choose a PDF from this device')}
       </button>
-      <p className="tool-hint">{ctx.guest ? 'The file stays on your device. Nothing is uploaded.' : 'A file chosen this way is not added to your library unless you save the result.'}</p>
+      <p className="tool-hint">{ctx.guest ? t('The file stays on your device. Nothing is uploaded.') : t('A file chosen this way is not added to your library unless you save the result.')}</p>
       <input ref={input} type="file" accept="application/pdf,.pdf" hidden onChange={(e) => { void device(e.target.files); e.target.value = ''; }} />
-      {!ctx.guest && <DocList docs={ctx.docs} onPick={onPick} empty="Add a PDF to your library, or choose a file from this device." />}
+      {!ctx.guest && <DocList docs={ctx.docs} onPick={onPick} empty={t('Add a PDF to your library, or choose a file from this device.')} />}
     </Shell>
   );
 }

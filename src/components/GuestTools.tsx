@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
+import { t } from '../lib/i18n';
 import { BackIcon, MoonIcon, SunIcon } from './icons';
 import { TOOLS, type ToolId } from './toolList';
 import { GoogleButton } from './SyncControl';
@@ -40,22 +41,22 @@ export function GuestTools({ dark, onTheme, onBack }: Props) {
   return (
     <div className="guest-tools">
       <header className="guest-bar">
-        <button className="guest-back" onClick={onBack} aria-label="Back to the welcome page">
+        <button className="guest-back" onClick={onBack} aria-label={t('Back to the welcome page')}>
           <BackIcon />
           <span>The Reader</span>
         </button>
         <div className="guest-bar-actions">
-          <button className="icon-button" onClick={onTheme} aria-label={dark ? 'Switch to day paper' : 'Switch to night paper'}>
+          <button className="icon-button" onClick={onTheme} aria-label={dark ? t('Switch to day paper') : t('Switch to night paper')}>
             {dark ? <SunIcon /> : <MoonIcon />}
           </button>
         </div>
       </header>
 
       <main className="guest-main">
-        <p className="eyebrow">Free PDF tools</p>
-        <h1>What would you like to do?</h1>
+        <p className="eyebrow">{t('Free PDF tools')}</p>
+        <h1>{t('What would you like to do?')}</h1>
         <p className="guest-lead">
-          Everything happens on your device. Your files are never uploaded, and you do not need an account.
+          {t('Everything happens on your device. Your files are never uploaded, and you do not need an account.')}
         </p>
         <div className="tool-cards guest-cards">
           {TOOLS.map(({ id, title, blurb, color, Icon }, i) => (
@@ -69,10 +70,10 @@ export function GuestTools({ dark, onTheme, onBack }: Props) {
 
         <section className="guest-signin">
           <div>
-            <h2>Want a library of your own?</h2>
-            <p>Sign in to read and mark up PDFs, keep the ones you make here, and find them on every device.</p>
+            <h2>{t('Want a library of your own?')}</h2>
+            <p>{t('Sign in to read and mark up PDFs, keep the ones you make here, and find them on every device.')}</p>
           </div>
-          <GoogleButton label="Continue with Google" onError={setError} />
+          <GoogleButton label={t('Continue with Google')} onError={setError} />
         </section>
         {error && <p className="welcome-error" role="alert">{error}</p>}
       </main>

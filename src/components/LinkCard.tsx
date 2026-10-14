@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { t } from '../lib/i18n';
 import { drawStrokes } from '../lib/ink';
 import { acquirePdf, releasePdf, renderPagePreview } from '../lib/pdf';
 import { getDocFile, loadInk } from '../lib/storage';
@@ -48,7 +49,7 @@ export function LinkCard({ doc, page, label, sub, onOpen, onHide }: {
 
   return (
     <div className="link-card">
-      <button className="link-card-open" onClick={onOpen} aria-label={`${label}, ${sub}: open it`} title={`${label} · ${sub}`}>
+      <button className="link-card-open" onClick={onOpen} aria-label={t('{label}, {sub}: open it', { label, sub })} title={`${label} · ${sub}`}>
         <span className="link-card-page">
           <canvas ref={canvas} className={drawn ? 'on' : ''} aria-hidden="true" />
           {!drawn && <span className="link-card-fallback"><Cover meta={doc} /></span>}
@@ -58,7 +59,7 @@ export function LinkCard({ doc, page, label, sub, onOpen, onHide }: {
           <span>{sub}</span>
         </span>
       </button>
-      <button className="link-card-hide" onClick={onHide} aria-label={`Hide ${label}`}><CloseIcon /></button>
+      <button className="link-card-hide" onClick={onHide} aria-label={t('Hide {label}', { label })}><CloseIcon /></button>
     </div>
   );
 }

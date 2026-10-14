@@ -1,3 +1,4 @@
+import { t } from '../../lib/i18n';
 import type { ToolId } from '../toolList';
 import { delay } from './PenScene';
 
@@ -52,26 +53,26 @@ function EditArt() {
   );
 }
 
-const CHIPS: { id: ToolId; name: string; colour: string; art: React.ReactNode }[] = [
-  { id: 'merge', name: 'Merge', colour: 'c-terra', art: <MergeArt /> },
-  { id: 'split', name: 'Split', colour: 'c-mustard', art: <SplitArt /> },
-  { id: 'crop', name: 'Crop', colour: 'c-sage', art: <CropArt /> },
-  { id: 'edit', name: 'Edit', colour: 'c-plum', art: <EditArt /> },
+const CHIPS: { id: ToolId; name: string; label: string; hint: string; colour: string; art: React.ReactNode }[] = [
+  { id: 'merge', name: t('Merge'), label: t('Merge PDFs, free, no account needed'), hint: t('Merge PDFs: free, on your device, no account needed'), colour: 'c-terra', art: <MergeArt /> },
+  { id: 'split', name: t('Split'), label: t('Split PDFs, free, no account needed'), hint: t('Split PDFs: free, on your device, no account needed'), colour: 'c-mustard', art: <SplitArt /> },
+  { id: 'crop', name: t('Crop'), label: t('Crop PDFs, free, no account needed'), hint: t('Crop PDFs: free, on your device, no account needed'), colour: 'c-sage', art: <CropArt /> },
+  { id: 'edit', name: t('Edit'), label: t('Edit PDFs, free, no account needed'), hint: t('Edit PDFs: free, on your device, no account needed'), colour: 'c-plum', art: <EditArt /> },
 ];
 
 /** Sits beside the brand on the landing page: what the PDF tools are, before anyone signs in. Each opens its own tool. */
 export function ToolChips({ onTry }: { onTry: (tool: ToolId) => void }) {
   return (
-    <div className="nav-tools" role="group" aria-label="Free PDF tools">
-      <span className="nav-tools-label">PDF tools</span>
+    <div className="nav-tools" role="group" aria-label={t('Free PDF tools')}>
+      <span className="nav-tools-label">{t('PDF tools')}</span>
       {CHIPS.map((c, i) => (
         <button
           key={c.name}
           className={`nav-tool ${c.colour}`}
           style={delay(0.35 + i * 0.12)}
           onClick={() => onTry(c.id)}
-          aria-label={`${c.name} PDFs, free, no account needed`}
-          title={`${c.name} PDFs: free, on your device, no account needed`}
+          aria-label={c.label}
+          title={c.hint}
         >
           {c.art}
           <span>{c.name}</span>

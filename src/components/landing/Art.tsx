@@ -1,4 +1,5 @@
 import { useEffect, useRef, type CSSProperties } from 'react';
+import { t } from '../../lib/i18n';
 import { PAGE_H, PAGE_W, PageLines, PenIcon, WAVE, WRITE_AT, WRITE_FOR } from './PenScene';
 
 /** A phone beside the hero page: the same line appears on it, then a sync tick. */
@@ -128,7 +129,7 @@ export function PrivacyArt() {
           <circle className="lock-hole" cy="6" r="4.5" />
         </g>
       </svg>
-      <span className="only-you">Only you</span>
+      <span className="only-you">{t('Only you')}</span>
     </div>
   );
 }

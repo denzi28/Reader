@@ -1,5 +1,6 @@
 import { useRef, type ReactNode } from 'react';
 import { useLiquidBar } from '../lib/liquid';
+import { t } from '../lib/i18n';
 import { BooksIcon, MarkIcon, ToolsIcon } from './icons';
 
 export type DeskTab = 'shelf' | 'notes' | 'tools';
@@ -23,10 +24,10 @@ export function TopBar({ tab, onTab, search, actions, account }: {
   return (
     <header className="deskbar">
       <h1 className="brand">The Reader</h1>
-      <nav className="top-tabs" aria-label="Sections" ref={tabs}>
-        {item('shelf', <BooksIcon />, 'Library')}
-        {item('notes', <MarkIcon />, 'Notes')}
-        {item('tools', <ToolsIcon />, 'PDF tools')}
+      <nav className="top-tabs" aria-label={t('Sections')} ref={tabs}>
+        {item('shelf', <BooksIcon />, t('Library'))}
+        {item('notes', <MarkIcon />, t('Notes'))}
+        {item('tools', <ToolsIcon />, t('PDF tools'))}
       </nav>
       <div className="top-right">
         {search}

@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { t } from '../lib/i18n';
 import { turnChange, type PageMove } from '../lib/carryNotes';
 import { pageSize } from '../lib/pdf';
 import { arrangePdf } from '../lib/pdfOps';
@@ -47,7 +48,7 @@ function Organizer({ ctx, doc, onBack, onClose }: { ctx: ToolContext; doc: ToolD
 
   const run = async () => {
     setError(null);
-    setBusy('Building the new document…');
+    setBusy(t('Building the new document…'));
     try {
       const bytes = await arrangePdf(await fileOf(doc), kept.map((s) => ({ from: s.from, turn: s.turn })));
       // Each kept page would take its notes along (a copied page gets its own copy), turned with the page.
@@ -60,8 +61,8 @@ function Organizer({ ctx, doc, onBack, onClose }: { ctx: ToolContext; doc: ToolD
         }
       }
       ctx.finish({
-        title: `Your edited copy has ${plural(kept.length, 'page', 'pages')}`,
-        outputs: [{ name: name.trim() || `${doc.name} (edited)`, bytes, pages: kept.length, folder: ctx.folderOf(doc), sources: moves.length ? [{ docId: doc.id, moves }] : [] }],
+        title: t('Your edited copy has {pages}', { pages: plural(kept.length, 'page', 'pages') }),
+        outputs: [{ name: name.trim() || t('{name} (edited)', { name: doc.name }), bytes, pages: kept.length, folder: ctx.folderOf(doc), sources: moves.length ? [{ docId: doc.id, moves }] : [] }],
       });
     } catch (err) {
       setError(errorText(err));
@@ -70,19 +71,19 @@ function Organizer({ ctx, doc, onBack, onClose }: { ctx: ToolContext; doc: ToolD
   };
 
   return (
-    <Shell title="Edit pages" subtitle={`${doc.name} · ${plural(kept.length, 'page', 'pages')}`} color="plum" onBack={onBack} onClose={onClose}
+    <Shell title={t('Edit pages')} subtitle={`${doc.name} · ${plural(kept.length, 'page', 'pages')}`} color="plum" onBack={onBack} onClose={onClose}
       footer={<button className="button" disabled={!!busy || !kept.length || !edited} onClick={() => void run()}>
-        {!edited ? 'Rotate, move or delete pages to begin' : !kept.length ? 'Keep at least one page' : `Make a new PDF with ${plural(kept.length, 'page', 'pages')}`}
+        {!edited ? t('Rotate, move or delete pages to begin') : !kept.length ? t('Keep at least one page') : t('Make a new PDF with {pages}', { pages: plural(kept.length, 'page', 'pages') })}
       </button>}>
       {busy && <Busy label={busy} />}
       {(error || loadError) && <Notice>{error ?? loadError}</Notice>}
 
       <div className="tool-bar">
-        <span className="tool-hint">Your original stays as it is; this makes a new PDF.</span>
+        <span className="tool-hint">{t('Your original stays as it is; this makes a new PDF.')}</span>
         <span className="tool-bar-actions">
-          <button className="chip-button" onClick={() => setSteps((cur) => cur.map((s) => ({ ...s, turn: (s.turn + 90) % 360 })))}><RotateRightIcon /> Rotate all</button>
-          <button className="chip-button" onClick={addBlank}><PlusIcon /> Blank page</button>
-          <button className="link" onClick={() => setSteps(fresh())} disabled={!edited}>Reset</button>
+          <button className="chip-button" onClick={() => setSteps((cur) => cur.map((s) => ({ ...s, turn: (s.turn + 90) % 360 })))}><RotateRightIcon /> {t('Rotate all')}</button>
+          <button className="chip-button" onClick={addBlank}><PlusIcon /> {t('Blank page')}</button>
+          <button className="link" onClick={() => setSteps(fresh())} disabled={!edited}>{t('Reset')}</button>
         </span>
       </div>
 
@@ -91,19 +92,19 @@ function Organizer({ ctx, doc, onBack, onClose }: { ctx: ToolContext; doc: ToolD
           <li key={s.key}>
             <div className={`page-tile org${s.removed ? ' removed' : ''}`}>
               <span className="page-tile-img">
-                {s.from === null ? <span className="blank-page">Blank</span> : <PageThumb pdf={pdf} page={s.from} turn={s.turn} />}
+                {s.from === null ? <span className="blank-page">{t('Blank')}</span> : <PageThumb pdf={pdf} page={s.from} turn={s.turn} />}
               </span>
               <span className="page-tile-num">{i + 1}</span>
               <span className="org-move">
-                <button onClick={() => move(i, -1)} disabled={i === 0} aria-label={`Move page ${i + 1} earlier`}><BackIcon /></button>
-                <button onClick={() => move(i, 1)} disabled={i === steps.length - 1} aria-label={`Move page ${i + 1} later`}><ArrowIcon /></button>
+                <button onClick={() => move(i, -1)} disabled={i === 0} aria-label={t('Move page {n} earlier', { n: i + 1 })}><BackIcon /></button>
+                <button onClick={() => move(i, 1)} disabled={i === steps.length - 1} aria-label={t('Move page {n} later', { n: i + 1 })}><ArrowIcon /></button>
               </span>
-              {s.removed && <span className="org-removed">Deleted</span>}
+              {s.removed && <span className="org-removed">{t('Deleted')}</span>}
               <span className="org-tools">
-                <button onClick={() => turn(s.key, -90)} aria-label={`Rotate page ${i + 1} left`}><RotateLeftIcon /></button>
-                <button onClick={() => turn(s.key, 90)} aria-label={`Rotate page ${i + 1} right`}><RotateRightIcon /></button>
-                <button onClick={() => duplicate(i)} aria-label={`Duplicate page ${i + 1}`}><CopyIcon /></button>
-                <button className={s.removed ? 'on' : 'danger'} onClick={() => patch(s.key, (x) => ({ ...x, removed: !x.removed }))} aria-label={s.removed ? `Restore page ${i + 1}` : `Delete page ${i + 1}`}>
+                <button onClick={() => turn(s.key, -90)} aria-label={t('Rotate page {n} left', { n: i + 1 })}><RotateLeftIcon /></button>
+                <button onClick={() => turn(s.key, 90)} aria-label={t('Rotate page {n} right', { n: i + 1 })}><RotateRightIcon /></button>
+                <button onClick={() => duplicate(i)} aria-label={t('Duplicate page {n}', { n: i + 1 })}><CopyIcon /></button>
+                <button className={s.removed ? 'on' : 'danger'} onClick={() => patch(s.key, (x) => ({ ...x, removed: !x.removed }))} aria-label={s.removed ? t('Restore page {n}', { n: i + 1 }) : t('Delete page {n}', { n: i + 1 })}>
                   {s.removed ? <RotateLeftIcon /> : <TrashIcon />}
                 </button>
               </span>
@@ -114,8 +115,8 @@ function Organizer({ ctx, doc, onBack, onClose }: { ctx: ToolContext; doc: ToolD
 
       {edited && (
         <label className="tool-field">
-          <span>Name of the new document</span>
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder={`${doc.name} (edited)`} maxLength={120} />
+          <span>{t('Name of the new document')}</span>
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder={t('{name} (edited)', { name: doc.name })} maxLength={120} />
         </label>
       )}
     </Shell>

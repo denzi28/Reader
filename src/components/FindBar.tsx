@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { type FindMatch, Finder } from '../lib/find';
+import { t } from '../lib/i18n';
 import { ocrEstimate } from '../lib/ocr';
 import { ChevronIcon, CloseIcon, ListIcon } from './icons';
 
@@ -87,15 +88,15 @@ export function FindBar({ finder, startPage, onState, onClose }: {
   const empty = finder.emptyPages().length;
 
   return (
-    <div className="findbar" role="search" aria-label="Find in this document">
+    <div className="findbar" role="search" aria-label={t('Find in this document')}>
       <div className="findbar-row">
         <input
           ref={box}
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Find in this document"
-          aria-label="Find in this document"
+          placeholder={t('Find in this document')}
+          aria-label={t('Find in this document')}
           autoComplete="off"
           spellCheck={false}
           onKeyDown={(e) => {
@@ -105,25 +106,25 @@ export function FindBar({ finder, startPage, onState, onClose }: {
           }}
         />
         <span className="findbar-count" aria-live="polite">
-          {query.trim().length < 2 ? '' : matches.length ? `${index} of ${matches.length}${scanning ? '+' : ''}` : scanning ? `Searching ${done}/${finder.pageCount}…` : 'No matches'}
+          {query.trim().length < 2 ? '' : matches.length ? t('{index} of {total}', { index, total: `${matches.length}${scanning ? '+' : ''}` }) : scanning ? t('Searching {done}/{total}…', { done, total: finder.pageCount }) : t('No matches')}
         </span>
-        <button className="icon-button" onClick={() => step(-1)} disabled={!matches.length} aria-label="Previous match" title="Previous (Shift+Enter)"><span className="up"><ChevronIcon /></span></button>
-        <button className="icon-button" onClick={() => step(1)} disabled={!matches.length} aria-label="Next match" title="Next (Enter)"><span className="down"><ChevronIcon /></span></button>
-        <button className={`icon-button${showList ? ' on' : ''}`} onClick={() => setShowList((v) => !v)} aria-pressed={showList} aria-label="List of matches" title="List of matches"><ListIcon /></button>
-        <button className="icon-button" onClick={onClose} aria-label="Close find" title="Close (Esc)"><CloseIcon /></button>
+        <button className="icon-button" onClick={() => step(-1)} disabled={!matches.length} aria-label={t('Previous match')} title={t('Previous (Shift+Enter)')}><span className="up"><ChevronIcon /></span></button>
+        <button className="icon-button" onClick={() => step(1)} disabled={!matches.length} aria-label={t('Next match')} title={t('Next (Enter)')}><span className="down"><ChevronIcon /></span></button>
+        <button className={`icon-button${showList ? ' on' : ''}`} onClick={() => setShowList((v) => !v)} aria-pressed={showList} aria-label={t('List of matches')} title={t('List of matches')}><ListIcon /></button>
+        <button className="icon-button" onClick={onClose} aria-label={t('Close find')} title={t('Close (Esc)')}><CloseIcon /></button>
       </div>
-      {scanning && matches.length > 0 && <p className="findbar-note">Still reading the rest of the pages ({done}/{finder.pageCount})…</p>}
+      {scanning && matches.length > 0 && <p className="findbar-note">{t('Still reading the rest of the pages ({done}/{total})…', { done, total: finder.pageCount })}</p>}
       {reading ? (
         <p className="findbar-note">
-          Reading scanned pages… {reading.done}/{reading.total}
-          <button className="findbar-link" onClick={() => { stopReading.current = true; }}>Stop</button>
+          {t('Reading scanned pages… {done}/{total}', { done: reading.done, total: reading.total })}
+          <button className="findbar-link" onClick={() => { stopReading.current = true; }}>{t('Stop')}</button>
         </p>
       ) : !scanning && query.trim().length >= 2 && (empty > 0 || readFailed) ? (
         <p className="findbar-note">
           {readFailed
-            ? 'Could not read the pages. '
-            : `${empty} ${empty === 1 ? 'page has' : 'pages have'} no text to search. `}
-          {empty > 0 && <button className="findbar-link" onClick={() => void readPages()}>{readFailed ? 'Try again' : `Recognise text (${ocrEstimate(empty)})`}</button>}
+            ? t('Could not read the pages.')
+            : empty === 1 ? t('{n} page has no text to search.', { n: empty }) : t('{n} pages have no text to search.', { n: empty })}{' '}
+          {empty > 0 && <button className="findbar-link" onClick={() => void readPages()}>{readFailed ? t('Try again') : t('Recognise text ({estimate})', { estimate: ocrEstimate(empty) })}</button>}
         </p>
       ) : null}
       {showList && matches.length > 0 && (
@@ -131,12 +132,12 @@ export function FindBar({ finder, startPage, onState, onClose }: {
           {matches.slice(0, 300).map((m, i) => (
             <li key={i}>
               <button className={m === active ? 'on' : ''} onClick={() => choose(m)}>
-                <span className="findbar-page">p. {m.page + 1}</span>
+                <span className="findbar-page">{t('p. {n}', { n: m.page + 1 })}</span>
                 <span className="findbar-snippet">{m.before} <mark>{m.hit}</mark> {m.after}</span>
               </button>
             </li>
           ))}
-          {matches.length > 300 && <li className="findbar-more">… and {matches.length - 300} more. Keep stepping with the arrows.</li>}
+          {matches.length > 300 && <li className="findbar-more">{t('… and {n} more. Keep stepping with the arrows.', { n: matches.length - 300 })}</li>}
         </ol>
       )}
     </div>

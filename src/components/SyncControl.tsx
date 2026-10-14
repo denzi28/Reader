@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { lang, setLang, t } from '../lib/i18n';
 import { connect, disconnect, getStatus, syncAll, type SyncStatus } from '../lib/sync/engine';
 import { authMode, preloadGoogle } from '../lib/sync/google';
 import { useSyncStatus } from '../lib/sync/useSync';
@@ -7,18 +8,37 @@ import { PlanCard } from './Paywall';
 import { AlertIcon, CloudIcon, MoonIcon, SunIcon, SyncIcon, UserIcon } from './icons';
 
 const LABEL: Record<SyncStatus['state'], string> = {
-  off: 'Sign in with Google',
-  idle: 'Synced',
-  syncing: 'Syncing…',
-  reauth: 'Sign in again',
-  offline: 'Offline',
-  error: 'Sync problem',
+  off: t('Sign in with Google'),
+  idle: t('Synced'),
+  syncing: t('Syncing…'),
+  reauth: t('Sign in again'),
+  offline: t('Offline'),
+  error: t('Sync problem'),
 };
+
+const signOutQuestion = () => (getStatus().state === 'idle'
+  ? t('Sign out on this device? Your documents will be removed from this device. They stay in your Google Drive and come back when you sign in again.')
+  : t('Some changes have not reached your Google Drive yet and will be lost if you sign out now. Sign out anyway?'));
+
+/** A small globe, for the language row. */
+export function GlobeIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M3 12h18" />
+      <path d="M12 3c2.6 2.5 3.9 5.5 3.9 9s-1.3 6.5-3.9 9c-2.6-2.5-3.9-5.5-3.9-9S9.4 5.5 12 3z" />
+    </svg>
+  );
+}
+
+/** Each language is always named in itself. */
+const otherLang = () => (lang === 'tr' ? 'en' : 'tr') as 'en' | 'tr';
+export const langName = (l: 'en' | 'tr') => (l === 'tr' ? 'Türkçe' : 'English');
 
 function ago(ts?: number) {
   if (!ts) return '';
   const mins = Math.round((Date.now() - ts) / 60000);
-  return mins < 1 ? 'just now' : mins < 60 ? `${mins} min ago` : `${Math.round(mins / 60)} h ago`;
+  return mins < 1 ? t('just now') : mins < 60 ? t('{n} min ago', { n: mins }) : t('{n} h ago', { n: Math.round(mins / 60) });
 }
 
 function StateIcon({ state }: { state: SyncStatus['state'] }) {
@@ -39,7 +59,7 @@ export function GoogleG() {
   );
 }
 
-export function GoogleButton({ label = 'Sign in with Google', onError }: { label?: string; onError?: (m: string) => void }) {
+export function GoogleButton({ label = t('Sign in with Google'), onError }: { label?: string; onError?: (m: string) => void }) {
   const status = useSyncStatus();
   const [opening, setOpening] = useState(false);
   useEffect(preloadGoogle, []);
@@ -67,7 +87,7 @@ export function GoogleButton({ label = 'Sign in with Google', onError }: { label
       }}
     >
       {opening ? <span className="btn-spinner" aria-hidden="true" /> : <GoogleG />}
-      <span>{opening ? 'Opening Google…' : label}</span>
+      <span>{opening ? t('Opening Google…') : label}</span>
     </button>
   );
 }
@@ -124,10 +144,10 @@ export function AccountMenu({ dark, onTheme, docCount }: { dark: boolean; onThem
 
   const signedIn = status.available && status.ready && status.connected;
   const dot = !online ? 'off' : status.state === 'reauth' || status.state === 'error' ? 'warn' : 'on';
-  const dotLabel = { on: 'Online', off: 'Offline', warn: 'Needs attention' }[dot];
+  const dotLabel = { on: t('Online'), off: t('Offline'), warn: t('Needs attention') }[dot];
   const syncNote = status.limited
-    ? 'Free plan: sync runs on your other device.'
-    : status.message ?? (status.state === 'idle' && status.lastSyncedAt ? `Synced ${ago(status.lastSyncedAt)}` : LABEL[status.state]);
+    ? t('Free plan: sync runs on your other device.')
+    : status.message ?? (status.state === 'idle' && status.lastSyncedAt ? t('Synced {when}', { when: ago(status.lastSyncedAt) }) : LABEL[status.state]);
 
   return (
     <div className="account" ref={box}>
@@ -136,7 +156,7 @@ export function AccountMenu({ dark, onTheme, docCount }: { dark: boolean; onThem
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-haspopup="menu"
-        aria-label={signedIn ? `${status.name || status.email || 'Account'}: ${LABEL[status.state]}` : 'Account and settings'}
+        aria-label={signedIn ? `${status.name || status.email || t('Account')}: ${LABEL[status.state]}` : t('Account and settings')}
       >
         {signedIn ? (
           <span className="avatar-wrap">
@@ -159,39 +179,39 @@ export function AccountMenu({ dark, onTheme, docCount }: { dark: boolean; onThem
                 onClick={() => { setOpen(false); if (status.state === 'reauth') void connect().catch(() => undefined); else void syncAll(); }}
               >
                 <span className={`account-sync state-${status.state}`}><StateIcon state={status.state} />{syncNote}</span>
-                <em>{status.state === 'reauth' ? 'Sign in' : 'Sync now'}</em>
+                <em>{status.state === 'reauth' ? t('Sign in') : t('Sync now')}</em>
               </button>
             </>
           ) : status.available && status.ready ? (
             <div className="account-signin">
-              <p>Keep your documents and notes in your own Google Drive, and open them on any device.</p>
+              <p>{t('Keep your documents and notes in your own Google Drive, and open them on any device.')}</p>
               <GoogleButton onError={setError} />
               {error && <p className="sync-error" role="alert">{error}</p>}
             </div>
           ) : null}
           <button role="menuitem" className="account-row" onClick={onTheme}>
-            <span className="account-sync">{dark ? <SunIcon /> : <MoonIcon />}{dark ? 'Day paper' : 'Night paper'}</span>
+            <span className="account-sync">{dark ? <SunIcon /> : <MoonIcon />}{dark ? t('Day paper') : t('Night paper')}</span>
             <i className={`account-switch${dark ? ' on' : ''}`} aria-hidden="true" />
+          </button>
+          <button role="menuitem" className="account-row" onClick={() => setLang(otherLang())}>
+            <span className="account-sync"><GlobeIcon />{t('Language')}</span>
+            <em>{langName(lang)}</em>
           </button>
           <InstallChip />
           <PlanCard docCount={docCount} compact />
           <div className="account-foot">
-            <a href="/privacy.html">Privacy</a><span aria-hidden="true">·</span><a href="/terms.html">Terms</a>
+            <a href="/privacy.html">{t('Privacy')}</a><span aria-hidden="true">·</span><a href="/terms.html">{t('Terms')}</a>
             {signedIn && (
               <button
                 className="link"
                 onClick={async () => {
                   setOpen(false);
                   await Promise.race([syncAll(), new Promise((r) => setTimeout(r, 3000))]);
-                  const ok = window.confirm(
-                    getStatus().state === 'idle'
-                      ? 'Sign out on this device? Your documents will be removed from this device. They stay in your Google Drive and come back when you sign in again.'
-                      : 'Some changes have not reached your Google Drive yet and will be lost if you sign out now. Sign out anyway?',
-                  );
+                  const ok = window.confirm(signOutQuestion());
                   if (ok) void disconnect();
                 }}
               >
-                Sign out
+                {t('Sign out')}
               </button>
             )}
           </div>
@@ -208,16 +228,16 @@ export function AccountCard() {
   if (!status.available || !status.ready) return null;
   if (!status.connected) {
     return (
-      <section className="me-card" aria-label="Account">
-        <h2 className="me-title">Keep your devices in step</h2>
-        <p className="me-sub">Sign in with Google to keep your documents and notes in your own Drive, and open them on any device.</p>
+      <section className="me-card" aria-label={t('Account')}>
+        <h2 className="me-title">{t('Keep your devices in step')}</h2>
+        <p className="me-sub">{t('Sign in with Google to keep your documents and notes in your own Drive, and open them on any device.')}</p>
         <GoogleButton onError={setError} />
         {error && <p className="sync-error" role="alert">{error}</p>}
       </section>
     );
   }
   return (
-    <section className="me-card" aria-label="Account">
+    <section className="me-card" aria-label={t('Account')}>
       <div className="me-account">
         <Avatar status={status} />
         <div className="me-who">
@@ -225,27 +245,23 @@ export function AccountCard() {
           {status.name && status.email && <span>{status.email}</span>}
           <span className={`me-state state-${status.state}`}>
             <StateIcon state={status.state} />
-            {status.limited ? 'Free plan: sync runs on another device' : status.message ?? (status.state === 'idle' && status.lastSyncedAt ? `Synced ${ago(status.lastSyncedAt)}` : LABEL[status.state])}
+            {status.limited ? t('Free plan: sync runs on another device') : status.message ?? (status.state === 'idle' && status.lastSyncedAt ? t('Synced {when}', { when: ago(status.lastSyncedAt) }) : LABEL[status.state])}
           </span>
         </div>
       </div>
       <div className="me-actions">
         <button className="button button-small" onClick={() => (status.state === 'reauth' ? void connect().catch(() => undefined) : void syncAll())}>
-          {status.state === 'reauth' ? 'Sign in again' : 'Sync now'}
+          {status.state === 'reauth' ? t('Sign in again') : t('Sync now')}
         </button>
         <button
           className="link"
           onClick={async () => {
             await Promise.race([syncAll(), new Promise((r) => setTimeout(r, 3000))]);
-            const ok = window.confirm(
-              getStatus().state === 'idle'
-                ? 'Sign out on this device? Your documents will be removed from this device. They stay in your Google Drive and come back when you sign in again.'
-                : 'Some changes have not reached your Google Drive yet and will be lost if you sign out now. Sign out anyway?',
-            );
+            const ok = window.confirm(signOutQuestion());
             if (ok) void disconnect();
           }}
         >
-          Sign out
+          {t('Sign out')}
         </button>
       </div>
     </section>
@@ -282,7 +298,7 @@ export function SyncBadge() {
   return (
     <button
       className={`icon-button sync-badge state-${status.state}`}
-      aria-label={`Google Drive: ${label}`}
+      aria-label={t('Google Drive: {label}', { label })}
       title={label}
       onClick={() => {
         if (status.state === 'reauth') void connect().catch(() => undefined);

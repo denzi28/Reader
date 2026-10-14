@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLiquidBar } from '../lib/liquid';
+import { count, lang, setLang, t } from '../lib/i18n';
 import { createPortal } from 'react-dom';
 import type { DocMeta } from '../lib/types';
 import {
@@ -9,7 +10,7 @@ import {
 import { useSyncStatus } from '../lib/sync/useSync';
 import { InstallChip } from './PwaBits';
 import { PlanCard } from './Paywall';
-import { AccountCard } from './SyncControl';
+import { AccountCard, GlobeIcon } from './SyncControl';
 import { TOOLS, type ToolId } from './toolList';
 import { Cover } from './Cover';
 import { ToolArt } from './ToolArt';
@@ -25,18 +26,18 @@ export function PhoneNav({ tab, onTab, onAdd }: { tab: PhoneTab; onTab: (t: Phon
   const attention = sync.connected && (sync.state === 'reauth' || sync.state === 'error');
   const item = (id: PhoneTab, label: string, icon: React.ReactNode) => (
     <button key={id} className={`pn-item${tab === id ? ' on' : ''}`} onClick={() => onTab(id)} aria-current={tab === id ? 'page' : undefined}>
-      <span className="pn-pill">{icon}{id === 'me' && attention && <i className="pn-dot" aria-label="Sync needs attention" />}</span>
+      <span className="pn-pill">{icon}{id === 'me' && attention && <i className="pn-dot" aria-label={t('Sync needs attention')} />}</span>
       {label}
     </button>
   );
   // In the body, not inside the page: the page's entrance animation would otherwise be what "fixed" means to it.
   return createPortal(
-    <nav className="phone-nav" aria-label="Main" ref={bar}>
-      {item('shelf', 'Library', <BooksIcon />)}
-      {item('notes', 'Notes', <MarkIcon />)}
-      <button className="pn-plus" onClick={onAdd} aria-label="Add" aria-haspopup="dialog"><PlusIcon /></button>
-      {item('tools', 'Tools', <ToolsIcon />)}
-      {item('me', 'Me', <UserIcon />)}
+    <nav className="phone-nav" aria-label={t('Main')} ref={bar}>
+      {item('shelf', t('Library'), <BooksIcon />)}
+      {item('notes', t('Notes'), <MarkIcon />)}
+      <button className="pn-plus" onClick={onAdd} aria-label={t('Add')} aria-haspopup="dialog"><PlusIcon /></button>
+      {item('tools', t('Tools'), <ToolsIcon />)}
+      {item('me', t('Me'), <UserIcon />)}
     </nav>,
     document.body,
   );
@@ -53,7 +54,7 @@ function Sheet({ title, onClose, children, label }: { title?: string; onClose: (
     <div className="phone-sheet-wrap" role="dialog" aria-modal="true" aria-label={label}>
       <div className="phone-scrim" onClick={onClose} />
       <div className="phone-sheet">
-        <button className="phone-grab" onClick={onClose} aria-label="Close" />
+        <button className="phone-grab" onClick={onClose} aria-label={t('Close')} />
         {title && <h3 className="phone-sheet-title">{title}</h3>}
         {children}
       </div>
@@ -78,10 +79,10 @@ function Row({ icon, title, sub, onClick, danger, label }: { icon: React.ReactNo
 /** What the plus adds: files, a note, a folder. */
 export function AddSheet({ onFiles, onNote, onFolder, onClose }: { onFiles: () => void; onNote: () => void; onFolder?: () => void; onClose: () => void }) {
   return (
-    <Sheet title="Add something" onClose={onClose} label="Add something">
-      <Row icon={<UploadIcon />} title="Add files" sub="PDF, Office files, text, pictures" onClick={onFiles} />
-      <Row icon={<PencilIcon />} title="New note" sub="Blank, lined, squared or dotted paper" onClick={onNote} label="New note" />
-      {onFolder && <Row icon={<FolderPlusIcon />} title="New folder" sub="Group notes by course or client" onClick={onFolder} />}
+    <Sheet title={t('Add something')} onClose={onClose} label={t('Add something')}>
+      <Row icon={<UploadIcon />} title={t('Add files')} sub={t('PDF, Office files, text, pictures')} onClick={onFiles} />
+      <Row icon={<PencilIcon />} title={t('New note')} sub={t('Blank, lined, squared or dotted paper')} onClick={onNote} label={t('New note')} />
+      {onFolder && <Row icon={<FolderPlusIcon />} title={t('New folder')} sub={t('Group notes by course or client')} onClick={onFolder} />}
     </Sheet>
   );
 }
@@ -97,26 +98,26 @@ export function BookSheet({ doc, canMove, onStar, onMove, onDownload, onRemove, 
   onClose: () => void;
 }) {
   return (
-    <Sheet title={doc.name} onClose={onClose} label={`${doc.name}: actions`}>
-      <Row icon={<StarIcon />} title={doc.starred ? 'Remove the star' : 'Star'} onClick={onStar} />
-      {canMove && <Row icon={<FolderMoveIcon />} title="Move to a folder" onClick={onMove} />}
-      <Row icon={<DownloadIcon />} title="Download" onClick={onDownload} />
-      <Row icon={<TrashIcon />} title="Remove from this device" onClick={onRemove} danger />
+    <Sheet title={doc.name} onClose={onClose} label={t('{name}: actions', { name: doc.name })}>
+      <Row icon={<StarIcon />} title={doc.starred ? t('Remove the star') : t('Star')} onClick={onStar} />
+      {canMove && <Row icon={<FolderMoveIcon />} title={t('Move to a folder')} onClick={onMove} />}
+      <Row icon={<DownloadIcon />} title={t('Download')} onClick={onDownload} />
+      <Row icon={<TrashIcon />} title={t('Remove from this device')} onClick={onRemove} danger />
     </Sheet>
   );
 }
 
 const STEPS: Record<ToolId, string[]> = {
-  merge: ['Add the PDFs', 'Put them in order', 'Download the one file'],
-  split: ['Choose a document', 'Set how to cut it', 'Download the pieces'],
-  crop: ['Choose a document', 'Drag the frame', 'Download the result'],
-  edit: ['Choose a document', 'Reorder, rotate, delete', 'Download the result'],
+  merge: [t('Add the PDFs'), t('Put them in order'), t('Download the one file')],
+  split: [t('Choose a document'), t('Set how to cut it'), t('Download the pieces')],
+  crop: [t('Choose a document'), t('Drag the frame'), t('Download the result')],
+  edit: [t('Choose a document'), t('Reorder, rotate, delete'), t('Download the result')],
 };
 const DETAIL: Record<ToolId, string> = {
-  merge: 'Put several PDFs in the order you want, and get one file.',
-  split: 'Cut a PDF into parts, or pull out just the pages you need.',
-  crop: 'Trim the margins off every page, or only some of them.',
-  edit: 'Reorder, rotate, delete or add pages in one document.',
+  merge: t('Put several PDFs in the order you want, and get one file.'),
+  split: t('Cut a PDF into parts, or pull out just the pages you need.'),
+  crop: t('Trim the margins off every page, or only some of them.'),
+  edit: t('Reorder, rotate, delete or add pages in one document.'),
 };
 
 const recent = (docs: DocMeta[]) =>
@@ -136,36 +137,36 @@ export function ToolsPage({ phone, docs, onPick }: { phone: boolean; docs: DocMe
   return phone ? <PhoneTools docs={docs} onPick={onPick} /> : <Workbench docs={docs} onPick={onPick} />;
 }
 
-const Privacy = () => <p className="tools-privacy"><ShieldIcon /> Done on your device · never uploaded</p>;
+const Privacy = () => <p className="tools-privacy"><ShieldIcon /> {t('Done on your device · never uploaded')}</p>;
 
 function Workbench({ docs, onPick }: { docs: DocMeta[]; onPick: (id: ToolId, start?: DocMeta[]) => void }) {
   const [id, setId] = useState<ToolId>('merge');
   const [chosen, setChosen] = useState<string[]>([]);
-  const meta = TOOLS.find((t) => t.id === id)!;
+  const meta = TOOLS.find((x) => x.id === id)!;
   const list = recent(docs);
   const pickTool = (next: ToolId) => { setId(next); setChosen([]); };
   const toggle = (d: DocMeta) => setChosen((c) => (c.includes(d.id) ? c.filter((x) => x !== d.id) : [...c, d.id]));
   const chosenDocs = chosen.flatMap((x) => list.filter((d) => d.id === x));
   return (
-    <section className="workbench" aria-label="PDF tools">
+    <section className="workbench" aria-label={t('PDF tools')}>
       <div className="tools-intro">
-        <p>Pick a tool on the left; its details open right here.</p>
+        <p>{t('Pick a tool on the left; its details open right here.')}</p>
         <Privacy />
       </div>
       <div className="wb-grid">
-        <ul className="wb-list" role="tablist" aria-orientation="vertical" aria-label="Tools">
-          {TOOLS.map((t) => (
-            <li key={t.id}>
+        <ul className="wb-list" role="tablist" aria-orientation="vertical" aria-label={t('Tools')}>
+          {TOOLS.map((tool) => (
+            <li key={tool.id}>
               <button
                 role="tab"
-                id={`wb-tab-${t.id}`}
-                aria-selected={id === t.id}
+                id={`wb-tab-${tool.id}`}
+                aria-selected={id === tool.id}
                 aria-controls="wb-panel"
-                className={`wb-item c-${t.color}${id === t.id ? ' on' : ''}`}
-                onClick={() => pickTool(t.id)}
+                className={`wb-item c-${tool.color}${id === tool.id ? ' on' : ''}`}
+                onClick={() => pickTool(tool.id)}
               >
-                <span className="wb-icon"><t.Icon /></span>
-                <span className="wb-text"><b>{t.title}</b><small>{t.blurb}</small></span>
+                <span className="wb-icon"><tool.Icon /></span>
+                <span className="wb-text"><b>{tool.title}</b><small>{tool.blurb}</small></span>
               </button>
             </li>
           ))}
@@ -180,18 +181,18 @@ function Workbench({ docs, onPick }: { docs: DocMeta[]; onPick: (id: ToolId, sta
             <ToolArt id={id} />
           </header>
           <div className="wb-start">
-            <strong>{id === 'merge' ? 'Choose the PDFs to join' : 'Choose a PDF to work on'}</strong>
-            <span>from your library below, or from this device</span>
+            <strong>{id === 'merge' ? t('Choose the PDFs to join') : t('Choose a PDF to work on')}</strong>
+            <span>{t('from your library below, or from this device')}</span>
             <button className="chip-button chip-primary" onClick={() => onPick(id, id === 'merge' ? chosenDocs : undefined)}>
-              {id === 'merge' && chosenDocs.length ? `Start with ${chosenDocs.length} ${chosenDocs.length === 1 ? 'PDF' : 'PDFs'}` : 'Choose files'}
+              {id === 'merge' && chosenDocs.length ? t('Start with {what}', { what: count(chosenDocs.length, 'PDF', 'PDFs') }) : t('Choose files')}
             </button>
           </div>
           <ol className="wb-steps">
-            {STEPS[id].map((t, i) => <li key={t}><i>{i + 1}</i>{t}</li>)}
+            {STEPS[id].map((step, i) => <li key={step}><i>{i + 1}</i>{step}</li>)}
           </ol>
           {list.length > 0 && (
             <>
-              <h3 className="wb-label">From your library</h3>
+              <h3 className="wb-label">{t('From your library')}</h3>
               <div className="wb-docs">
                 {list.map((d) => (
                   <DocCover
@@ -214,7 +215,7 @@ function PhoneTools({ docs, onPick }: { docs: DocMeta[]; onPick: (id: ToolId, st
   const [doc, setDoc] = useState<DocMeta | null>(null);
   const list = recent(docs);
   return (
-    <section className="phone-page tools-phone" aria-label="PDF tools">
+    <section className="phone-page tools-phone" aria-label={t('PDF tools')}>
       <Privacy />
       <div className="tp-grid">
         {TOOLS.map(({ id, title, blurb, color, Icon }, i) => (
@@ -228,14 +229,14 @@ function PhoneTools({ docs, onPick }: { docs: DocMeta[]; onPick: (id: ToolId, st
       </div>
       {list.length > 0 && (
         <>
-          <h3 className="wb-label">Start from a document</h3>
+          <h3 className="wb-label">{t('Start from a document')}</h3>
           <div className="tp-docs">
             {list.map((d) => <DocCover key={d.id} d={d} onClick={() => setDoc(d)} />)}
           </div>
         </>
       )}
       {doc && (
-        <Sheet title={doc.name} onClose={() => setDoc(null)} label={`${doc.name}: choose a tool`}>
+        <Sheet title={doc.name} onClose={() => setDoc(null)} label={t('{name}: choose a tool', { name: doc.name })}>
           {TOOLS.map(({ id, title, blurb, color, Icon }) => (
             <button key={id} className={`tool-row sheet-tool c-${color}`} onClick={() => { const d = doc; setDoc(null); onPick(id, [d]); }}>
               <span className="tool-row-icon"><Icon /></span>
@@ -252,7 +253,7 @@ function PhoneTools({ docs, onPick }: { docs: DocMeta[]; onPick: (id: ToolId, st
 /** Account, night paper, installing the app, and the small print. */
 export function MePage({ dark, onTheme, docCount }: { dark: boolean; onTheme: () => void; docCount: number }) {
   return (
-    <section className="phone-page" aria-label="Me">
+    <section className="phone-page" aria-label={t('Me')}>
       <AccountCard />
       <InstallChip card />
       <PlanCard docCount={docCount} />
@@ -260,13 +261,21 @@ export function MePage({ dark, onTheme, docCount }: { dark: boolean; onTheme: ()
         <button className="me-row" onClick={onTheme} role="switch" aria-checked={dark}>
           <span className="me-row-icon">{dark ? <SunIcon /> : <MoonIcon />}</span>
           <span className="me-row-text">
-            <span className="me-row-title">Night paper</span>
-            <span className="me-row-sub">Easier on the eyes in the dark</span>
+            <span className="me-row-title">{t('Night paper')}</span>
+            <span className="me-row-sub">{t('Easier on the eyes in the dark')}</span>
           </span>
           <span className={`switch${dark ? ' on' : ''}`} aria-hidden="true" />
         </button>
-        <a className="me-row" href="/privacy.html"><span className="me-row-icon"><ShieldIcon /></span><span className="me-row-text"><span className="me-row-title">Privacy</span></span><span className="sheet-row-go"><ChevronIcon /></span></a>
-        <a className="me-row" href="/terms.html"><span className="me-row-icon"><ShieldIcon /></span><span className="me-row-text"><span className="me-row-title">Terms</span></span><span className="sheet-row-go"><ChevronIcon /></span></a>
+        <a className="me-row" href="/privacy.html"><span className="me-row-icon"><ShieldIcon /></span><span className="me-row-text"><span className="me-row-title">{t('Privacy')}</span></span><span className="sheet-row-go"><ChevronIcon /></span></a>
+        <a className="me-row" href="/terms.html"><span className="me-row-icon"><ShieldIcon /></span><span className="me-row-text"><span className="me-row-title">{t('Terms')}</span></span><span className="sheet-row-go"><ChevronIcon /></span></a>
+        <button className="me-row" onClick={() => setLang(lang === 'tr' ? 'en' : 'tr')}>
+          <span className="me-row-icon"><GlobeIcon /></span>
+          <span className="me-row-text">
+            <span className="me-row-title">{t('Language')}</span>
+            <span className="me-row-sub">{lang === 'tr' ? 'Türkçe' : 'English'}</span>
+          </span>
+          <span className="sheet-row-go" aria-hidden="true"><ChevronIcon /></span>
+        </button>
       </div>
     </section>
   );

@@ -4,6 +4,7 @@
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { getOcrPages, putOcrPage, type OcrPages } from './storage';
 import { pageTextBoxes, type TextBox } from './pdf';
+import { t } from './i18n';
 
 const saved = new Map<string, Promise<OcrPages>>();
 const savedFor = (id: string) => {
@@ -141,14 +142,14 @@ export const ocrSeconds = (pages: number) => (pages > 0 ? 6 + pages * ocrPace() 
 /** "about 3 min", for showing before anything is started. */
 export function ocrEstimate(pages: number): string {
   const s = ocrSeconds(pages);
-  if (s < 45) return 'under a minute';
-  if (s < 95) return 'about a minute';
+  if (s < 45) return t('under a minute');
+  if (s < 95) return t('about a minute');
   const m = Math.round(s / 60);
-  if (m < 10) return `about ${m} min`;
-  if (m < 60) return `about ${Math.round(m / 5) * 5} min`;
+  if (m < 10) return t('about {m} min', { m });
+  if (m < 60) return t('about {m} min', { m: Math.round(m / 5) * 5 });
   const h = Math.floor(m / 60);
   const rest = Math.round((m % 60) / 5) * 5;
-  return rest ? `about ${h} h ${rest} min` : `about ${h} h`;
+  return rest ? t('about {h} h {m} min', { h, m: rest }) : t('about {h} h', { h });
 }
 
 /**

@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { t } from '../lib/i18n';
 import { CloseIcon, CropIcon, EditPagesIcon, MergeIcon, ToolsIcon, SplitIcon } from './icons';
 
 export type ToolId = 'merge' | 'split' | 'crop' | 'edit';
@@ -11,10 +12,10 @@ export const TOOLS: {
   color: string;
   Icon: () => React.JSX.Element;
 }[] = [
-  { id: 'merge', title: 'Merge', blurb: 'Combine several PDFs into one', color: 'terra', Icon: MergeIcon },
-  { id: 'split', title: 'Split', blurb: 'Cut a PDF apart, or pull out pages', color: 'mustard', Icon: SplitIcon },
-  { id: 'crop', title: 'Crop', blurb: 'Trim the margins off every page', color: 'sage', Icon: CropIcon },
-  { id: 'edit', title: 'Edit pages', blurb: 'Reorder, rotate, delete or add pages', color: 'plum', Icon: EditPagesIcon },
+  { id: 'merge', title: t('Merge'), blurb: t('Combine several PDFs into one'), color: 'terra', Icon: MergeIcon },
+  { id: 'split', title: t('Split'), blurb: t('Cut a PDF apart, or pull out pages'), color: 'mustard', Icon: SplitIcon },
+  { id: 'crop', title: t('Crop'), blurb: t('Trim the margins off every page'), color: 'sage', Icon: CropIcon },
+  { id: 'edit', title: t('Edit pages'), blurb: t('Reorder, rotate, delete or add pages'), color: 'plum', Icon: EditPagesIcon },
 ];
 
 /** The four tools to choose from: a dialog on desktop, a sheet from the bottom on phones. */
@@ -25,16 +26,16 @@ export function ToolMenu({ onPick, onClose }: { onPick: (id: ToolId) => void; on
     return () => window.removeEventListener('keydown', key);
   }, [onClose]);
   return createPortal(
-    <div className="tool-menu" role="dialog" aria-modal="true" aria-label="PDF tools">
+    <div className="tool-menu" role="dialog" aria-modal="true" aria-label={t('PDF tools')}>
       <div className="tool-menu-backdrop" onClick={onClose} />
       <div className="tool-menu-sheet">
         <header className="tool-menu-head">
           <span className="tool-menu-spark"><ToolsIcon /></span>
           <div>
-            <h2>PDF tools</h2>
-            <p>Done on your device. Your files are never uploaded.</p>
+            <h2>{t('PDF tools')}</h2>
+            <p>{t('Done on your device. Your files are never uploaded.')}</p>
           </div>
-          <button className="icon-button" onClick={onClose} aria-label="Close"><CloseIcon /></button>
+          <button className="icon-button" onClick={onClose} aria-label={t('Close')}><CloseIcon /></button>
         </header>
         <div className="tool-cards">
           {TOOLS.map(({ id, title, blurb, color, Icon }, i) => (

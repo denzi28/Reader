@@ -1,17 +1,18 @@
 // PDF editing that runs entirely on the device (pdf-lib): merge, split, crop
 // and page edits. Every function takes PDF bytes (or Blobs) and returns bytes.
 import { degrees, PDFDocument } from 'pdf-lib';
+import { t } from './i18n';
 
 export class PdfOpError extends Error {}
 
-async function load(source: Blob | Uint8Array | ArrayBuffer, name = 'This PDF') {
+async function load(source: Blob | Uint8Array | ArrayBuffer, name = t('This PDF')) {
   const bytes = source instanceof Blob ? new Uint8Array(await source.arrayBuffer()) : new Uint8Array(source);
   try {
     return await PDFDocument.load(bytes, { updateMetadata: false });
   } catch (err) {
     const text = err instanceof Error ? `${err.name} ${err.message}` : '';
-    if (/encrypt/i.test(text)) throw new PdfOpError(`${name} is password-protected. Remove the password first.`);
-    throw new PdfOpError(`${name} could not be read. It may be damaged.`);
+    if (/encrypt/i.test(text)) throw new PdfOpError(t('{name} is password-protected. Remove the password first.', { name }));
+    throw new PdfOpError(t('{name} could not be read. It may be damaged.', { name }));
   }
 }
 
@@ -25,19 +26,19 @@ export function parseRanges(text: string, pages: number): number[][] {
     if (!part) continue;
     const m = /^(\d*)\s*(?:[-–—]\s*(\d*))?$/.exec(part);
     if (!m || (m[1] === '' && m[2] === undefined) || (m[1] === '' && m[2] === '')) {
-      throw new PdfOpError(`“${part}” is not a page or a range like 3-5.`);
+      throw new PdfOpError(t('“{part}” is not a page or a range like 3-5.', { part }));
     }
     const from = m[1] === '' ? 1 : Number(m[1]);
     const to = m[2] === undefined ? from : m[2] === '' ? pages : Number(m[2]);
     if (from < 1 || to < 1 || from > pages || to > pages) {
-      throw new PdfOpError(`Page ${Math.max(from, to)} is outside this document (1–${pages}).`);
+      throw new PdfOpError(t('Page {n} is outside this document (1–{pages}).', { n: Math.max(from, to), pages }));
     }
     const list: number[] = [];
     if (from <= to) for (let p = from; p <= to; p++) list.push(p - 1);
     else for (let p = from; p >= to; p--) list.push(p - 1);
     groups.push(list);
   }
-  if (!groups.length) throw new PdfOpError('Type the pages to use, like 1-3, 5, 8-10.');
+  if (!groups.length) throw new PdfOpError(t('Type the pages to use, like 1-3, 5, 8-10.'));
   return groups;
 }
 
@@ -46,7 +47,7 @@ export async function mergePdfs(
   sources: { blob: Blob; name: string }[],
   onProgress?: (done: number, total: number) => void,
 ): Promise<{ bytes: Uint8Array; counts: number[] }> {
-  if (sources.length < 2) throw new PdfOpError('Choose at least two documents to merge.');
+  if (sources.length < 2) throw new PdfOpError(t('Choose at least two documents to merge.'));
   const out = await PDFDocument.create();
   const counts: number[] = [];
   for (const [i, s] of sources.entries()) {
@@ -102,7 +103,7 @@ export async function cropPdf(blob: Blob, m: Margins, only?: Set<number>): Promi
       : { left: cut.b, right: cut.t, top: cut.l, bottom: cut.r };
     const w = box.width - own.left - own.right;
     const h = box.height - own.top - own.bottom;
-    if (w < 20 || h < 20) throw new PdfOpError('That crop leaves almost nothing of the page.');
+    if (w < 20 || h < 20) throw new PdfOpError(t('That crop leaves almost nothing of the page.'));
     page.setCropBox(box.x + own.left, box.y + own.bottom, w, h);
   });
   return finish(doc);
@@ -117,7 +118,7 @@ export interface PageStep {
 
 /** Builds a document from the steps: reordered, rotated, repeated or blank pages. */
 export async function arrangePdf(blob: Blob, steps: PageStep[]): Promise<Uint8Array> {
-  if (!steps.length) throw new PdfOpError('A document needs at least one page.');
+  if (!steps.length) throw new PdfOpError(t('A document needs at least one page.'));
   const src = await load(blob);
   const out = await PDFDocument.create();
   const wanted = [...new Set(steps.flatMap((s) => (s.from === null ? [] : [s.from])))];

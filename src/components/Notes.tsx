@@ -1,6 +1,7 @@
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { count, t } from '../lib/i18n';
 import { drawStrokes } from '../lib/ink';
 import { collectNotes, type PageNotes } from '../lib/notes';
 import { pageText } from '../lib/ocr';
@@ -63,8 +64,6 @@ const queuePreview = (job: () => Promise<void>) => {
 // Which documents are opened up, kept while the app is open.
 let openDocs_ = new Set<string>();
 
-const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
-
 /** A small picture of the page with its ink, drawn once it scrolls into view. */
 function Preview({ id, page, hasFile, starting }: { id: string; page: number; hasFile: boolean; starting: boolean }) {
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -102,7 +101,7 @@ function Preview({ id, page, hasFile, starting }: { id: string; page: number; ha
       <canvas ref={canvas} className="note-preview" width={260} height={367} aria-hidden="true" />
       {fetching && (
         <span className="note-fetching" role="status">
-          <BookLoader size={22} label="Downloading from Google Drive" />
+          <BookLoader size={22} label={t('Downloading from Google Drive')} />
           {progress !== null && <span>{Math.round(progress * 100)}%</span>}
         </span>
       )}
@@ -156,26 +155,26 @@ function Peek({ stops, at, onMove, onOpen, onClose }: {
   }, [at, stops.length, onMove, onClose]);
   // At the top of the page, clear of the animated notes list.
   return createPortal(
-    <div className="peek" role="dialog" aria-modal="true" aria-label={`${doc.name}, page ${page + 1}`}>
+    <div className="peek" role="dialog" aria-modal="true" aria-label={t('{name}, page {n}', { name: doc.name, n: page + 1 })}>
       <div className="peek-backdrop" onClick={onClose} />
       <div className="peek-sheet">
         <header className="peek-head">
           <div className="peek-title">
             <strong>{doc.name}</strong>
-            <span>Page {page + 1} of {doc.pages}</span>
+            <span>{t('Page {n} of {total}', { n: page + 1, total: doc.pages })}</span>
           </div>
-          <button className="icon-button" onClick={onClose} aria-label="Close"><CloseIcon /></button>
+          <button className="icon-button" onClick={onClose} aria-label={t('Close')}><CloseIcon /></button>
         </header>
         <div className={`peek-page${ready ? ' ready' : ''}`}>
           <canvas ref={canvas} />
           {!ready && <span className="peek-loading" />}
         </div>
         <footer className="peek-foot">
-          <button className="icon-button" disabled={at === 0} onClick={() => onMove(at - 1)} aria-label="Previous note"><BackIcon /></button>
+          <button className="icon-button" disabled={at === 0} onClick={() => onMove(at - 1)} aria-label={t('Previous note')}><BackIcon /></button>
           <span className="peek-count">{at + 1} / {stops.length}</span>
-          <button className="icon-button peek-next" disabled={at === stops.length - 1} onClick={() => onMove(at + 1)} aria-label="Next note"><BackIcon /></button>
+          <button className="icon-button peek-next" disabled={at === stops.length - 1} onClick={() => onMove(at + 1)} aria-label={t('Next note')}><BackIcon /></button>
           <button className="button button-small peek-open" onClick={() => onOpen(doc.id, page)}>
-            Open in document
+            {t('Open in document')}
             <ArrowIcon />
           </button>
         </footer>
@@ -198,7 +197,7 @@ async function readNotes(id: string): Promise<Loaded> {
       ...(m.a[0] >= STABLE_BASE ? { page: Math.floor((m.a[0] - STABLE_BASE) / 4096) } : {}),
     }));
   try {
-    return { notes: await collectNotes(ink, pdf ? (p) => pageText(pdf, id, p).then((t) => t.boxes) : null), book, hasFile: Boolean(pdf) };
+    return { notes: await collectNotes(ink, pdf ? (p) => pageText(pdf, id, p).then((x) => x.boxes) : null), book, hasFile: Boolean(pdf) };
   } finally {
     releasePdf(id);
   }
@@ -300,15 +299,15 @@ export function Notes({ docs, folderName, onOpen }: Props) {
 
   /** What was highlighted and noted while reading it as a book: the words, the note, and where to find it. */
   const bookList = (d: DocMeta, l: Loaded) => (l.book?.length ? (
-    <section className="note-book" aria-label="Highlights from book mode">
-      <h3>From reading as a book</h3>
+    <section className="note-book" aria-label={t('Highlights from book mode')}>
+      <h3>{t('From reading as a book')}</h3>
       <ul>
         {l.book.map((b, i) => (
           <li key={i}>
             <button onClick={() => onOpen(d.id, b.page ?? 0)} style={{ ['--hl' as string]: b.color }}>
               <q>{b.text}</q>
               {b.note && <span className="note-book-note">{b.note}</span>}
-              {b.page !== undefined && <span className="note-book-page">p. {b.page + 1}</span>}
+              {b.page !== undefined && <span className="note-book-page">{t('p. {n}', { n: b.page + 1 })}</span>}
             </button>
           </li>
         ))}
@@ -325,18 +324,18 @@ export function Notes({ docs, folderName, onOpen }: Props) {
           <li key={p.page}>
             <button
               className="note-tile"
-              aria-label={`Page ${p.page + 1}: ${[
-                marked ? plural(marked, 'highlight', 'highlights') : '',
-                p.pens ? plural(p.pens, 'pen mark', 'pen marks') : '',
-                p.texts?.length ? plural(p.texts.length, 'typed note', 'typed notes') : '',
-              ].filter(Boolean).join(', ')}`}
+              aria-label={t('Page {n}: {parts}', { n: p.page + 1, parts: [
+                marked ? count(marked, 'highlight', 'highlights') : '',
+                p.pens ? count(p.pens, 'pen mark', 'pen marks') : '',
+                p.texts?.length ? count(p.texts.length, 'typed note', 'typed notes') : '',
+              ].filter(Boolean).join(', ') })}
               onClick={() => (l.hasFile
                 ? setPeek(stops.findIndex((s) => s.doc.id === d.id && s.page === p.page))
                 : void fetchThenShow(d, p.page))}
             >
               <Preview id={d.id} page={p.page} hasFile={l.hasFile} starting={fetching.has(d.id)} />
               <span className="note-tile-foot">
-                <span className="note-tile-page">p. {p.page + 1}</span>
+                <span className="note-tile-page">{t('p. {n}', { n: p.page + 1 })}</span>
                 <span className="note-tile-marks">
                   {marked > 0 && <span><MarkIcon />{marked}</span>}
                   {p.pens > 0 && <span><PenIcon />{p.pens}</span>}
@@ -360,18 +359,18 @@ export function Notes({ docs, folderName, onOpen }: Props) {
     return (
       <section className="notes-empty">
         <span className="drop-icon"><MarkIcon /></span>
-        <h2>No notes yet</h2>
-        <p>Highlight or write on any page, or highlight while reading as a book, and it shows up here: the highlighted text, page by page.</p>
+        <h2>{t('No notes yet')}</h2>
+        <p>{t('Highlight or write on any page, or highlight while reading as a book, and it shows up here: the highlighted text, page by page.')}</p>
       </section>
     );
   }
 
   return (
-    <section className="notes" aria-label="Notes">
+    <section className="notes" aria-label={t('Notes')}>
       <div className="notes-head">
         <div>
-          <h2 className="notes-title">Your notes</h2>
-          <p className="notes-sub">{plural(total, 'mark', 'marks')} in {plural(top.length, 'document', 'documents')}</p>
+          <h2 className="notes-title">{t('Your notes')}</h2>
+          <p className="notes-sub">{t('{marks} in {docs}', { marks: count(total, 'mark', 'marks'), docs: count(top.length, 'document', 'documents') })}</p>
         </div>
       </div>
 
@@ -395,8 +394,8 @@ export function Notes({ docs, folderName, onOpen }: Props) {
                 <span className="note-doc-meta">
                   {folder && <><FolderIcon />{folder} · </>}
                   {l
-                    ? `${plural(marks, 'mark', 'marks')} on ${plural(notedPages, 'page', 'pages')}${linked.length ? ` · ${plural(linked.length, 'dedicated note', 'dedicated notes')}` : ''}`
-                    : 'Reading…'}
+                    ? [t('{marks} on {pages}', { marks: count(marks, 'mark', 'marks'), pages: count(notedPages, 'page', 'pages') }), ...(linked.length ? [count(linked.length, 'dedicated note', 'dedicated notes')] : [])].join(' · ')
+                    : t('Reading…')}
                 </span>
               </span>
               <span className="note-chevron" aria-hidden="true"><ChevronIcon /></span>
@@ -410,21 +409,21 @@ export function Notes({ docs, folderName, onOpen }: Props) {
                 {linked.map((n) => {
                   const nl = loaded.get(n.id);
                   return (
-                    <section key={n.id} className="note-linked" aria-label={`Note for page ${n.attached!.page + 1}`}>
+                    <section key={n.id} className="note-linked" aria-label={t('Note for page {n}', { n: n.attached!.page + 1 })}>
                       <div className="note-linked-head">
                         <span className="note-linked-text">
-                          <b>Note for page {n.attached!.page + 1}</b>
+                          <b>{t('Note for page {n}', { n: n.attached!.page + 1 })}</b>
                           <span>{n.name}</span>
                         </span>
-                        <button className="chip-button" onClick={() => onOpen(n.id, 0)}>Open <ArrowIcon /></button>
+                        <button className="chip-button" onClick={() => onOpen(n.id, 0)}>{t('Open')} <ArrowIcon /></button>
                       </div>
-                      {!nl ? <div className="note-loading" /> : nl.notes.length ? grid(n, nl) : <p className="empty-note">Nothing written in it yet.</p>}
+                      {!nl ? <div className="note-loading" /> : nl.notes.length ? grid(n, nl) : <p className="empty-note">{t('Nothing written in it yet.')}</p>}
                     </section>
                   );
                 })}
               </>
             )}
-            {isOpen && l && !l.hasFile && l.notes.length > 0 && <p className="empty-note">In your Google Drive only: tap a page to bring the document down and see it here.</p>}
+            {isOpen && l && !l.hasFile && l.notes.length > 0 && <p className="empty-note">{t('In your Google Drive only: tap a page to bring the document down and see it here.')}</p>}
           </article>
         );
       })}

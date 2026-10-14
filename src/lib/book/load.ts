@@ -1,6 +1,7 @@
 // Getting a book ready to read: an ePub is opened, a PDF is rebuilt (once; the result is kept).
 import { acquirePdf, releasePdf } from '../pdf';
 import { recognisedPages } from '../ocr';
+import { t } from '../i18n';
 import { getBookCache, getDocFile, getMeta, putBookCache } from '../storage';
 import { downloadPdf } from '../sync/engine';
 import type { DocMeta } from '../types';
@@ -35,7 +36,7 @@ export async function loadBook(
     await downloadPdf(id);
     file = await getDocFile(id);
   }
-  if (!meta || !file || meta.deleted) throw new Error('This document is no longer on this device.');
+  if (!meta || !file || meta.deleted) throw new Error(t('This document is no longer on this device.'));
 
   if (meta.kind === 'epub') {
     const epub = await readEpub(file);
@@ -50,7 +51,7 @@ export async function loadBook(
   }
   const stored = file;
   const pdf = await acquirePdf(id, async () => stored);
-  if (!pdf) throw new Error('This PDF could not be opened.');
+  if (!pdf) throw new Error(t('This PDF could not be opened.'));
   try {
     const book = await bookFromPdf(pdf, id, meta.name, progress, stop);
     if (!options.partial) await putBookCache(id, { book, ocr: read }).catch(() => undefined);

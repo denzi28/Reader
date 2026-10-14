@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { BookLoader } from './BookLoader';
+import { t } from '../lib/i18n';
 import { getMeta, patchMeta } from '../lib/storage';
 import type { DocMeta } from '../lib/types';
 
@@ -11,8 +12,8 @@ export type DocView = 'book' | 'pdf';
 
 const opening = (
   <div className="viewer-loading loading" role="status">
-    <BookLoader size={46} label="Opening your document" />
-    <span>Opening your document…</span>
+    <BookLoader size={46} label={t('Opening your document')} />
+    <span>{t('Opening your document…')}</span>
   </div>
 );
 

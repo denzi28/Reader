@@ -2,6 +2,7 @@
 import { strFromU8, unzipSync } from 'fflate';
 import { at, kid, kids, parseXml, type El } from '../office/xml';
 import { countWords, type Block, type Book, type Chapter, type Run, type TocEntry } from './model';
+import { t } from '../i18n';
 
 export const BOOK_VERSION = 1;
 const MAX_PART = 40 * 1024 * 1024;
@@ -272,20 +273,20 @@ export async function readEpub(file: Blob): Promise<Epub> {
   try {
     files = unzipSync(bytes, { filter: (f) => f.originalSize <= MAX_PART && !/\.(ttf|otf|woff2?|mp3|mp4|m4a|ogg|wav|mov)$/i.test(f.name) });
   } catch {
-    throw new Error('This book could not be opened. It may be damaged.');
+    throw new Error(t('This book could not be opened. It may be damaged.'));
   }
   const get = (name: string) => files[name] ?? files[decode(name)];
   const str = (name: string) => { const b = get(name); return b ? strFromU8(b) : undefined; };
 
   const enc = str('META-INF/encryption.xml');
   if (enc && /EncryptedData/.test(enc) && !/idpf\.org\/2008\/embedding|ns\.adobe\.com\/pdf\/enc#RC/.test(enc)) {
-    throw new Error('This book is protected (DRM) and cannot be opened here.');
+    throw new Error(t('This book is protected (DRM) and cannot be opened here.'));
   }
   const container = str('META-INF/container.xml');
-  if (!container) throw new Error('This does not look like an ePub book.');
+  if (!container) throw new Error(t('This does not look like an ePub book.'));
   const rootPath = at(kid(kid(parseXml(container), 'rootfiles'), 'rootfile'), 'full-path');
   const opfText = rootPath ? str(rootPath) : undefined;
-  if (!rootPath || !opfText) throw new Error('This book has no readable contents.');
+  if (!rootPath || !opfText) throw new Error(t('This book has no readable contents.'));
   const opf = parseXml(opfText);
 
   const meta = kid(opf, 'metadata');
@@ -353,13 +354,13 @@ export async function readEpub(file: Blob): Promise<Epub> {
     n++;
     const fromToc = rawToc.find((t) => t.href === item.href)?.title;
     const generic = (t?: string) => (t && !/^(untitled|document|index|part\d*)$/i.test(t) ? t : undefined);
-    chapters.push({ title: fromToc ?? heading ?? generic(docTitle) ?? `Section ${n}`, blocks });
+    chapters.push({ title: fromToc ?? heading ?? generic(docTitle) ?? t('Section {n}', { n }), blocks });
     anchorsBy.push(anchors);
     chapterOfPath.set(item.href, chapters.length - 1);
     for (const p of pending.splice(0)) chapterOfPath.set(p.path, chapters.length - 1);
     for (const b of blocks) words += b.t === 'p' || b.t === 'h' ? countWords(b.x) : 0;
   }
-  if (!chapters.length) throw new Error('This book has no text to read.');
+  if (!chapters.length) throw new Error(t('This book has no text to read.'));
 
   const toc: TocEntry[] = [];
   const seen = new Set<string>();
@@ -383,7 +384,7 @@ export async function readEpub(file: Blob): Promise<Epub> {
     cover = new Blob([get(coverItem.href) as BlobPart], { type: coverItem.type });
   }
 
-  const book: Book = { v: BOOK_VERSION, title: title || 'Untitled book', author, lang, chapters, toc };
+  const book: Book = { v: BOOK_VERSION, title: title || t('Untitled book'), author, lang, chapters, toc };
   // Pictures are addressed by their place in the book; the page asks for the real address when it draws one.
   return {
     book,

@@ -6,6 +6,7 @@ import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { pageText } from '../ocr';
 import { pageSize, type TextBox } from '../pdf';
 import type { Block, Book, Chapter, TocEntry } from './model';
+import { t } from '../i18n';
 
 export const PDF_BOOK_VERSION = 9;
 
@@ -339,10 +340,10 @@ async function assemble(pdf: PDFDocumentProxy, name: string, blocks: Block[], n:
     const step = Math.max(8, Math.ceil(n / 60));
     for (let p = 0; p < n; p += step) {
       const at = blockFor(p, '');
-      if (!starts.length || at > starts[starts.length - 1].at) starts.push({ title: `Pages ${p + 1}–${Math.min(n, p + step)}`, at });
+      if (!starts.length || at > starts[starts.length - 1].at) starts.push({ title: t('Pages {a}–{b}', { a: p + 1, b: Math.min(n, p + step) }), at });
     }
   }
-  if (starts[0].at > 0) starts.unshift({ title: starts.length > 1 || level >= 0 ? 'Beginning' : title, at: 0 });
+  if (starts[0].at > 0) starts.unshift({ title: starts.length > 1 || level >= 0 ? t('Beginning') : title, at: 0 });
 
   const chapters: Chapter[] = starts.map((s, i) => ({ title: s.title, blocks: blocks.slice(s.at, i + 1 < starts.length ? starts[i + 1].at : blocks.length) }));
   const chapterOf = (blockIndex: number) => {

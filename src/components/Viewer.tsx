@@ -3,6 +3,7 @@ import { flushSync } from 'react-dom';
 import {
   useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState,
 } from 'react';
+import { t } from '../lib/i18n';
 import { BRUSH_SIZES, TEXT_SIZES } from '../lib/ink';
 import { copies, restyle } from '../lib/inkOps';
 import type { NotebookSpec } from '../lib/notebookSpec';
@@ -58,13 +59,13 @@ function BookButton({ onBook }: { onBook: () => void }) {
   }, [tip]);
   return (
     <span className="book-btn">
-      <button className="icon-button" onClick={() => { setTip(false); onBook(); }} aria-label="Read as a book" title="Read as a book">
+      <button className="icon-button" onClick={() => { setTip(false); onBook(); }} aria-label={t('Read as a book')} title={t('Read as a book')}>
         <BookOpenIcon />
       </button>
       {tip && (
         <span className="book-tip" role="status" onClick={() => setTip(false)}>
-          <b>Read it as a book</b>
-          Turns this PDF into clean, resizable text. The PDF stays as it is.
+          <b>{t('Read it as a book')}</b>
+          {t('Turns this PDF into clean, resizable text. The PDF stays as it is.')}
         </span>
       )}
     </span>
@@ -182,11 +183,11 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose, onOpen, onBoo
         await downloadPdf(docId);
         file = await getDocFile(docId);
       }
-      if (!m || !file || m.deleted) throw new Error('This document is no longer on this device.');
+      if (!m || !file || m.deleted) throw new Error(t('This document is no longer on this device.'));
       const stored = file;
       held = true;
       doc = await acquirePdf(docId, async () => stored);
-      if (!doc) throw new Error('This PDF could not be opened.');
+      if (!doc) throw new Error(t('This PDF could not be opened.'));
       const start = Math.max(0, Math.min(startPage ?? m.lastPage, doc.numPages - 1));
       // Show the document straight away. Page sizes measured on an earlier
       // visit are exact; the first time, every page is assumed to match the
@@ -240,7 +241,7 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose, onOpen, onBoo
         recheckCurrent.current();
       }
     })().catch((err: unknown) => {
-      if (!cancelled) setError(err instanceof Error ? err.message : 'Could not open this document.');
+      if (!cancelled) setError(err instanceof Error ? err.message : t('Could not open this document.'));
     });
     return () => {
       cancelled = true;
@@ -925,7 +926,7 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose, onOpen, onBoo
       // Once the new sheet has its place, show it.
       setTimeout(() => goToRef.current(pages), 200);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'A page could not be added.');
+      setError(err instanceof Error ? err.message : t('A page could not be added.'));
     } finally {
       setAdding(false);
     }
@@ -967,13 +968,13 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose, onOpen, onBoo
     const at = meta?.attached;
     if (at) {
       const target = allDocs.find((d) => d.id === at.doc);
-      return target ? [{ doc: target, page: at.page, label: target.name, sub: `page ${at.page + 1}` }] : [];
+      return target ? [{ doc: target, page: at.page, label: target.name, sub: t('page {n}', { n: at.page + 1 }) }] : [];
     }
     return allDocs
       .filter((d) => d.attached?.doc === docId && d.attached.page === current)
       .sort((a, b) => b.addedAt - a.addedAt)
       .slice(0, 3)
-      .map((d) => ({ doc: d, page: 0, label: d.name, sub: 'your note' }));
+      .map((d) => ({ doc: d, page: 0, label: d.name, sub: t('your note') }));
   }, [allDocs, meta, docId, current]);
   const createDedicated = async (spec: NotebookSpec) => {
     if (!meta) return;
@@ -985,7 +986,7 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose, onOpen, onBoo
       setNoteDialog(false);
       onOpen(made.id);
     } catch (err) {
-      setNoteError(err instanceof Error ? err.message : 'The note could not be made.');
+      setNoteError(err instanceof Error ? err.message : t('The note could not be made.'));
     } finally {
       setMakingNote(false);
     }
@@ -1061,7 +1062,7 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose, onOpen, onBoo
     return (
       <div className="viewer-message">
         <p>{error}</p>
-        <button className="button" onClick={onClose}>Back to library</button>
+        <button className="button" onClick={onClose}>{t('Back to library')}</button>
       </div>
     );
   }
@@ -1073,18 +1074,18 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose, onOpen, onBoo
     <div ref={root} className={`viewer tool-${tool}${cover === 'on' ? ' opening' : ''}${!phone && rail ? ' rail-on' : ''}${!phone && side ? ' side-on' : ''}`}>
       {phone ? (
         <header className="topbar phone-topbar">
-          <button className="icon-button" onClick={onClose} aria-label="Back to library" title="Back">
+          <button className="icon-button" onClick={onClose} aria-label={t('Back to library')} title={t('Back')}>
             <BackIcon />
           </button>
           <div className="doc-head">
-            <h1 className="doc-title" title={meta?.name}>{meta?.name ?? 'Opening…'}</h1>
+            <h1 className="doc-title" title={meta?.name}>{meta?.name ?? t('Opening…')}</h1>
             {meta?.attached ? (
-              <button className="doc-link" onClick={() => onOpen(meta.attached!.doc, meta.attached!.page)} title="Go to that page">
-                Dedicated to {links[0]?.label ?? meta.attached.name} · page {meta.attached.page + 1}
+              <button className="doc-link" onClick={() => onOpen(meta.attached!.doc, meta.attached!.page)} title={t('Go to that page')}>
+                {t('Dedicated to {name} · page {n}', { name: links[0]?.label ?? meta.attached.name, n: meta.attached.page + 1 })}
               </button>
             ) : pdf && (
-              <label className="page-jump page-jump-sub" title="Go to page">
-                <span>Page</span>
+              <label className="page-jump page-jump-sub" title={t('Go to page')}>
+                <span>{t('Page')}</span>
                 <input
                   key={current}
                   type="number"
@@ -1098,39 +1099,39 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose, onOpen, onBoo
                     }
                   }}
                   onBlur={(e) => { e.currentTarget.value = String(current + 1); }}
-                  aria-label="Current page"
+                  aria-label={t('Current page')}
                 />
-                <span>of {pdf.numPages}</span>
+                <span>{t('of {total}', { total: pdf.numPages })}</span>
               </label>
             )}
           </div>
           {onBook && pdf && !meta?.notebook && <BookButton onBook={onBook} />}
           {finder && !meta?.notebook && (
             <button className="icon-button" onClick={() => { setMenuOpen(false); setFindOpen((v) => !v); }} aria-pressed={findOpen}
-              aria-label="Find in this document" title="Find in this document">
+              aria-label={t('Find in this document')} title={t('Find in this document')}>
               <SearchIcon />
             </button>
           )}
           <button className="icon-button" onClick={() => setMenuOpen((v) => !v)} aria-expanded={menuOpen} aria-haspopup="menu"
-            aria-label="More" title="More">
+            aria-label={t('More')} title={t('More')}>
             <MoreVIcon />
           </button>
         </header>
       ) : (
       <header className="topbar">
-        <button className="icon-button" onClick={onClose} aria-label="Back to library" title="Back (Esc)">
+        <button className="icon-button" onClick={onClose} aria-label={t('Back to library')} title={t('Back (Esc)')}>
           <BackIcon />
         </button>
         <div className="doc-head">
-          <h1 className="doc-title" title={meta?.name}>{meta?.name ?? 'Opening…'}</h1>
+          <h1 className="doc-title" title={meta?.name}>{meta?.name ?? t('Opening…')}</h1>
           {meta?.attached && (
-            <button className="doc-link" onClick={() => onOpen(meta.attached!.doc, meta.attached!.page)} title="Go to that page">
-              Dedicated to {links[0]?.label ?? meta.attached.name} · page {meta.attached.page + 1}
+            <button className="doc-link" onClick={() => onOpen(meta.attached!.doc, meta.attached!.page)} title={t('Go to that page')}>
+              {t('Dedicated to {name} · page {n}', { name: links[0]?.label ?? meta.attached.name, n: meta.attached.page + 1 })}
             </button>
           )}
         </div>
         {pdf && (
-          <label className="page-jump" title="Go to page">
+          <label className="page-jump" title={t('Go to page')}>
             <input
               key={current}
               type="number"
@@ -1144,38 +1145,38 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose, onOpen, onBoo
                 }
               }}
               onBlur={(e) => { e.currentTarget.value = String(current + 1); }}
-              aria-label="Current page"
+              aria-label={t('Current page')}
             />
             <span>/ {pdf.numPages}</span>
           </label>
         )}
-        <div className="zoom-group" role="group" aria-label="Zoom">
-          <button className="icon-button" onClick={() => applyZoom(zoomApi.target() / 1.2)} aria-label="Zoom out" title="Zoom out (-)"><MinusIcon /></button>
+        <div className="zoom-group" role="group" aria-label={t('Zoom')}>
+          <button className="icon-button" onClick={() => applyZoom(zoomApi.target() / 1.2)} aria-label={t('Zoom out')} title={t('Zoom out (-)')}><MinusIcon /></button>
           <span className="zoom-value" aria-live="polite">{Math.round(zoom * 100)}%</span>
-          <button className="icon-button" onClick={() => applyZoom(zoomApi.target() * 1.2)} aria-label="Zoom in" title="Zoom in (+)"><PlusIcon /></button>
-          <button className="icon-button" onClick={() => applyZoom(1)} aria-label="Fit to width" title="Fit to width"><FitIcon /></button>
+          <button className="icon-button" onClick={() => applyZoom(zoomApi.target() * 1.2)} aria-label={t('Zoom in')} title={t('Zoom in (+)')}><PlusIcon /></button>
+          <button className="icon-button" onClick={() => applyZoom(1)} aria-label={t('Fit to width')} title={t('Fit to width')}><FitIcon /></button>
         </div>
         {onBook && pdf && !meta?.notebook && <BookButton onBook={onBook} />}
         {finder && !meta?.notebook && (
           <button className="icon-button" onClick={() => setFindOpen((v) => !v)} aria-pressed={findOpen}
-            aria-label="Find in this document" title="Find in this document (Ctrl+F)">
+            aria-label={t('Find in this document')} title={t('Find in this document (Ctrl+F)')}>
             <SearchIcon />
           </button>
         )}
         {pdf && meta?.notebook && (
           <button className="icon-button" onClick={() => void addNotebookPage()} disabled={adding}
-            aria-label="Add a page" title="Add a page at the end">
+            aria-label={t('Add a page')} title={t('Add a page at the end')}>
             <PlusIcon />
           </button>
         )}
         {pdf && meta && !meta.notebook && (
           <button className="icon-button" onClick={() => { setNoteError(null); setNoteDialog(true); }}
-            aria-label="Add a note for this page" title="Add a note for this page">
+            aria-label={t('Add a note for this page')} title={t('Add a note for this page')}>
             <NotePlusIcon />
           </button>
         )}
         {pdf && meta && (
-          <button className="icon-button" onClick={() => setDownloadOpen(true)} aria-label="Download this document" title="Download to this device">
+          <button className="icon-button" onClick={() => setDownloadOpen(true)} aria-label={t('Download this document')} title={t('Download to this device')}>
             <DownloadIcon />
           </button>
         )}
@@ -1183,45 +1184,45 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose, onOpen, onBoo
         <button
           className="icon-button"
           onClick={onTheme}
-          aria-label={dark ? 'Switch to day paper' : 'Switch to night paper'}
-          title={dark ? 'Day paper' : 'Night paper'}
+          aria-label={dark ? t('Switch to day paper') : t('Switch to night paper')}
+          title={dark ? t('Day paper') : t('Night paper')}
         >
           {dark ? <SunIcon /> : <MoonIcon />}
         </button>
-        <button className={`icon-button${rail ? ' on' : ''}`} onClick={() => setRail(!rail)} aria-pressed={rail} aria-label="Page strip" title="Show the pages down the side"><RailIcon /></button>
-        <button className={`icon-button${side ? ' on' : ''}`} onClick={() => setSide(!side)} aria-pressed={side} aria-label="Marks and notes" title="Show the marks and notes of this document"><PanelIcon /></button>
+        <button className={`icon-button${rail ? ' on' : ''}`} onClick={() => setRail(!rail)} aria-pressed={rail} aria-label={t('Page strip')} title={t('Show the pages down the side')}><RailIcon /></button>
+        <button className={`icon-button${side ? ' on' : ''}`} onClick={() => setSide(!side)} aria-pressed={side} aria-label={t('Marks and notes')} title={t('Show the marks and notes of this document')}><PanelIcon /></button>
       </header>
       )}
 
       {phone && menuOpen && (
         <>
           <div className="vmenu-scrim" onClick={() => setMenuOpen(false)} />
-          <div className="vmenu" role="menu" aria-label="More">
+          <div className="vmenu" role="menu" aria-label={t('More')}>
             {pdf && meta?.notebook && (
               <button role="menuitem" className="vmenu-item" disabled={adding} onClick={() => { setMenuOpen(false); void addNotebookPage(); }}>
-                <PlusIcon /><span>Add a page</span>
+                <PlusIcon /><span>{t('Add a page')}</span>
               </button>
             )}
             {pdf && meta && !meta.notebook && (
               <button role="menuitem" className="vmenu-item" onClick={() => { setMenuOpen(false); setNoteError(null); setNoteDialog(true); }}>
-                <NotePlusIcon /><span>Add a note for this page</span>
+                <NotePlusIcon /><span>{t('Add a note for this page')}</span>
               </button>
             )}
             {pdf && meta && (
               <button role="menuitem" className="vmenu-item" onClick={() => { setMenuOpen(false); setDownloadOpen(true); }}>
-                <DownloadIcon /><span>Download</span>
+                <DownloadIcon /><span>{t('Download')}</span>
               </button>
             )}
             <hr />
             <button role="menuitem" className="vmenu-item" onClick={() => { setMenuOpen(false); onTheme(); }}>
-              <MoonIcon /><span>Night paper</span><small>{dark ? 'On' : 'Off'}</small>
+              <MoonIcon /><span>{t('Night paper')}</span><small>{dark ? t('On') : t('Off')}</small>
             </button>
             <SyncRow onDone={() => setMenuOpen(false)} />
           </div>
         </>
       )}
 
-      <div className="scroller" ref={scroller} role="main" aria-label="Document pages" tabIndex={0}>
+      <div className="scroller" ref={scroller} role="main" aria-label={t('Document pages')} tabIndex={0}>
         {!pdf || !sizes ? (
           <div className="loading" role="status" />
         ) : (
@@ -1254,7 +1255,7 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose, onOpen, onBoo
             {meta?.notebook && (
               <button className="add-page" style={{ width: pageWidth }} onClick={() => void addNotebookPage()} disabled={adding}>
                 <PlusIcon />
-                <span>{adding ? 'Adding…' : 'Add a page'}</span>
+                <span>{adding ? t('Adding…') : t('Add a page')}</span>
               </button>
             )}
           </div>
@@ -1264,7 +1265,7 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose, onOpen, onBoo
       <canvas ref={overlay} className="ink-overlay" aria-hidden="true" />
 
       {cover === 'off' && links.some((l) => !hidden.has(l.doc.id)) && (
-        <LinkStack corner={cardCorner} onCorner={setCardCorner} label={meta?.attached ? 'The page this note is for' : 'Notes for this page'}>
+        <LinkStack corner={cardCorner} onCorner={setCardCorner} label={meta?.attached ? t('The page this note is for') : t('Notes for this page')}>
           {links.filter((l) => !hidden.has(l.doc.id)).map((l) => (
             <LinkCard key={`${l.doc.id}:${l.page}`} doc={l.doc} page={l.page} label={l.label} sub={l.sub}
               onOpen={() => onOpen(l.doc.id, l.page)} onHide={() => setHidden((cur) => new Set(cur).add(l.doc.id))} />
@@ -1282,9 +1283,9 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose, onOpen, onBoo
 
       {cover !== 'off' && (
         <div className={`opening-cover${cover === 'fading' ? ' fading' : ''}`} role="status">
-          <BookLoader size={46} label="Opening your document" />
+          <BookLoader size={46} label={t('Opening your document')} />
           <p>
-            {downloaded === null ? 'Opening your document…' : 'Bringing it down from Google Drive…'}
+            {downloaded === null ? t('Opening your document…') : t('Bringing it down from Google Drive…')}
             {downloaded !== null && <small>{Math.round(downloaded * 100)}%</small>}
           </p>
         </div>

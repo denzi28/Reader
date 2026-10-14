@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { t } from '../lib/i18n';
 import { displayColor, HIGHLIGHT_COLORS, PEN_COLORS } from '../lib/ink';
 import { IDENTITY, simPoint, type Box, type Sim } from '../lib/inkOps';
 import type { PointerHub } from '../lib/pointerHub';
@@ -151,7 +152,7 @@ export function SelectionLayer(p: Props) {
   const below = frame.top < (p.canTurn ? 104 : 60);
 
   return (
-    <div ref={root} className="sel-layer" aria-label="Selected notes">
+    <div ref={root} className="sel-layer" aria-label={t('Selected notes')}>
       <div className="sel-frame" style={{ ...frame, transform: turnDeg ? `rotate(${turnDeg}deg)` : undefined }}>
         <div className="sel-body" {...handlers('move')} />
         {CORNERS.map((c) => (
@@ -159,11 +160,11 @@ export function SelectionLayer(p: Props) {
             key={c}
             className={`sel-handle ${c}`}
             role="button"
-            aria-label={`Resize from the ${{ nw: 'top left', ne: 'top right', se: 'bottom right', sw: 'bottom left' }[c]} corner`}
+            aria-label={{ nw: t('Resize from the top left corner'), ne: t('Resize from the top right corner'), se: t('Resize from the bottom right corner'), sw: t('Resize from the bottom left corner') }[c]}
             {...handlers('scale', c)}
           />
         ))}
-        {p.canTurn && <span className="sel-turn" role="button" aria-label="Rotate" {...handlers('turn')} />}
+        {p.canTurn && <span className="sel-turn" role="button" aria-label={t('Rotate')} {...handlers('turn')} />}
       </div>
 
       {!live && (
@@ -171,26 +172,26 @@ export function SelectionLayer(p: Props) {
           className={`sel-menu${below ? ' below' : ''}${p.canTurn ? ' turnable' : ''}`}
           style={{ left: Math.min(Math.max(frame.left + frame.width / 2, 130), Math.max(130, width - 130)), top: below ? frame.top + frame.height : frame.top }}
           role="toolbar"
-          aria-label="Selection"
+          aria-label={t('Selection')}
           onPointerDown={(e) => e.stopPropagation()}
         >
-          <button onClick={() => p.api.cut(p.page, p.ids)}><ScissorsIcon /><span>Cut</span></button>
-          <button onClick={() => p.api.copy(p.page, p.ids)}><CopyIcon /><span>Copy</span></button>
-          {p.api.canPaste && <button onClick={() => p.api.paste(p.page)}><PasteIcon /><span>Paste</span></button>}
-          <button onClick={() => p.api.remove(p.page, p.ids)}><TrashIcon /><span>Delete</span></button>
-          {p.onEdit && <button onClick={p.onEdit}><PencilIcon /><span>Edit</span></button>}
-          <button aria-expanded={styling} onClick={() => setStyling((v) => !v)}><StyleIcon /><span>Style</span></button>
+          <button onClick={() => p.api.cut(p.page, p.ids)}><ScissorsIcon /><span>{t('Cut')}</span></button>
+          <button onClick={() => p.api.copy(p.page, p.ids)}><CopyIcon /><span>{t('Copy')}</span></button>
+          {p.api.canPaste && <button onClick={() => p.api.paste(p.page)}><PasteIcon /><span>{t('Paste')}</span></button>}
+          <button onClick={() => p.api.remove(p.page, p.ids)}><TrashIcon /><span>{t('Delete')}</span></button>
+          {p.onEdit && <button onClick={p.onEdit}><PencilIcon /><span>{t('Edit')}</span></button>}
+          <button aria-expanded={styling} onClick={() => setStyling((v) => !v)}><StyleIcon /><span>{t('Style')}</span></button>
           {styling && (
             <div className="sel-style">
-              <div className="swatches" role="radiogroup" aria-label="Colour">
+              <div className="swatches" role="radiogroup" aria-label={t('Colour')}>
                 {(p.highlighter ? HIGHLIGHT_COLORS : PEN_COLORS).map((c) => (
                   <button key={c} role="radio" aria-checked={false} aria-label={c} className="swatch"
                     style={{ ['--c' as string]: displayColor(c, p.dark) }} onClick={() => p.api.style(p.page, p.ids, { color: c })} />
                 ))}
               </div>
-              <div className="sizes" role="group" aria-label="Thickness">
+              <div className="sizes" role="group" aria-label={t('Thickness')}>
                 {[0, 1, 2].map((i) => (
-                  <button key={i} className="size" aria-label={['Fine', 'Medium', 'Broad'][i]}
+                  <button key={i} className="size" aria-label={[t('Fine'), t('Medium'), t('Broad')][i]}
                     onClick={() => p.api.style(p.page, p.ids, { size: i as 0 | 1 | 2 })}>
                     <i style={{ width: 6 + i * 5, height: 6 + i * 5 }} />
                   </button>

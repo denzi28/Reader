@@ -1,6 +1,8 @@
 // A book as the book reader sees it: chapters of paragraphs. An ePub gives this
 // directly; a PDF is rebuilt into it from the words on its pages (see fromPdf.ts).
 
+import { t } from '../i18n';
+
 /** Formatting inside a paragraph: text runs, flagged italic (1) and/or bold (2). */
 export type Run = [text: string, flags: number];
 
@@ -138,12 +140,12 @@ export function minutesLeft(ix: BookIndex, pos: Pos) {
 }
 
 export function formatLeft(minutes: number) {
-  if (minutes < 1) return 'Less than a minute left';
+  if (minutes < 1) return t('Less than a minute left');
   const m = Math.round(minutes);
-  if (m < 60) return `${m} min left`;
+  if (m < 60) return t('{m} min left', { m });
   const h = Math.floor(m / 60);
   const rest = m % 60;
-  return rest ? `${h} h ${rest} min left` : `${h} h left`;
+  return rest ? t('{h} h {m} min left', { h, m: rest }) : t('{h} h left', { h });
 }
 
 /** The text of a block from one character to another, for quotes and search. */

@@ -7,6 +7,7 @@ import type { ToolId } from './components/toolList';
 import { Welcome } from './components/Welcome';
 import { PaywallHost } from './components/Paywall';
 import { openPaywall, PlanLimit } from './lib/plan';
+import { t } from './lib/i18n';
 import { useSyncStatus } from './lib/sync/useSync';
 
 // The readers and the PDF engine are a large download of their own; the
@@ -24,8 +25,8 @@ function initialTheme(): Theme {
 }
 
 const AUTH_ERRORS: Record<string, string> = {
-  access_denied: 'Google sign-in was cancelled.',
-  drive_scope: 'Google Drive access is needed to sync. Please allow it when signing in.',
+  access_denied: t('Google sign-in was cancelled.'),
+  drive_scope: t('Google Drive access is needed to sync. Please allow it when signing in.'),
 };
 
 /** Reads (and removes) what Google's sign-in left in the address bar. */
@@ -34,7 +35,7 @@ function takeAuthResult(): string | null {
   const error = params.get('auth_error');
   if (!error && !params.has('signed_in')) return null;
   history.replaceState(history.state, '', location.pathname);
-  return error ? AUTH_ERRORS[error] ?? 'Google sign-in did not finish. Please try again.' : null;
+  return error ? AUTH_ERRORS[error] ?? t('Google sign-in did not finish. Please try again.') : null;
 }
 
 /** Crossfades between screens where the browser supports it. */
@@ -140,17 +141,17 @@ export function App() {
         if (err instanceof PlanLimit) { full = true; break; } // the free plan is full: the paywall says so
 
         failed.push(file.name);
-        reason = err instanceof Error ? err.message : 'Something went wrong adding that file.';
+        reason = err instanceof Error ? err.message : t('Something went wrong adding that file.');
       }
     }
     setBusy(false);
     if (full) openPaywall('docs');
     if (files.length === 1 && last) open(last);
     else if (failed.length === 1 && files.length === 1) setError(reason);
-    else if (failed.length) setError(`${failed.length} of ${files.length} files could not be added (${failed.join(', ')}). ${reason}`);
+    else if (failed.length) setError(t('{failed} of {total} files could not be added ({names}). {reason}', { failed: failed.length, total: files.length, names: failed.join(', '), reason }));
   }, [open]);
 
-  const toggleTheme = () => setTheme((t) => (t === 'dark' ? 'light' : 'dark'));
+  const toggleTheme = () => setTheme((cur) => (cur === 'dark' ? 'light' : 'dark'));
 
   // A tool picked on the welcome page opens at once, on top of the tools page, so Back peels both off.
   const openGuestTools = (tool?: ToolId) => {
