@@ -3693,10 +3693,11 @@ button.me-row { cursor: pointer; }
 .feature-text h2, .hero h1 { text-wrap: balance; }
 
 /* The Leafpage mark: a leaf in the sage of the brand, with its vein in paper. */
-:root { --leaf: #5f8060; --leaf-vein: #fbf5e6; }
-:root[data-theme='dark'] { --leaf: #95bb96; --leaf-vein: #1b1712; }
+:root { --leaf: #5f8060; --leaf-2: #86a687; --leaf-vein: #fbf5e6; }
+:root[data-theme='dark'] { --leaf: #7fa380; --leaf-2: #a9c8aa; --leaf-vein: #1b1712; }
 .leaf-mark, .logo { flex: none; }
 .leaf-body { fill: var(--leaf); }
+.leaf-body.two { fill: var(--leaf-2); }
 .leaf-vein { fill: none; stroke: var(--leaf-vein); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .brand .leaf-mark { width: 1.15em; height: 1.15em; margin-right: 0.12em; vertical-align: -0.2em; }
 .guest-back .leaf-mark { width: 28px; height: 28px; }
