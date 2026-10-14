@@ -3829,3 +3829,29 @@ button.me-row { cursor: pointer; }
 
 .nt-for { flex: none; align-self: center; margin: 8px 8px 0; padding: 5px 12px; border: 1px solid var(--line); border-radius: 999px; background: color-mix(in srgb, var(--accent) 9%, var(--card)); color: var(--accent); font: 600 0.8rem var(--sans); max-width: calc(100% - 16px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 340px) { .pn-item { font-size: 0.66rem; } }
+
+/* ---------- touch: every control is at least 44 x 44 px to hit (the look stays; the hit area grows) ---------- */
+@media (pointer: coarse) {
+  .icon-button, .tool { min-width: 44px; min-height: 44px; }
+  .icon-button { width: 44px; height: 44px; }
+  /* small round things grow an invisible rim */
+  .swatch, .size, .cover-book, .book-more, .phone-grab { position: relative; }
+  .swatch::after, .size::after, .cover-book::after, .book-more::after { content: ''; position: absolute; inset: -9px; border-radius: 50%; }
+  .book-more { position: absolute; }
+  .cover-book { position: absolute; }
+  .phone-grab { position: relative; }
+  .phone-grab::after { content: ''; position: absolute; inset: -20px -30px; }
+  .chip-button { min-height: 44px; }
+  .folder-chip { height: 44px; border-radius: 22px; }
+  .sort-icon { min-width: 44px; min-height: 44px; }
+  .bk-seg button { min-height: 44px; }
+  .vmenu-item, .sheet-row, .me-row { min-height: 44px; }
+  .bk-slider, .bk-range, .range { height: 44px; }
+  .nt-title { padding-block: 12px; }
+  .nt-tool { min-width: 40px; height: 44px; }
+  .nt-bar.phone .nt-tool { min-width: 40px; height: 44px; padding: 0 2px; }
+  .folder-chip.add { min-width: 44px; justify-content: center; }
+  .page-jump-sub { display: inline-flex; align-items: center; min-height: 44px; }
+  .page-jump-sub input { width: 2.8rem; height: 32px; font-size: 0.9rem; border-radius: 8px; }
+  .bk-phone .bk-top .bk-icon { width: 44px; height: 44px; }
+}
