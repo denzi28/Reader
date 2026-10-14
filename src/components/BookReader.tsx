@@ -9,6 +9,7 @@ import {
 } from '../lib/book/settings';
 import { acquirePdf, releasePdf } from '../lib/pdf';
 import { ocrEstimate, recognisePages, recognisedPages } from '../lib/ocr';
+import { feel } from '../lib/haptics';
 import { getBookMarks, getDocFile, patchMeta, recordBookMark } from '../lib/storage';
 import { onRemoteInk, syncDoc } from '../lib/sync/engine';
 import type { BookMark } from '../lib/types';
@@ -464,6 +465,7 @@ function Reader({ data, docId, startPage, dark, onTheme, onClose, onPdf, scan, o
         ? { ...common, front: copy(from, 'right'), back: blank }
         : { ...common, front: copy(to, 'right'), back: blank, cover: { box: right, node: copy(from, 'right')() } });
     flipping.current = true;
+    feel('page');
     void flipLeaf({ ...spec, duration: phone ? 620 : 780 }).finally(() => { flipping.current = false; });
     return true;
   }, [dims, reduced, phone]);

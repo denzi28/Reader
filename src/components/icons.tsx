@@ -404,3 +404,10 @@ export const ImageIcon = () => (
     <path d="M4 17l5-4.5 3.5 3 3-2.5 4.5 4" />
   </Icon>
 );
+
+export const VibrateIcon = () => (
+  <Icon>
+    <rect x="8" y="3.5" width="8" height="17" rx="2" />
+    <path d="M4.5 8.5v7M19.5 8.5v7M2 10.5v3M22 10.5v3" />
+  </Icon>
+);

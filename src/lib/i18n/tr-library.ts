@@ -395,4 +395,6 @@ export const trLibrary: Record<string, string> = {
   'The words, headings and lists on pages. Pictures are left out.': 'Yazılar, başlıklar ve listeler sayfalarda. Resimler dahil edilmez.',
   'Docs': 'Belgeler',
   'A note that goes with one page. Choose how you want to write.': 'Bir sayfaya özel not. Nasıl yazmak istediğini seç.',
+  'Touch feedback': 'Dokunma titreşimi',
+  'A light vibration when you tap': 'Dokunurken hafif titreşim',
 };

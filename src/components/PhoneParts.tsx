@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLiquidBar } from '../lib/liquid';
+import { hapticsOn, hapticsSupported, setHaptics } from '../lib/haptics';
 import { count, lang, setLang, t } from '../lib/i18n';
 import { createPortal } from 'react-dom';
 import type { DocMeta } from '../lib/types';
 import {
   BooksIcon, CheckIcon, ChevronIcon, DownloadIcon, FolderMoveIcon, FolderPlusIcon, MarkIcon, MoonIcon, PlusIcon, ShieldIcon,
-  ToolsIcon, StarIcon, SunIcon, TrashIcon, UploadIcon, UserIcon, PencilIcon,
+  ToolsIcon, VibrateIcon, StarIcon, SunIcon, TrashIcon, UploadIcon, UserIcon, PencilIcon,
 } from './icons';
 import { useSyncStatus } from '../lib/sync/useSync';
 import { InstallChip } from './PwaBits';
@@ -252,6 +253,7 @@ function PhoneTools({ docs, onPick }: { docs: DocMeta[]; onPick: (id: ToolId, st
 
 /** Account, night paper, installing the app, and the small print. */
 export function MePage({ dark, onTheme, docCount }: { dark: boolean; onTheme: () => void; docCount: number }) {
+  const [touch, setTouch] = useState(hapticsOn);
   return (
     <section className="phone-page" aria-label={t('Me')}>
       <AccountCard />
@@ -266,6 +268,16 @@ export function MePage({ dark, onTheme, docCount }: { dark: boolean; onTheme: ()
           </span>
           <span className={`switch${dark ? ' on' : ''}`} aria-hidden="true" />
         </button>
+        {hapticsSupported && (
+          <button className="me-row" onClick={() => { const next = !touch; setTouch(next); setHaptics(next); }} role="switch" aria-checked={touch}>
+            <span className="me-row-icon"><VibrateIcon /></span>
+            <span className="me-row-text">
+              <span className="me-row-title">{t('Touch feedback')}</span>
+              <span className="me-row-sub">{t('A light vibration when you tap')}</span>
+            </span>
+            <span className={`switch${touch ? ' on' : ''}`} aria-hidden="true" />
+          </button>
+        )}
         <a className="me-row" href="/privacy.html"><span className="me-row-icon"><ShieldIcon /></span><span className="me-row-text"><span className="me-row-title">{t('Privacy')}</span></span><span className="sheet-row-go"><ChevronIcon /></span></a>
         <a className="me-row" href="/terms.html"><span className="me-row-icon"><ShieldIcon /></span><span className="me-row-text"><span className="me-row-title">{t('Terms')}</span></span><span className="sheet-row-go"><ChevronIcon /></span></a>
         <button className="me-row" onClick={() => setLang(lang === 'tr' ? 'en' : 'tr')}>

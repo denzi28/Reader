@@ -2,6 +2,7 @@
 // a glass bead that stretches toward the tab it moves to (and follows a finger or a mouse dragged along
 // the bar), and a small glow where a finger lands. Works the same for a mouse, a finger and a pen.
 import { useLayoutEffect, type RefObject } from 'react';
+import { feel } from './haptics';
 
 /** Controls that get the light and the press (the bars of tabs have their own). */
 const CONTROLS = '.icon-button, .tool, .bk-icon, .bk-tool, .nav-tool, .pn-item, .pn-plus, .top-tabs button, .account-btn, .tool-btn, .install-go, .install-x, .wb-item';
@@ -33,7 +34,10 @@ export function startLiquid() {
 
   // A finger leaves a soft glow where it lands. (In the body, not inside the control: React owns the control.)
   window.addEventListener('pointerdown', (e) => {
-    if (e.pointerType === 'mouse' || reduced()) return;
+    if (e.pointerType === 'mouse') return;
+    // The bar of places and the plus give a light tap under the finger.
+    if ((e.target as Element | null)?.closest?.('.pn-item, .pn-plus, .top-tabs button')) feel('light');
+    if (reduced()) return;
     if (!(e.target as Element | null)?.closest?.(CONTROLS)) return;
     const d = document.createElement('div');
     d.className = 'lq-tap';
@@ -41,6 +45,11 @@ export function startLiquid() {
     d.style.top = `${e.clientY}px`;
     document.body.appendChild(d);
     d.addEventListener('animationend', () => d.remove(), { once: true });
+  }, { passive: true });
+
+  // A switch gives a firmer tap when it flips.
+  window.addEventListener('click', (e) => {
+    if ((e.target as Element | null)?.closest?.('[role="switch"]')) feel('medium');
   }, { passive: true });
 
   // Icons pop when pressed and let go: a little overshoot, like a drop settling.

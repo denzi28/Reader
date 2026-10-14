@@ -1,3 +1,4 @@
+import { feel } from '../lib/haptics';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointer } from 'react';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { t } from '../lib/i18n';
@@ -386,6 +387,7 @@ export function PageBook({ docId, startPage, dark, onTheme, onClose, onPdf, scan
         : { ...common, leaf: slotL, front: stripOf(nextFirst), back: stripOf(-1), cover: { box: slotL, node: copyOf(first) } };
     }
     flipping.current = true;
+    feel('page');
     void flipLeaf({ ...spec, clipTo: view, duration: phone ? 620 : 780 }).finally(() => { flipping.current = false; });
   };
 
