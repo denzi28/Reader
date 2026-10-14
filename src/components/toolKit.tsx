@@ -288,12 +288,12 @@ export function PickOne({ ctx, tool, onPick, onClose }: { ctx: ToolContext; tool
     <Shell title={meta.title} subtitle="Choose a document" color={meta.color} onClose={onClose}>
       {reading && <Busy label="Reading the file…" />}
       {error && <Notice>{error}</Notice>}
-      {!ctx.guest && <DocList docs={ctx.docs} onPick={onPick} empty="Add a PDF to your library, or choose a file from this device." />}
-      <button className={`chip-button pick-device${ctx.guest ? ' pick-big' : ''}`} onClick={() => input.current?.click()}>
+      <button className={`chip-button pick-device pick-top${ctx.guest ? ' pick-big' : ''}`} onClick={() => input.current?.click()}>
         <UploadIcon /> Choose a PDF from this device
       </button>
       <p className="tool-hint">{ctx.guest ? 'The file stays on your device. Nothing is uploaded.' : 'A file chosen this way is not added to your library unless you save the result.'}</p>
       <input ref={input} type="file" accept="application/pdf,.pdf" hidden onChange={(e) => { void device(e.target.files); e.target.value = ''; }} />
+      {!ctx.guest && <DocList docs={ctx.docs} onPick={onPick} empty="Add a PDF to your library, or choose a file from this device." />}
     </Shell>
   );
 }

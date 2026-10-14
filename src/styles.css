@@ -2310,6 +2310,8 @@ mark {
 .chip-primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
 .chip-primary svg { color: inherit !important; }
 .pick-device { margin-top: 0.9rem; }
+.pick-top { margin: 0 0 0.9rem; width: 100%; justify-content: center; min-height: 52px; border-style: dashed; }
+.pick-top + .tool-hint { margin: -0.3rem 0 1rem; }
 .flip svg { transform: rotate(-90deg); }
 .down svg { transform: rotate(90deg); }
 .turn { display: grid; }

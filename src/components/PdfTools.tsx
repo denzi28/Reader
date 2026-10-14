@@ -410,6 +410,11 @@ function MergeTool({ ctx, onClose }: { ctx: ToolContext; onClose: () => void }) 
       {busy && <Busy {...busy} />}
       {error && <Notice>{error}</Notice>}
 
+      <button className="chip-button pick-device pick-top" onClick={() => input.current?.click()}>
+        <UploadIcon /> Add files from this device
+      </button>
+      <input ref={input} type="file" accept="application/pdf,.pdf" multiple hidden onChange={(e) => { addFiles(e.target.files); e.target.value = ''; }} />
+
       <section className="tool-section">
         <h3 className="tool-label">Order</h3>
         {items.length === 0 ? (
@@ -440,12 +445,8 @@ function MergeTool({ ctx, onClose }: { ctx: ToolContext; onClose: () => void }) 
       </section>
 
       <section className="tool-section">
-        <h3 className="tool-label">Add documents</h3>
+        <h3 className="tool-label">From your library</h3>
         {!ctx.guest && <DocList docs={available} onPick={add} empty={ctx.docs.length ? 'Everything is already in the list.' : 'Add a PDF to your library first.'} badge={() => <span className="docrow-plus"><PlusIcon /></span>} />}
-        <button className="chip-button pick-device" onClick={() => input.current?.click()}>
-          <UploadIcon /> Add files from this device
-        </button>
-        <input ref={input} type="file" accept="application/pdf,.pdf" multiple hidden onChange={(e) => { addFiles(e.target.files); e.target.value = ''; }} />
       </section>
     </Shell>
   );
