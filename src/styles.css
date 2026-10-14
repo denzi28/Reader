@@ -1923,7 +1923,6 @@ mark {
 .notes-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 0.75rem 1rem; margin: 0.5rem 0 1.5rem; }
 .notes-title { margin: 0; font-family: var(--serif); font-size: clamp(1.5rem, 5vw, 2rem); font-weight: 600; }
 .notes-sub { margin: 0.15rem 0 0; color: var(--muted); font-size: 0.9rem; }
-.notes-actions { display: inline-flex; flex-wrap: wrap; gap: 0.5rem; }
 .note-doc {
   margin-bottom: 0.75rem;
   padding: 0 0.4rem;
@@ -2059,7 +2058,7 @@ mark {
 @media print {
   :root { --card: #fff; --page: #fff; --ink: #111; --muted: #555; --line: #ddd; --shadow-page: none; --shadow-float: none; }
   body, .library { background: #fff !important; }
-  body::before, .library-head, .tabs, .notes-actions, .library-foot, .drop-overlay { display: none !important; }
+  body::before, .library-head, .tabs, .library-foot, .drop-overlay { display: none !important; }
   .library { max-width: none; padding: 0; animation: none; }
   .notes, .note-doc { animation: none; }
   .note-doc { break-inside: avoid; border: 0; border-bottom: 1px solid #ddd; border-radius: 0; padding: 0.5rem 0 1rem; }

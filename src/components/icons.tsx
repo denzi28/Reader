@@ -185,13 +185,6 @@ export const CopyIcon = () => (
     <path d="M16 8V5.5A1.5 1.5 0 0 0 14.5 4h-9A1.5 1.5 0 0 0 4 5.5v9A1.5 1.5 0 0 0 5.5 16H8" />
   </Icon>
 );
-export const PrintIcon = () => (
-  <Icon>
-    <path d="M7 9V4h10v5" />
-    <rect x="4" y="9" width="16" height="8" rx="2" />
-    <path d="M7 14h10v6H7z" />
-  </Icon>
-);
 export const BooksIcon = () => (
   <Icon>
     <path d="M5 4h3.5v16H5zM10.5 4H14v16h-3.5z" />

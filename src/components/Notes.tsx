@@ -12,7 +12,7 @@ import { BookLoader } from './BookLoader';
 import { downloadPdf } from '../lib/sync/engine';
 import { useDownloadProgress } from '../lib/sync/useSync';
 import { HIGHLIGHTS, type HighlightColor } from '../lib/book/settings';
-import { ArrowIcon, BackIcon, ChevronIcon, CloseIcon, CopyIcon, FolderIcon, MarkIcon, PenIcon, PrintIcon, TextNoteIcon } from './icons';
+import { ArrowIcon, BackIcon, ChevronIcon, CloseIcon, FolderIcon, MarkIcon, PenIcon, TextNoteIcon } from './icons';
 
 interface Props {
   /** Documents with marks, newest opened first. */
@@ -206,7 +206,6 @@ async function readNotes(id: string): Promise<Loaded> {
 
 export function Notes({ docs, folderName, onOpen }: Props) {
   const [loaded, setLoaded] = useState<Map<string, Loaded>>(new Map());
-  const [copied, setCopied] = useState(false);
   const [peek, setPeek] = useState<number | null>(null);
   // Documents being brought down from Drive, and the note to show once one is here.
   const [fetching, setFetching] = useState<ReadonlySet<string>>(new Set());
@@ -299,26 +298,6 @@ export function Notes({ docs, folderName, onOpen }: Props) {
 
   const total = docs.reduce((n, d) => n + markCount(d.id), 0);
 
-  const bookLines = (id: string) => (loaded.get(id)?.book ?? []).map((b) => `- ${b.page !== undefined ? `p. ${b.page + 1}: ` : ''}“${b.text}”${b.note ? ` — note: ${b.note.replace(/\s*\n\s*/g, ' ')}` : ''}`);
-  const linesOf = (id: string) => [...(loaded.get(id)?.notes ?? []).flatMap((p) => [
-    ...p.highlights.map((h) => `- p. ${p.page + 1}: “${h.text}”`),
-    ...(p.texts ?? []).map((t) => `- p. ${p.page + 1}: note: ${t.replace(/\s*\n\s*/g, ' ')}`),
-    ...(p.pens ? [`- p. ${p.page + 1}: ${plural(p.pens, 'pen mark', 'pen marks')}`] : []),
-  ]), ...bookLines(id)];
-  const asText = () => top.map((d) => {
-    const own = linesOf(d.id);
-    const extra = linkedTo(d.id).map((n) => `### ${n.name} (a note for page ${n.attached!.page + 1})\n${linesOf(n.id).join('\n')}`);
-    return [`## ${d.name}`, ...(own.length ? [own.join('\n')] : []), ...extra].join('\n');
-  }).join('\n\n');
-
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(`# Notes\n\n${asText()}\n`);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1800);
-    } catch { /* clipboard refused */ }
-  };
-
   /** What was highlighted and noted while reading it as a book: the words, the note, and where to find it. */
   const bookList = (d: DocMeta, l: Loaded) => (l.book?.length ? (
     <section className="note-book" aria-label="Highlights from book mode">
@@ -382,7 +361,7 @@ export function Notes({ docs, folderName, onOpen }: Props) {
       <section className="notes-empty">
         <span className="drop-icon"><MarkIcon /></span>
         <h2>No notes yet</h2>
-        <p>Highlight or write on any page, or highlight while reading as a book, and it shows up here: the highlighted text, ready to copy or print.</p>
+        <p>Highlight or write on any page, or highlight while reading as a book, and it shows up here: the highlighted text, page by page.</p>
       </section>
     );
   }
@@ -394,16 +373,6 @@ export function Notes({ docs, folderName, onOpen }: Props) {
           <h2 className="notes-title">Your notes</h2>
           <p className="notes-sub">{plural(total, 'mark', 'marks')} in {plural(top.length, 'document', 'documents')}</p>
         </div>
-        <span className="notes-actions">
-          <button className="chip-button" onClick={() => void copy()}>
-            <CopyIcon />
-            {copied ? 'Copied' : 'Copy all'}
-          </button>
-          <button className="chip-button" onClick={() => window.print()}>
-            <PrintIcon />
-            Print or PDF
-          </button>
-        </span>
       </div>
 
       {top.map((d, i) => {
