@@ -1,10 +1,10 @@
 # Leafpage for Android
 
-The Android app is a **Trusted Web Activity**: it runs https://leafpage.app in Chrome with no browser bars, so Google
+The Android app is a **Trusted Web Activity**: it runs https://www.leafpage.app in Chrome with no browser bars, so Google
 sign-in, the service worker (offline), the home-screen shortcuts and every update of the site work exactly as on the web.
 (A WebView wrapper such as Capacitor would not do: Google refuses to sign in inside a WebView.)
 
-Package name: `app.leafpage.reader` (permanent once published).
+Package name: `app.leafpage.reader` (permanent once published). The app opens `https://www.leafpage.app` (the address `leafpage.app` redirects to), so `assetlinks.json` must be served there.
 
 ## One-time setup
 

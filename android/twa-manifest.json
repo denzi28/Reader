@@ -1,6 +1,6 @@
 {
   "packageId": "app.leafpage.reader",
-  "host": "leafpage.app",
+  "host": "www.leafpage.app",
   "name": "Leafpage",
   "launcherName": "Leafpage",
   "display": "standalone",
@@ -13,26 +13,41 @@
   "backgroundColor": "#efe6d2",
   "enableNotifications": false,
   "startUrl": "/",
-  "iconUrl": "https://leafpage.app/icons/icon-512.png",
-  "maskableIconUrl": "https://leafpage.app/icons/icon-maskable-512.png",
+  "iconUrl": "https://www.leafpage.app/icons/icon-512.png",
+  "maskableIconUrl": "https://www.leafpage.app/icons/icon-maskable-512.png",
   "splashScreenFadeOutDuration": 300,
   "appVersionName": "1.0.0",
   "appVersion": "1",
   "appVersionCode": 1,
-  "signingKey": { "path": "./upload.keystore", "alias": "upload" },
+  "signingKey": {
+    "path": "./upload.keystore",
+    "alias": "upload"
+  },
   "generatorApp": "bubblewrap-cli",
-  "webManifestUrl": "https://leafpage.app/manifest.webmanifest",
+  "webManifestUrl": "https://www.leafpage.app/manifest.webmanifest",
   "fallbackType": "customtabs",
   "features": {},
   "enableSiteSettingsShortcut": false,
   "orientation": "default",
   "fingerprints": [],
-  "additionalTrustedOrigins": ["https://www.leafpage.app"],
+  "additionalTrustedOrigins": [],
   "isChromeOSOnly": false,
   "isMetaQuest": false,
   "shortcuts": [
-    { "name": "New note", "short_name": "New note", "url": "/?new=note", "icon": "https://leafpage.app/icons/icon-192.png" },
-    { "name": "PDF tools", "short_name": "PDF tools", "url": "/?tab=tools", "icon": "https://leafpage.app/icons/icon-192.png" }
+    {
+      "name": "New note",
+      "shortName": "New note",
+      "url": "/?new=note",
+      "chosenIconUrl": "https://www.leafpage.app/icons/icon-192.png",
+      "iconUrl": "https://www.leafpage.app/icons/icon-192.png"
+    },
+    {
+      "name": "PDF tools",
+      "shortName": "PDF tools",
+      "url": "/?tab=tools",
+      "chosenIconUrl": "https://www.leafpage.app/icons/icon-192.png",
+      "iconUrl": "https://www.leafpage.app/icons/icon-192.png"
+    }
   ],
   "minSdkVersion": 23
 }
