@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import type { DocMeta } from '../lib/types';
 import {
   BooksIcon, ChevronIcon, DownloadIcon, FolderMoveIcon, FolderPlusIcon, MarkIcon, MoonIcon, PlusIcon, ShieldIcon,
-  SparkIcon, StarIcon, SunIcon, TrashIcon, UploadIcon, UserIcon, PencilIcon,
+  ToolsIcon, StarIcon, SunIcon, TrashIcon, UploadIcon, UserIcon, PencilIcon,
 } from './icons';
 import { useSyncStatus } from '../lib/sync/useSync';
 import { InstallChip } from './PwaBits';
@@ -30,7 +30,7 @@ export function PhoneNav({ tab, onTab, onAdd }: { tab: PhoneTab; onTab: (t: Phon
       {item('shelf', 'Library', <BooksIcon />)}
       {item('notes', 'Notes', <MarkIcon />)}
       <button className="pn-plus" onClick={onAdd} aria-label="Add" aria-haspopup="dialog"><PlusIcon /></button>
-      {item('tools', 'Tools', <SparkIcon />)}
+      {item('tools', 'Tools', <ToolsIcon />)}
       {item('me', 'Me', <UserIcon />)}
     </nav>,
     document.body,

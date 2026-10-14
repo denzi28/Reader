@@ -16,7 +16,8 @@ import {
   MoreVIcon, SortIcon, TrashIcon, UploadIcon,
 } from './icons';
 import { AddSheet, BookSheet, MePage, PhoneNav, type PhoneTab, ToolsPage } from './PhoneParts';
-import { Sidebar } from './Sidebar';
+import { TopBar } from './TopBar';
+import { AccountMenu } from './SyncControl';
 import { usePhone } from '../lib/usePhone';
 import { Cover } from './Cover';
 import type { NotebookSpec } from '../lib/notebookSpec';
@@ -297,7 +298,6 @@ export function Library(props: Props) {
   const [markCounts, setMarkCounts] = useState<Map<string, number>>(new Map());
   const [sortBy, setSortBy] = usePref<SortBy>('reader.sort', 'opened', SORTS.map((x) => x.id));
   const [view, setView] = usePref<'grid' | 'list'>('reader.view', 'grid', ['grid', 'list']);
-  const [sideMode, setSideMode] = usePref<'open' | 'rail'>('reader.side', 'open', ['open', 'rail']);
   const input = useRef<HTMLInputElement>(null);
   const searchBox = useRef<HTMLInputElement>(null);
   const sync = useSyncStatus();
@@ -753,12 +753,12 @@ export function Library(props: Props) {
                 >
                   <TrashIcon />
                 </button>
-                {addButton}
+                {phone && addButton}
               </div>
             )}
           </div>
         </nav>
-      ) : docs && docs.length > 0 && !onNotes && !onTools && !onMe && (!phone || searchOpen || query) && (
+      ) : phone && docs && docs.length > 0 && !onNotes && !onTools && !onMe && (searchOpen || query) && (
         <div className="shelf-bar">
           <div className={`search${query ? ' active' : ''}`} role="search">
             <SearchIcon />
@@ -794,6 +794,41 @@ export function Library(props: Props) {
             <span>New note</span>
           </button>
           {addButton}
+        </div>
+      )}
+
+      {!phone && page === 'shelf' && !searching && (folders.length > 0 || (docs && docs.length > 0)) && (
+        <div className="top-chips" role="group" aria-label="Folders">
+          <button
+            className={`chip${!current ? ' on' : ''}${dropOn === 'shelf' ? ' drop' : ''}`}
+            onClick={() => { setQuery(''); onFolder(null); }}
+            aria-pressed={!current}
+            {...dropTarget(null)}
+          >
+            All <small>{docs?.length ?? 0}</small>
+          </button>
+          {folders.map((f) => (
+            <button
+              key={f.id}
+              className={`chip c-${folderColor(f.color)}${current?.id === f.id ? ' on' : ''}${dropOn === f.id ? ' drop' : ''}`}
+              onClick={() => { setQuery(''); onFolder(f.id); }}
+              aria-pressed={current?.id === f.id}
+              {...dropTarget(f.id)}
+            >
+              <i className="chip-dot" aria-hidden="true" />{f.name} <small>{counts.get(f.id) ?? 0}</small>
+            </button>
+          ))}
+          {creating ? (
+            <span className="chip chip-new">
+              <NameField
+                label="Folder name"
+                onSave={async (name) => { setCreating(false); await createFolder(name); void refresh(); }}
+                onCancel={() => setCreating(false)}
+              />
+            </span>
+          ) : (
+            <button className="chip chip-add" onClick={() => setCreating(true)}>+ Folder</button>
+          )}
         </div>
       )}
 
@@ -1044,32 +1079,47 @@ export function Library(props: Props) {
     >
       {phone ? content : (
         <div className="lib-shell">
-      {!phone && (
-        <Sidebar
-          tab={page === 'notes' ? 'notes' : page === 'tools' ? 'tools' : 'shelf'}
-          folder={current?.id ?? null}
-          folders={folders}
-          counts={counts}
-          total={docs?.length ?? 0}
-          creating={creating}
-          newFolder={(
-            <NameField
-              label="Folder name"
-              onSave={async (name) => { setCreating(false); await createFolder(name); void refresh(); }}
-              onCancel={() => setCreating(false)}
+      <TopBar
+        tab={page === 'notes' ? 'notes' : page === 'tools' ? 'tools' : 'shelf'}
+        onTab={(t) => { if (current) onFolder(null); setQuery(''); setCreating(false); setTab(t); }}
+        search={(
+          <div className={`search top-search${query ? ' active' : ''}`} role="search">
+            <SearchIcon />
+            <input
+              ref={searchBox}
+              type="search"
+              value={query}
+              placeholder="Search"
+              aria-label="Search documents and folders"
+              autoComplete="off"
+              spellCheck={false}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                if (e.target.value && (page !== 'shelf' || current)) { if (current) onFolder(null); setTab('shelf'); }
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') { setQuery(''); e.currentTarget.blur(); }
+                if (e.key === 'Enter') e.currentTarget.blur();
+              }}
             />
-          )}
-          dropOn={dropOn}
-          dropTarget={dropTarget}
-          dark={dark}
-          collapsed={sideMode === 'rail'}
-          onCollapse={(c) => setSideMode(c ? 'rail' : 'open')}
-          onTheme={onTheme}
-          onTab={(t) => { if (current) onFolder(null); setQuery(''); setTab(t); }}
-          onFolder={(id) => { setQuery(''); setTab('shelf'); onFolder(id); }}
-          onCreate={() => { setSideMode('open'); setCreating(true); }}
-        />
-      )}
+            {query ? (
+              <button className="search-clear" aria-label="Clear search" onClick={() => { setQuery(''); searchBox.current?.focus(); }}><CloseIcon /></button>
+            ) : (
+              <kbd className="search-key" aria-hidden="true">/</kbd>
+            )}
+          </div>
+        )}
+        actions={(
+          <>
+            <button className="tools-button note-button" onClick={() => { setNoteError(null); setNewNote(true); }} aria-label="New note" title="New note: an empty notebook to write on">
+              <PencilIcon />
+              <span>New note</span>
+            </button>
+            {addButton}
+          </>
+        )}
+        account={<AccountMenu dark={dark} onTheme={onTheme} docCount={docs?.length ?? 0} />}
+      />
           <div className="lib-main">{content}</div>
         </div>
       )}

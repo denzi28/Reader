@@ -387,9 +387,11 @@ export const BookmarkIcon = ({ filled }: { filled?: boolean }) => (
   </Icon>
 );
 
-/** Two chevrons: fold the side menu in (pointing left), or open it again (`open`, pointing right). */
-export const FoldIcon = ({ open = false }: { open?: boolean }) => (
+/** PDF tools: a pair of scissors (cut, split, crop are what the tools mostly do). */
+export const ToolsIcon = () => (
   <Icon>
-    <path d={open ? 'M6 6l6 6-6 6M12 6l6 6-6 6' : 'M18 6l-6 6 6 6M12 6l-6 6 6 6'} />
+    <circle cx="6" cy="6" r="3" />
+    <circle cx="6" cy="18" r="3" />
+    <path d="M20 4 8.12 15.88M14.47 14.48 20 20M8.12 8.12 12 12" />
   </Icon>
 );

@@ -10,6 +10,7 @@ function serviceWorker(): Plugin {
     generateBundle(_, bundle) {
       const built = Object.keys(bundle).filter((f) => !f.endsWith('.map') && f !== 'index.html').map((f) => `/${f}`);
       const fonts = readdirSync('public/pdfjs/standard_fonts').map((f) => `/pdfjs/standard_fonts/${f}`);
+      const inter = readdirSync('public/fonts/inter').map((f) => `/fonts/inter/${f}`);
       const precache = [
         '/',
         ...built,
@@ -21,6 +22,7 @@ function serviceWorker(): Plugin {
         '/terms.html',
         '/legal.css',
         ...fonts,
+        ...inter,
       ];
       // Sorts by time, so older versions can be told from the newest.
       const version = `${Date.now().toString(36).padStart(10, '0')}-${built.length}`;

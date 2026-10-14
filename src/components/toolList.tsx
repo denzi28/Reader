@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { CloseIcon, CropIcon, EditPagesIcon, MergeIcon, SparkIcon, SplitIcon } from './icons';
+import { CloseIcon, CropIcon, EditPagesIcon, MergeIcon, ToolsIcon, SplitIcon } from './icons';
 
 export type ToolId = 'merge' | 'split' | 'crop' | 'edit';
 
@@ -29,7 +29,7 @@ export function ToolMenu({ onPick, onClose }: { onPick: (id: ToolId) => void; on
       <div className="tool-menu-backdrop" onClick={onClose} />
       <div className="tool-menu-sheet">
         <header className="tool-menu-head">
-          <span className="tool-menu-spark"><SparkIcon /></span>
+          <span className="tool-menu-spark"><ToolsIcon /></span>
           <div>
             <h2>PDF tools</h2>
             <p>Done on your device. Your files are never uploaded.</p>

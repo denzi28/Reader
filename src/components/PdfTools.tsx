@@ -8,7 +8,7 @@ import { makeZip } from '../lib/zip';
 import type { DocMeta } from '../lib/types';
 import { CropTool } from './CropTool';
 import { Cover } from './Cover';
-import { ArrowIcon, CheckIcon, CloseIcon, CloudOffIcon, DownloadIcon, FileIcon, FolderIcon, MarkIcon, PlusIcon, SparkIcon, UploadIcon } from './icons';
+import { ArrowIcon, CheckIcon, CloseIcon, CloudOffIcon, DownloadIcon, FileIcon, FolderIcon, MarkIcon, PlusIcon, ToolsIcon, UploadIcon } from './icons';
 import { GoogleButton } from './SyncControl';
 import { OrganizeTool } from './OrganizeTool';
 import { TOOLS, type ToolId } from './toolList';
@@ -315,7 +315,7 @@ function Promo({ guest }: { guest?: boolean }) {
   };
   return (
     <aside className="promo">
-      <span className="promo-mark"><SparkIcon /></span>
+      <span className="promo-mark"><ToolsIcon /></span>
       <div className="promo-text">
         <strong>{guest ? 'Like it? There is more in The Reader.' : 'Like The Reader? Tell a friend.'}</strong>
         <p>
