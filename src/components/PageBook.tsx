@@ -8,6 +8,7 @@ import { acquirePdf, pageSize, readPageSizes, releasePdf, renderPagePreview, typ
 import { getBookMarks, getMeta, patchMeta, recordBookMark } from '../lib/storage';
 import type { BookMark, DocMeta } from '../lib/types';
 import { usePhone } from '../lib/usePhone';
+import { flipLeaf } from '../lib/pageFlip';
 import { BookSheet, ReadingPanel } from './BookSheets';
 import {
   AaIcon, BackIcon, BookmarkIcon, BookOpenIcon, CloseIcon, ListIcon, MinusIcon, MoonIcon, MoreVIcon, PencilIcon, PlusIcon, SunIcon,
@@ -66,6 +67,7 @@ function PageCanvas({ pdf, index, width, drawn, ratio, shown }: { pdf: PDFDocume
     <canvas
       ref={ref}
       className="bk-pg"
+      data-i={index}
       width={Math.round(drawn)}
       height={Math.round(drawn / ratio)}
       style={{ width, display: shown ? 'block' : 'none' }}
@@ -317,6 +319,50 @@ export function PageBook({ docId, startPage, dark, onTheme, onClose, onPdf, scan
   const firstRef = useRef(0);
   firstRef.current = first;
 
+  // A page turn swings a leaf round the spine; the pages under it change at once (and are covered until it lands).
+  const spreadRef = useRef<HTMLDivElement>(null);
+  const flipping = useRef(false);
+  const flipRef = useRef<(target: number) => void>(undefined);
+  const reduced = useMemo(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches, []);
+  flipRef.current = (target) => {
+    const sp = spreadRef.current;
+    const view = viewRef.current;
+    if (!sp || !view || scrollMode || zoom > 1.02 || flipping.current || reduced || box.w === 0) return;
+    const nextFirst = cols === 2 ? target - (target % 2) : target;
+    if (Math.abs(nextFirst - first) !== cols || nextFirst < 0 || nextFirst >= n) return;
+    const forward = nextFirst > first;
+    const base = sp.getBoundingClientRect();
+    const seen = [...sp.children].filter((e): e is HTMLElement => e instanceof HTMLElement && e.classList.contains('bk-pg') && e.offsetWidth > 0);
+    if (!seen.length) return;
+    const boxOf = (e: HTMLElement) => { const r = e.getBoundingClientRect(); return { left: r.left - base.left, top: r.top - base.top, width: r.width, height: r.height }; };
+    const slotL = boxOf(seen[0]);
+    const slotR = cols === 2 ? (seen[1] ? boxOf(seen[1]) : { ...slotL, left: slotL.left + slotL.width }) : slotL;
+    const blank = () => { const d = document.createElement('div'); d.className = 'bk-pg bk-blank'; return d; };
+    const copyOf = (i: number): HTMLElement => {
+      const src = i >= 0 && i < n ? sp.querySelector<HTMLCanvasElement>(`canvas[data-i="${i}"]`) : null;
+      if (!src) return blank();
+      const c = document.createElement('canvas');
+      c.width = src.width;
+      c.height = src.height;
+      c.className = 'bk-pg';
+      c.getContext('2d')?.drawImage(src, 0, 0);
+      return c;
+    };
+    let spec: Parameters<typeof flipLeaf>[0];
+    if (cols === 2) {
+      spec = forward
+        ? { host: sp, leaf: slotR, front: copyOf(first + 1), back: copyOf(nextFirst), forward, cover: { box: slotL, node: copyOf(first) } }
+        : { host: sp, leaf: slotR, front: copyOf(nextFirst + 1), back: copyOf(first), forward, cover: { box: slotR, node: copyOf(first + 1) } };
+    } else {
+      spec = forward
+        ? { host: sp, leaf: slotL, front: copyOf(first), back: blank(), forward }
+        : { host: sp, leaf: slotL, front: copyOf(nextFirst), back: blank(), forward, cover: { box: slotL, node: copyOf(first) } };
+    }
+    flipping.current = true;
+    view.style.overflow = 'hidden';
+    void flipLeaf({ ...spec, duration: phone ? 480 : 620 }).finally(() => { flipping.current = false; view.style.overflow = ''; });
+  };
+
   const go = useCallback((page: number) => {
     const target = clamp(page, 0, Math.max(0, n - 1));
     if (scrollModeRef.current && viewRef.current && topsRef.current[target] !== undefined) {
@@ -325,6 +371,7 @@ export function PageBook({ docId, startPage, dark, onTheme, onClose, onPdf, scan
       if (phone) setChrome(false);
       return;
     }
+    flipRef.current?.(target);
     setCur(target);
     setPanel(null);
     if (phone) setChrome(false);
@@ -535,10 +582,11 @@ export function PageBook({ docId, startPage, dark, onTheme, onClose, onPdf, scan
 
       <div className={`bk-view${zoomed ? ' zoomed' : ''}${scrollMode ? ' strip' : ''}`} ref={viewRef} onScroll={onScroll} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={(e) => { down.current = null; touches.current.delete(e.pointerId); pinch.current = null; }}>
         {pdf && box.w > 0 && !scrollMode && (
-          <div className="bk-spread">
+          <div className="bk-spread" ref={spreadRef}>
             {window_.map((i) => (
               <PageCanvas key={i} pdf={pdf} index={i} width={pageW} drawn={drawW} ratio={ratio} shown={i >= first && i < first + cols} />
             ))}
+            {cols === 2 && first + 1 >= n && <div className="bk-pg bk-blank" style={{ width: pageW, height: Math.round(pageW / ratio) }} aria-hidden="true" />}
             {cols === 2 && <i className="bk-gutter" aria-hidden="true" />}
           </div>
         )}
