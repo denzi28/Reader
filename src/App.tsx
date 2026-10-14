@@ -8,6 +8,8 @@ import { Welcome } from './components/Welcome';
 import { PaywallHost } from './components/Paywall';
 import { openPaywall, PlanLimit } from './lib/plan';
 import { t } from './lib/i18n';
+import { AppGate } from './components/AppGate';
+import { needsApp } from './lib/appGate';
 import { useSyncStatus } from './lib/sync/useSync';
 
 // The readers and the PDF engine are a large download of their own; the
@@ -58,6 +60,7 @@ export function App() {
   // The tools-only page for someone not signed in; a step in the history, so Back leaves it.
   const [guestTools, setGuestTools] = useState<boolean>(() => !!history.state?.tools);
   const sync = useSyncStatus();
+  const [gated] = useState(needsApp);
   // How long plain paper may stand in for the answer of the server before the library is shown after all.
   const [waited, setWaited] = useState(false);
   useEffect(() => { const id = window.setTimeout(() => setWaited(true), 2500); return () => window.clearTimeout(id); }, []);
@@ -166,6 +169,9 @@ export function App() {
     if (history.state?.tools) history.back();
     else transition(() => setGuestTools(false));
   };
+
+  // On the web, once the app is on Google Play, a browser is asked to get the app instead (see lib/appGate.ts).
+  if (gated) return <AppGate />;
 
   // The library is for signed-in people; everyone else gets the welcome page and the tools.
   // Until the server has said whether there is a session, a signed-out start shows plain paper: the library

@@ -3887,3 +3887,14 @@ button.me-row { cursor: pointer; }
 @media (prefers-reduced-motion: reduce) { .intro-scrim, .intro-card, .intro-pic, .intro-card h2, .intro-card p { animation: none; } }
 
 .intro-card:focus { outline: none; }
+
+/* the page shown to a browser once the app is on Google Play */
+.gate { min-height: 100dvh; display: grid; align-content: center; justify-items: center; gap: 28px; padding: 24px; background: var(--desk); text-align: center; }
+.gate .wordmark { font-size: 2.2rem; margin-bottom: 0.5em; }
+.gate-card { display: grid; justify-items: center; gap: 12px; width: min(420px, 100%); padding: 30px 24px 22px; border-radius: 28px; background: var(--page); border: 1px solid var(--line); box-shadow: var(--shadow-float); }
+.gate-card img { border-radius: 24px; box-shadow: 0 10px 24px -12px rgba(70, 45, 10, 0.5); }
+.gate-card h1 { margin: 6px 0 0; font-family: var(--serif); font-size: 1.6rem; letter-spacing: -0.022em; }
+.gate-card p { margin: 0; color: var(--muted); line-height: 1.5; max-width: 32ch; }
+.gate-go { display: inline-grid; place-items: center; min-height: 52px; margin-top: 8px; padding: 0 28px; text-decoration: none; }
+.gate-note { font-size: 0.85rem; margin-top: 6px !important; }
+.gate-note a { color: var(--muted); }

@@ -256,6 +256,15 @@ to the Play listing. Until then, keep the web app as the single source of
 truth for features, and keep it easy to port (no browser-only tricks that a
 native/wrapped app could not reproduce).
 
+## The Android app and the web
+
+The Android app (`android/`, built by the *Android app* workflow) is a Trusted Web Activity: it runs
+https://leafpage.app in Chrome without browser bars, so **the site must stay up**. When the app is on Google Play, set
+`VITE_PLAY_URL` and `VITE_APP_GATE=android` (build-time, in Vercel): ordinary Android browsers then see a "Get it on Google
+Play" page instead of the app, while the app itself (it starts with the `android-app://app.leafpage.reader` referrer, which
+is remembered) and installed copies get in. `VITE_APP_GATE=all` does the same for every browser; use it only when iPhone and
+computers have an app too. `/?web=1` lets a tester through for the visit. The privacy and terms pages are never gated.
+
 ## Premium
 
 Premium is bought **only** through Google Play or the App Store (never on the web: the paywall

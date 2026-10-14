@@ -412,4 +412,7 @@ export const trLibrary: Record<string, string> = {
   'Pen, highlighter and typed notes right on the page. Make a Notebook to draw in, or a Doc to type in, even for a single page.': 'Kalem, fosforlu kalem ve yazılı notlar doğrudan sayfada. Çizmek için bir Defter, yazmak için bir Belge oluştur, tek bir sayfa için bile.',
   'Yours, everywhere': 'Senin, her yerde',
   'Sign in with Google and everything is kept in your own Drive: the same library on your phone, tablet and computer. It works with no connection, too.': 'Google ile giriş yap, her şey kendi Drive\'ında saklansın: telefonunda, tabletinde ve bilgisayarında aynı kütüphane. Bağlantı olmadan da çalışır.',
+  'Get the app': 'Uygulamayı al',
+  'Get the Leafpage app': 'Leafpage uygulamasını al',
+  'Leafpage now lives in the Google Play app. Install it to read, write and keep your library in your own Drive.': 'Leafpage artık Google Play uygulamasında. Okumak, yazmak ve kütüphaneni kendi Drive\'ında saklamak için yükle.',
 };
