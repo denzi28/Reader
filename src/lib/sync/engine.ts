@@ -9,6 +9,7 @@
 // The folders are one more file, folders.json, merged folder by folder; each
 // document's record says which folder it is in.
 
+import { t as tl } from '../i18n';
 import { foldersAhead, latestFolderChange, mergeFolderLogs } from '../folders';
 import { hasNewer, latestChange } from '../inkLog';
 import * as storage from '../storage';
@@ -220,9 +221,9 @@ function fail(err: unknown) {
     }
     needReauth();
   } else if (!navigator.onLine || err instanceof TypeError) {
-    setStatus({ state: 'offline', message: 'Offline. Changes will sync when you are back online.' });
+    setStatus({ state: 'offline', message: tl('Offline. Changes will sync when you are back online.') });
   } else {
-    setStatus({ state: 'error', message: err instanceof Error ? err.message : 'Sync failed.' });
+    setStatus({ state: 'error', message: err instanceof Error ? err.message : tl('Sync failed.') });
   }
 }
 
@@ -232,10 +233,10 @@ let reauthArmed = false;
 function needReauth() {
   if (authMode() === 'server') {
     // Access was revoked or the session ended: only signing in again helps.
-    setStatus({ state: 'reauth', message: 'Sign in with Google again to keep syncing.' });
+    setStatus({ state: 'reauth', message: tl('Sign in with Google again to keep syncing.') });
     return;
   }
-  setStatus({ state: 'reauth', message: 'Tap anywhere to reconnect Google Drive.' });
+  setStatus({ state: 'reauth', message: tl('Tap anywhere to reconnect Google Drive.') });
   if (reauthArmed) return;
   reauthArmed = true;
   document.addEventListener(
@@ -297,7 +298,7 @@ export async function connect() {
   } catch (err) {
     setStatus({
       state: status.connected ? 'error' : 'off',
-      message: err instanceof Error ? err.message : 'Could not connect to Google Drive.',
+      message: err instanceof Error ? err.message : tl('Could not connect to Google Drive.'),
     });
     throw err;
   }
@@ -642,7 +643,7 @@ export function syncAll(options: { auto?: boolean } = {}) {
         run: async (add) => {
           if (!status.connected) return;
           const s = await syncRecord(t, id, groups.get(id), locals.get(id));
-          if (ids.length > 1) setStatus({ message: `Syncing document ${++done} of ${ids.length}` });
+          if (ids.length > 1) setStatus({ message: tl('Syncing document {done} of {total}', { done: ++done, total: ids.length }) });
           if (!s) return;
           add({ priority: 1, run: async () => { if (status.connected) await syncCover(t, s); } });
           add({ priority: 2, run: async () => { if (status.connected) await syncContent(t, s); } });
@@ -725,12 +726,12 @@ async function fetchPdf(id: string) {
   const t = await getAccessToken();
   if (!t) {
     needReauth();
-    throw new Error('Sign in with Google to download this document.');
+    throw new Error(tl('Sign in with Google to download this document.'));
   }
   setProgress(id, 0);
   const files = await drive.listFiles(t, id);
   const pdf = files.find((f) => f.name === `pdf-${id}.pdf`);
-  if (!pdf) throw new Error('This document is no longer in your Google Drive.');
+  if (!pdf) throw new Error(tl('This document is no longer in your Google Drive.'));
   const blob = await drive.downloadWithProgress(t, pdf, (f) => setProgress(id, f));
   const wanted = await storage.getMeta(id);
   await storage.putDocFile(id, new Blob([blob], { type: wanted?.kind === 'epub' ? EPUB_TYPE : 'application/pdf' }));

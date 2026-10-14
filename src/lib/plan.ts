@@ -3,6 +3,7 @@
 // this decides what each plan may do. Nothing is limited unless the server says
 // enforcement is on (PAYWALL_ENFORCED), so it can be switched on once the apps exist.
 import { useEffect, useState } from 'react';
+import { t } from './i18n';
 import { listDocs } from './storage';
 
 export const FREE_DOCS = 5;
@@ -134,7 +135,7 @@ export async function roomForDocs(adding = 1): Promise<{ ok: boolean; have: numb
 }
 
 export class PlanLimit extends Error {
-  constructor(message = `The free plan keeps ${FREE_DOCS} documents. Premium has no limit.`) {
+  constructor(message = t('The free plan keeps {n} documents. Premium has no limit.', { n: FREE_DOCS })) {
     super(message);
     this.name = 'PlanLimit';
   }

@@ -6,6 +6,8 @@
 //  - "browser": otherwise, Google Identity Services' token model in a popup.
 //    Its tokens last an hour and can only be renewed from a tap.
 
+import { t as tl } from '../i18n';
+
 const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
 const SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
 const TOKEN_KEY = 'reader.drive.token';
@@ -77,7 +79,7 @@ export async function getAccessToken(): Promise<string | null> {
     signal: timeout(15_000),
   });
   if (res.status === 401) return null;
-  if (!res.ok) throw new Error('Google is not responding. Sync will try again.');
+  if (!res.ok) throw new Error(tl('Google is not responding. Sync will try again.'));
   const body = (await res.json()) as { access_token: string; expires_in: number };
   writeToken({ access: body.access_token, expiresAt: Date.now() + body.expires_in * 1000 });
   return body.access_token;
@@ -126,7 +128,7 @@ function loadGis() {
     script.onload = () => resolve();
     script.onerror = () => {
       gisLoading = null;
-      reject(new Error('Could not reach Google. Check your connection.'));
+      reject(new Error(tl('Could not reach Google. Check your connection.')));
     };
     document.head.appendChild(script);
   });
@@ -165,7 +167,7 @@ export function currentToken(): string | null {
  * agreed before). Must be called from a tap or click, or browsers block it.
  */
 export async function requestToken(hint?: string): Promise<string> {
-  if (!CLIENT_ID) throw new Error('Google Drive sync is not set up in this build.');
+  if (!CLIENT_ID) throw new Error(tl('Google Drive sync is not set up in this build.'));
   await loadGis();
   const oauth = window.google!.accounts.oauth2;
   client ??= oauth.initTokenClient({
@@ -176,9 +178,9 @@ export async function requestToken(hint?: string): Promise<string> {
       pending = null;
       if (!p) return;
       if (r.error || !r.access_token) {
-        p.reject(new Error(r.error_description || r.error || 'Google sign-in failed.'));
+        p.reject(new Error(r.error_description || r.error || tl('Google sign-in failed.')));
       } else if (!oauth.hasGrantedAllScopes(r, SCOPE)) {
-        p.reject(new Error('Drive access was not allowed, so notes cannot sync.'));
+        p.reject(new Error(tl('Drive access was not allowed, so notes cannot sync.')));
       } else {
         writeToken({ access: r.access_token, expiresAt: Date.now() + (r.expires_in ?? 3600) * 1000 });
         p.resolve(r.access_token);
@@ -190,8 +192,8 @@ export async function requestToken(hint?: string): Promise<string> {
       p?.reject(
         new Error(
           e.type === 'popup_failed_to_open'
-            ? 'The Google window was blocked. Allow pop-ups for this site and try again.'
-            : 'Google sign-in was closed before it finished.',
+            ? tl('The Google window was blocked. Allow pop-ups for this site and try again.')
+            : tl('Google sign-in was closed before it finished.'),
         ),
       );
     },

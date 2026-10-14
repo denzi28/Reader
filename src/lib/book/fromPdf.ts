@@ -12,7 +12,7 @@ export const PDF_BOOK_VERSION = 9;
 
 export class NoTextError extends Error {
   constructor() {
-    super('This PDF has no text to read (it may be scanned).');
+    super(t('This PDF has no text to read (it may be scanned).'));
   }
 }
 

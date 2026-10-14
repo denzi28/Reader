@@ -1,4 +1,5 @@
 import { IMPORT_ACCEPT } from '../lib/fileTypes';
+import { count as plural, t } from '../lib/i18n';
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { FOLDER_COLORS, folderColor, liveFolders, MAX_FOLDER_NAME } from '../lib/folders';
@@ -43,23 +44,23 @@ const formatSize = (bytes: number) =>
 
 function ago(ts: number) {
   const mins = Math.round((Date.now() - ts) / 60000);
-  if (mins < 1) return 'just now';
-  if (mins < 60) return `${mins} min ago`;
+  if (mins < 1) return t('just now');
+  if (mins < 60) return t('{n} min ago', { n: mins });
   const hours = Math.round(mins / 60);
-  if (hours < 24) return `${hours} h ago`;
+  if (hours < 24) return t('{n} h ago', { n: hours });
   const days = Math.round(hours / 24);
-  return days === 1 ? 'yesterday' : `${days} days ago`;
+  return days === 1 ? t('yesterday') : t('{n} days ago', { n: days });
 }
 
 
 type SortBy = 'opened' | 'added' | 'name' | 'progress';
 const SORTS: { id: SortBy; label: string }[] = [
-  { id: 'opened', label: 'Recently opened' },
-  { id: 'added', label: 'Recently added' },
-  { id: 'name', label: 'Name' },
-  { id: 'progress', label: 'Progress' },
+  { id: 'opened', label: t('Recently opened') },
+  { id: 'added', label: t('Recently added') },
+  { id: 'name', label: t('Name') },
+  { id: 'progress', label: t('Progress') },
 ];
-const SORT_TITLES: Record<SortBy, string> = { opened: 'Recent', added: 'Newest', name: 'A to Z', progress: 'In progress' };
+const SORT_TITLES: Record<SortBy, string> = { opened: t('Recent'), added: t('Newest'), name: t('A to Z'), progress: t('In progress') };
 const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
 function sortDocs(list: DocMeta[], by: SortBy) {
   const out = [...list];
@@ -68,6 +69,10 @@ function sortDocs(list: DocMeta[], by: SortBy) {
   else if (by === 'progress') out.sort((a, b) => progressOf(b) - progressOf(a) || b.openedAt - a.openedAt);
   return out; // 'opened': already newest first
 }
+
+const COLOUR_NAMES: Record<(typeof FOLDER_COLORS)[number], string> = {
+  amber: t('Amber'), blue: t('Blue'), green: t('Green'), red: t('Red'), purple: t('Purple'), teal: t('Teal'), gold: t('Gold'),
+};
 
 /** A remembered setting on this device (falls back quietly if storage is off). */
 function usePref<T extends string>(key: string, initial: T, allowed: readonly T[]) {
@@ -96,7 +101,7 @@ function Progress({ doc, className = '' }: { doc: DocMeta; className?: string })
   const p = progressOf(doc);
   if (p <= 0) return null;
   return (
-    <span className={`progress ${className}`} title={`Page ${doc.lastPage + 1} of ${doc.pages}`}>
+    <span className={`progress ${className}`} title={t('Page {page} of {total}', { page: doc.lastPage + 1, total: doc.pages })}>
       <span style={{ width: `${Math.max(3, p * 100)}%` }} />
     </span>
   );
@@ -128,7 +133,6 @@ function Marked({ text, ranges }: { text: string; ranges: [number, number][] | n
   parts.push(text.slice(at));
   return <>{parts}</>;
 }
-const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
 /** A one-line text field that saves on Enter or when it loses focus. */
 function NameField({ initial = '', label, onSave, onCancel }: {
@@ -231,28 +235,28 @@ function MoveMenu({ doc, folders, current, anchor, onMove, onClose, onSyncOn }: 
   return createPortal(
     <>
       <div className="sheet-backdrop" aria-hidden="true" onClick={onClose} />
-      <div className="move-menu" ref={box} role="menu" aria-label={`Move ${doc.name}`} style={place}>
-        <p className="move-title">Move “{doc.name}” to</p>
+      <div className="move-menu" ref={box} role="menu" aria-label={t('Move {name}', { name: doc.name })} style={place}>
+        <p className="move-title">{t('Move “{name}” to', { name: doc.name })}</p>
         <div className="move-list">
-          {option(null, 'Shelf (no folder)', <FileIcon />)}
+          {option(null, t('Library (no folder)'), <FileIcon />)}
           {folders.map((f) => option(f.id, f.name, <FolderIcon />))}
         </div>
         {naming ? (
           <NameField
-            label="New folder name"
+            label={t('New folder name')}
             onSave={async (name) => onMove((await createFolder(name)).id)}
             onCancel={() => setNaming(false)}
           />
         ) : (
           <button className="move-option move-new" onClick={() => setNaming(true)}>
             <FolderPlusIcon />
-            <span>New folder…</span>
+            <span>{t('New folder…')}</span>
           </button>
         )}
         {onSyncOn && (
           <button className="move-option move-sync" onClick={onSyncOn}>
             <CloudOffIcon />
-            <span>Only on this device. Sync with Google Drive</span>
+            <span>{t('Only on this device. Sync with Google Drive')}</span>
           </button>
         )}
       </div>
@@ -289,7 +293,7 @@ export function Library(props: Props) {
   const [tool, setTool] = useState<ToolId | null>(null);
   const [toolStart, setToolStart] = useState<DocMeta[] | undefined>(undefined);
   const [tab, setTabState] = useState(lastTab);
-  const setTab = (t: PhoneTab) => { lastTab = t; setTabState(t); };
+  const setTab = (next: PhoneTab) => { lastTab = next; setTabState(next); };
   const phone = usePhone();
   const [searchOpen, setSearchOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
@@ -359,7 +363,7 @@ export function Library(props: Props) {
       onOpen(made.id);
     } catch (err) {
       if (err instanceof PlanLimit) { setNewNote(false); openPaywall('docs'); return; }
-      setNoteError(err instanceof Error ? err.message : 'The note could not be made.');
+      setNoteError(err instanceof Error ? err.message : t('The note could not be made.'));
     } finally {
       setMakingNote(false);
     }
@@ -445,7 +449,7 @@ export function Library(props: Props) {
       await downloadPdf(d.id);
       onOpen(d.id, undefined, view);
     } catch (err) {
-      setFetchError(err instanceof Error ? err.message : 'Could not download this document.');
+      setFetchError(err instanceof Error ? err.message : t('Could not download this document.'));
     } finally {
       setFetching(null);
     }
@@ -489,14 +493,16 @@ export function Library(props: Props) {
   const addButton = (
     <button className="button add-button" disabled={busy} onClick={() => input.current?.click()}>
       <UploadIcon />
-      <span>{busy ? 'Adding…' : 'Add files'}</span>
+      <span>{busy ? t('Adding…') : t('Add files')}</span>
     </button>
   );
 
   const removeFolder = async (f: Folder) => {
     const n = counts.get(f.id) ?? 0;
-    const note = n ? ` The ${plural(n, 'document', 'documents')} in it will go back to your shelf.` : '';
-    if (!window.confirm(`Delete the folder “${f.name}”?${note}`)) return;
+    const question = n
+      ? t('Delete the folder “{name}”? The {docs} in it will go back to your library.', { name: f.name, docs: plural(n, 'document', 'documents') })
+      : t('Delete the folder “{name}”?', { name: f.name });
+    if (!window.confirm(question)) return;
     await deleteFolder(f.id);
     onFolder(null);
     void refresh();
@@ -554,7 +560,7 @@ export function Library(props: Props) {
         <span className="cover">
           <Cover meta={d} />
           <Progress doc={d} className="cover-progress" />
-          {phone && d.starred && <span className="cover-star" aria-label="Starred"><StarIcon /></span>}
+          {phone && d.starred && <span className="cover-star" aria-label={t('Starred')}><StarIcon /></span>}
           {(markCounts.get(d.id) ?? 0) > 0 && (
             <span className="cover-marks" title={plural(markCounts.get(d.id)!, 'mark', 'marks')}>
               <MarkIcon />
@@ -562,14 +568,14 @@ export function Library(props: Props) {
             </span>
           )}
           {d.localOnly && sync.connected && (
-            <span className="cover-local" title="Only on this device: not synced to Google Drive">
+            <span className="cover-local" title={t('Only on this device: not synced to Google Drive')}>
               <CloudOffIcon />
             </span>
           )}
           {d.cloudOnly && (
-            <span className="cover-cloud" title="In your Google Drive; opens after downloading">
+            <span className="cover-cloud" title={t('In your Google Drive; opens after downloading')}>
               <CloudIcon />
-              {fetching === d.id ? `Downloading${downloaded === null ? '…' : ` ${Math.round(downloaded * 100)}%`}` : 'In Drive'}
+              {fetching === d.id ? (downloaded === null ? t('Downloading…') : t('Downloading {percent}%', { percent: Math.round(downloaded * 100) })) : t('In Drive')}
             </span>
           )}
         </span>
@@ -582,27 +588,27 @@ export function Library(props: Props) {
         )}
       </button>
       {!d.notebook && !d.attached && (
-        <button className="cover-book" aria-label={`Read ${d.name} as a book`} title="Read as a book" disabled={fetching !== null} onClick={() => void openBook(d, 'book')}>
+        <button className="cover-book" aria-label={t('Read {name} as a book', { name: d.name })} title={t('Read as a book')} disabled={fetching !== null} onClick={() => void openBook(d, 'book')}>
           <BookOpenIcon />
         </button>
       )}
       {phone && (
-        <button className="book-more" aria-label={`Actions for ${d.name}`} aria-haspopup="dialog" onClick={() => setMenuFor(d)}><MoreVIcon /></button>
+        <button className="book-more" aria-label={t('Actions for {name}', { name: d.name })} aria-haspopup="dialog" onClick={() => setMenuFor(d)}><MoreVIcon /></button>
       )}
       {!phone && <span className="book-tools">
         <button
           className={`book-tool star-tool${d.starred ? ' on' : ''}`}
-          aria-label={d.starred ? `Unstar ${d.name}` : `Star ${d.name}`}
+          aria-label={d.starred ? t('Unstar {name}', { name: d.name }) : t('Star {name}', { name: d.name })}
           aria-pressed={Boolean(d.starred)}
-          title={d.starred ? 'Starred' : 'Star'}
+          title={d.starred ? t('Starred') : t('Star')}
           onClick={async () => { await patchMeta(d.id, { starred: !d.starred }); void refresh(); }}
         >
           <StarIcon />
         </button>
         <button
           className="book-tool"
-          aria-label={`Move ${d.name} to a folder`}
-          title="Move to a folder"
+          aria-label={t('Move {name} to a folder', { name: d.name })}
+          title={t('Move to a folder')}
           aria-haspopup="menu"
           aria-expanded={moving?.id === d.id}
           onClick={(e) => setMoving(
@@ -613,18 +619,18 @@ export function Library(props: Props) {
         </button>
         <button
           className="book-tool"
-          aria-label={`Download ${d.name}`}
-          title="Download to this device"
+          aria-label={t('Download {name}', { name: d.name })}
+          title={t('Download to this device')}
           onClick={() => setDownloading(d)}
         >
           <DownloadIcon />
         </button>
         <button
           className="book-tool"
-          aria-label={`Remove ${d.name}`}
-          title="Remove from this device"
+          aria-label={t('Remove {name}', { name: d.name })}
+          title={t('Remove from this device')}
           onClick={async () => {
-            if (window.confirm(`Remove “${d.name}” and its notes from this device?`)) {
+            if (window.confirm(t('Remove “{name}” and its notes from this device?', { name: d.name }))) {
               await deleteDoc(d.id);
               void refresh();
             }
@@ -655,9 +661,9 @@ export function Library(props: Props) {
     <>
       {phone ? (
         <header className="library-head phone-head">
-          <h1 className="brand">{onTools ? 'Tools' : onMe ? 'Me' : 'The Reader'}</h1>
+          <h1 className="brand">{onTools ? t('Tools') : onMe ? t('Me') : 'The Reader'}</h1>
           {!onTools && !onMe && !onNotes && !current && docs && docs.length > 0 && (
-            <button className="icon-button" aria-label="Search" aria-pressed={searchOpen || Boolean(query)} onClick={() => { if (query) setQuery(''); setSearchOpen((v) => !v); }}>
+            <button className="icon-button" aria-label={t('Search')} aria-pressed={searchOpen || Boolean(query)} onClick={() => { if (query) setQuery(''); setSearchOpen((v) => !v); }}>
               <SearchIcon />
             </button>
           )}
@@ -667,12 +673,17 @@ export function Library(props: Props) {
       {guestCount > 0 && (
         <div className="notice notice-info" role="status">
           <span>
-            {guestCount === 1 ? '1 document on this device was' : `${guestCount} documents on this device were`} added
-            without an account. Add {guestCount === 1 ? 'it' : 'them'} to {sync.email ?? 'your account'}?
+            {sync.email
+              ? guestCount === 1
+                ? t('1 document on this device was added without an account. Add it to {email}?', { email: sync.email })
+                : t('{n} documents on this device were added without an account. Add them to {email}?', { n: guestCount, email: sync.email })
+              : guestCount === 1
+                ? t('1 document on this device was added without an account. Add it to your account?')
+                : t('{n} documents on this device were added without an account. Add them to your account?', { n: guestCount })}
           </span>
           <span className="notice-actions">
-            <button className="button button-small" onClick={() => void adoptGuest()}>Add to my account</button>
-            <button className="link" onClick={dismissGuest}>Not now</button>
+            <button className="button button-small" onClick={() => void adoptGuest()}>{t('Add to my account')}</button>
+            <button className="link" onClick={dismissGuest}>{t('Not now')}</button>
           </span>
         </div>
       )}
@@ -680,7 +691,7 @@ export function Library(props: Props) {
       {(error || fetchError) && (
         <div className="notice" role="alert">
           <span>{error ?? fetchError}</span>
-          <button className="link" onClick={() => { onDismissError(); setFetchError(null); }}>Dismiss</button>
+          <button className="link" onClick={() => { onDismissError(); setFetchError(null); }}>{t('Dismiss')}</button>
         </div>
       )}
 
@@ -694,35 +705,35 @@ export function Library(props: Props) {
       />
 
       {current ? (
-        <nav className="folder-bar" aria-label="Folder">
+        <nav className="folder-bar" aria-label={t('Folder')}>
           <button
             className={`crumb${dropOn === 'shelf' ? ' drop' : ''}`}
             onClick={() => onFolder(null)}
             {...dropTarget(null)}
           >
             <BackIcon />
-            All documents
+            {t('All documents')}
           </button>
           <div className="folder-title">
             <span className="color-wrap" ref={colorBox}>
               <button
                 className={`folder-head-icon c-${folderColor(current.color)}`}
                 onClick={() => setColoring((v) => !v)}
-                aria-label="Folder colour"
-                title="Folder colour"
+                aria-label={t('Folder colour')}
+                title={t('Folder colour')}
                 aria-expanded={coloring}
               >
                 <FolderIcon />
               </button>
               {coloring && (
-                <span className="color-pop" role="menu" aria-label="Folder colour">
+                <span className="color-pop" role="menu" aria-label={t('Folder colour')}>
                   {FOLDER_COLORS.map((c) => (
                     <button
                       key={c}
                       className={`color-dot c-${c}${folderColor(current.color) === c ? ' on' : ''}`}
                       role="menuitemradio"
                       aria-checked={folderColor(current.color) === c}
-                      aria-label={c}
+                      aria-label={COLOUR_NAMES[c]}
                       onClick={async () => { setColoring(false); await setFolderColor(current.id, c); void refresh(); }}
                     />
                   ))}
@@ -733,7 +744,7 @@ export function Library(props: Props) {
               {renaming ? (
                 <NameField
                   initial={current.name}
-                  label="Folder name"
+                  label={t('Folder name')}
                   onSave={async (name) => { setRenaming(false); await renameFolder(current.id, name); void refresh(); }}
                   onCancel={() => setRenaming(false)}
                 />
@@ -744,14 +755,14 @@ export function Library(props: Props) {
             </div>
             {!renaming && (
               <div className="folder-actions">
-                <button className="icon-button" onClick={() => setRenaming(true)} aria-label="Rename folder" title="Rename folder">
+                <button className="icon-button" onClick={() => setRenaming(true)} aria-label={t('Rename folder')} title={t('Rename folder')}>
                   <PencilIcon />
                 </button>
                 <button
                   className="icon-button icon-danger"
                   onClick={() => void removeFolder(current)}
-                  aria-label="Delete folder"
-                  title="Delete folder"
+                  aria-label={t('Delete folder')}
+                  title={t('Delete folder')}
                 >
                   <TrashIcon />
                 </button>
@@ -768,8 +779,8 @@ export function Library(props: Props) {
               ref={searchBox}
               type="search"
               value={query}
-              placeholder="Search documents and folders"
-              aria-label="Search documents and folders"
+              placeholder={t('Search documents and folders')}
+              aria-label={t('Search documents and folders')}
               enterKeyHint="search"
               autoComplete="off"
               spellCheck={false}
@@ -782,7 +793,7 @@ export function Library(props: Props) {
             {query ? (
               <button
                 className="search-clear"
-                aria-label="Clear search"
+                aria-label={t('Clear search')}
                 onClick={() => { setQuery(''); searchBox.current?.focus(); }}
               >
                 <CloseIcon />
@@ -791,23 +802,23 @@ export function Library(props: Props) {
               <kbd className="search-key" aria-hidden="true">/</kbd>
             )}
           </div>
-          <button className="tools-button note-button" onClick={() => { setNoteError(null); setNewNote(true); }} aria-label="New note" title="New note: an empty notebook to write on">
+          <button className="tools-button note-button" onClick={() => { setNoteError(null); setNewNote(true); }} aria-label={t('New note')} title={t('New note: an empty notebook to write on')}>
             <PencilIcon />
-            <span>New note</span>
+            <span>{t('New note')}</span>
           </button>
           {addButton}
         </div>
       )}
 
       {!phone && page === 'shelf' && !searching && (folders.length > 0 || (docs && docs.length > 0)) && (
-        <div className="top-chips" role="group" aria-label="Folders">
+        <div className="top-chips" role="group" aria-label={t('Folders')}>
           <button
             className={`chip${!current ? ' on' : ''}${dropOn === 'shelf' ? ' drop' : ''}`}
             onClick={() => { setQuery(''); onFolder(null); }}
             aria-pressed={!current}
             {...dropTarget(null)}
           >
-            All <small>{docs?.length ?? 0}</small>
+            {t('All')} <small>{docs?.length ?? 0}</small>
           </button>
           {folders.map((f) => (
             <button
@@ -823,20 +834,20 @@ export function Library(props: Props) {
           {creating ? (
             <span className="chip chip-new">
               <NameField
-                label="Folder name"
+                label={t('Folder name')}
                 onSave={async (name) => { setCreating(false); await createFolder(name); void refresh(); }}
                 onCancel={() => setCreating(false)}
               />
             </span>
           ) : (
-            <button className="chip chip-add" onClick={() => setCreating(true)}>+ Folder</button>
+            <button className="chip chip-add" onClick={() => setCreating(true)}>{t('+ Folder')}</button>
           )}
         </div>
       )}
 
       {phone && page === 'shelf' && !current && !searching && docs && docs.length > 0 && (
         <div className="chip-row">
-          <button className="folder-chip on" aria-pressed="true">All <small>{docs.length}</small></button>
+          <button className="folder-chip on" aria-pressed="true">{t('All')} <small>{docs.length}</small></button>
           {folders.map((f) => (
             <button key={f.id} className={`folder-chip c-${folderColor(f.color)}`} onClick={() => { setQuery(''); setSearchOpen(false); onFolder(f.id); }}>
               <FolderIcon />{f.name} <small>{counts.get(f.id) ?? 0}</small>
@@ -845,18 +856,18 @@ export function Library(props: Props) {
           {creating ? (
             <span className="folder-chip folder-chip-new">
               <NameField
-                label="Folder name"
+                label={t('Folder name')}
                 onSave={async (name) => { setCreating(false); await createFolder(name); void refresh(); }}
                 onCancel={() => setCreating(false)}
               />
             </span>
           ) : (
-            <button className="folder-chip add" aria-label="New folder" onClick={() => setCreating(true)}><FolderPlusIcon /></button>
+            <button className="folder-chip add" aria-label={t('New folder')} onClick={() => setCreating(true)}><FolderPlusIcon /></button>
           )}
         </div>
       )}
 
-      {!phone && (onTools || onNotes) && <h2 className="page-title">{onTools ? 'PDF tools' : 'Notes'}</h2>}
+      {!phone && (onTools || onNotes) && <h2 className="page-title">{onTools ? t('PDF tools') : t('Notes')}</h2>}
       {onTools && <ToolsPage phone={phone} docs={docs ?? []} onPick={pickFromTools} />}
       {onMe && <MePage dark={dark} onTheme={onTheme} docCount={(docs ?? []).filter((d) => !d.attached).length} />}
 
@@ -870,11 +881,11 @@ export function Library(props: Props) {
             <Cover meta={resume} />
           </span>
           <span className="resume-text">
-            <span className="resume-eyebrow">{resume.lastPage > 0 ? 'Continue reading' : 'Start reading'}</span>
+            <span className="resume-eyebrow">{resume.lastPage > 0 ? t('Continue reading') : t('Start reading')}</span>
             <span className="resume-title">{resume.name}</span>
             <span className="resume-where">
               {resume.lastPage > 0
-                ? `Page ${resume.lastPage + 1} of ${resume.pages}`
+                ? t('Page {page} of {total}', { page: resume.lastPage + 1, total: resume.pages })
                 : plural(resume.pages, 'page', 'pages')}
               {placeOf(resume) && <> · <FolderIcon /> {folderName.get(placeOf(resume)!)}</>}
             </span>
@@ -892,18 +903,18 @@ export function Library(props: Props) {
       )}
 
       {searching && (
-        <section className="results" aria-label="Search results">
+        <section className="results" aria-label={t('Search results')}>
           <h2 className="shelf-title" aria-live="polite">
             {docHits.length + folderHits.length
-              ? `${plural(docHits.length + folderHits.length, 'result', 'results')} for “${query.trim()}”`
-              : `Nothing matches “${query.trim()}”`}
+              ? t('{results} for “{query}”', { results: plural(docHits.length + folderHits.length, 'result', 'results'), query: query.trim() })
+              : t('Nothing matches “{query}”', { query: query.trim() })}
           </h2>
           {folderHits.length > 0 && <ul className="folders">{folderHits.map(({ f, r }, i) => folderTile(f, i, r))}</ul>}
           {docHits.length > 0 && (
             <ul className={`shelf view-${view}`}>{docHits.map(({ d, name }, i) => book(d, i, name, true))}</ul>
           )}
           {docHits.length + folderHits.length === 0 && (
-            <p className="empty-note">Try fewer letters, or another word from the title.</p>
+            <p className="empty-note">{t('Try fewer letters, or another word from the title.')}</p>
           )}
         </section>
       )}
@@ -930,15 +941,15 @@ export function Library(props: Props) {
                 <path className="da-line" d="M67 28h28M67 36h28M67 44h28M67 52h18" />
                 <path className="da-accent" d="M80 66v-9m-4 4 4-4 4 4" />
               </svg>
-              <p className="drop-title">{busy ? 'Adding to your library…' : phone ? 'Add your first document' : 'Drop files here to start your library'}</p>
-              {!busy && <p className="drop-sub">PDFs, ePub books, Office files, text or pictures</p>}
+              <p className="drop-title">{busy ? t('Adding to your library…') : phone ? t('Add your first document') : t('Drop files here to start your library')}</p>
+              {!busy && <p className="drop-sub">{t('PDFs, ePub books, Office files, text or pictures')}</p>}
               <button className="button" disabled={busy} onClick={() => input.current?.click()}>
-                Choose files
+                {t('Choose files')}
               </button>
-              <button className="chip-button" disabled={busy} aria-label="New note" onClick={() => { setNoteError(null); setNewNote(true); }}>
-                <PencilIcon /> Or start a blank note
+              <button className="chip-button" disabled={busy} aria-label={t('New note')} onClick={() => { setNoteError(null); setNewNote(true); }}>
+                <PencilIcon /> {t('Or start a blank note')}
               </button>
-              <p className="drop-note">Pick several at once. ePub books open as books; Word, Excel, PowerPoint, text and pictures are turned into PDFs on your device.</p>
+              <p className="drop-note">{t('Pick several at once. ePub books open as books; Word, Excel, PowerPoint, text and pictures are turned into PDFs on your device.')}</p>
             </div>
           )}
 
@@ -949,9 +960,9 @@ export function Library(props: Props) {
           )}
 
           {!current && starred.length > 0 && (
-            <section aria-label="Starred">
+            <section aria-label={t('Starred')}>
               <div className="section-head">
-                <h2 className="shelf-title"><span className="title-star"><StarIcon /></span>Starred</h2>
+                <h2 className="shelf-title"><span className="title-star"><StarIcon /></span>{t('Starred')}</h2>
               </div>
               <ul className={`shelf view-${view}`}>{starred.map((d, i) => book(d, i, null, true))}</ul>
             </section>
@@ -961,16 +972,16 @@ export function Library(props: Props) {
             <>
               {shown.length > 1 || (!current && shown.length > 0) ? (
                 <div className={`section-head${current ? ' bare' : ''}`}>
-                  {!current && <h2 className="shelf-title">{phone ? SORT_TITLES[sortBy] : 'All documents'}</h2>}
+                  {!current && <h2 className="shelf-title">{phone ? SORT_TITLES[sortBy] : t('All documents')}</h2>}
                   {shown.length > 1 && phone && (
                     <span className="shelf-controls phone-controls">
-                      <label className="icon-button sort-icon" aria-label="Sort">
+                      <label className="icon-button sort-icon" aria-label={t('Sort')}>
                         <SortIcon />
-                        <select value={sortBy} aria-label="Sort by" onChange={(e) => setSortBy(e.target.value as SortBy)}>
+                        <select value={sortBy} aria-label={t('Sort by')} onChange={(e) => setSortBy(e.target.value as SortBy)}>
                           {SORTS.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
                         </select>
                       </label>
-                      <button className="icon-button" aria-label={view === 'grid' ? 'Show as a list' : 'Show as a grid'} onClick={() => setView(view === 'grid' ? 'list' : 'grid')}>
+                      <button className="icon-button" aria-label={view === 'grid' ? t('Show as a list') : t('Show as a grid')} onClick={() => setView(view === 'grid' ? 'list' : 'grid')}>
                         {view === 'grid' ? <ListIcon /> : <GridIcon />}
                       </button>
                     </span>
@@ -978,14 +989,14 @@ export function Library(props: Props) {
                   {shown.length > 1 && !phone && (
                     <span className="shelf-controls">
                       <label className="sort">
-                        <span className="sr-only">Sort by</span>
+                        <span className="sr-only">{t('Sort by')}</span>
                         <select value={sortBy} onChange={(e) => setSortBy(e.target.value as SortBy)}>
                           {SORTS.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
                         </select>
                       </label>
-                      <span className="view-toggle" role="group" aria-label="View">
-                        <button className={view === 'grid' ? 'on' : ''} aria-pressed={view === 'grid'} aria-label="Grid" title="Grid" onClick={() => setView('grid')}><GridIcon /></button>
-                        <button className={view === 'list' ? 'on' : ''} aria-pressed={view === 'list'} aria-label="List" title="List" onClick={() => setView('list')}><ListIcon /></button>
+                      <span className="view-toggle" role="group" aria-label={t('View')}>
+                        <button className={view === 'grid' ? 'on' : ''} aria-pressed={view === 'grid'} aria-label={t('Grid')} title={t('Grid')} onClick={() => setView('grid')}><GridIcon /></button>
+                        <button className={view === 'list' ? 'on' : ''} aria-pressed={view === 'list'} aria-label={t('List')} title={t('List')} onClick={() => setView('list')}><ListIcon /></button>
                       </span>
                     </span>
                   )}
@@ -993,8 +1004,7 @@ export function Library(props: Props) {
               ) : null}
               {current && shown.length === 0 && (
                 <p className="empty-note empty-folder">
-                  This folder is empty. Add files, drop them anywhere on this page, or move documents here with
-                  the folder button on each one.
+                  {t('This folder is empty. Add files, drop them anywhere on this page, or move documents here with the folder button on each one.')}
                 </p>
               )}
               <ul className={`shelf view-${view}`}>
@@ -1031,7 +1041,7 @@ export function Library(props: Props) {
         <div className="drop-overlay" aria-hidden="true">
           <div className="drop-overlay-card">
             <UploadIcon />
-            <p>{current ? `Drop to add to “${current.name}”` : 'Drop files to add them'}</p>
+            <p>{current ? t('Drop to add to “{name}”', { name: current.name }) : t('Drop files to add them')}</p>
           </div>
         </div>
       )}
@@ -1054,7 +1064,7 @@ export function Library(props: Props) {
           onRemove={async () => {
             const d = menuFor;
             setMenuFor(null);
-            if (window.confirm(`Remove “${d.name}” and its notes from this device?`)) { await deleteDoc(d.id); void refresh(); }
+            if (window.confirm(t('Remove “{name}” and its notes from this device?', { name: d.name }))) { await deleteDoc(d.id); void refresh(); }
           }}
         />
       )}
@@ -1062,13 +1072,13 @@ export function Library(props: Props) {
         <PhoneNav
           tab={page}
           onAdd={() => setAddOpen(true)}
-          onTab={(t) => { if (current) onFolder(null); setQuery(''); setSearchOpen(false); setCreating(false); setTab(t); window.scrollTo(0, 0); }}
+          onTab={(next) => { if (current) onFolder(null); setQuery(''); setSearchOpen(false); setCreating(false); setTab(next); window.scrollTo(0, 0); }}
         />
       )}
       <footer className="library-foot">
-        <a href="/privacy.html">Privacy</a>
+        <a href="/privacy.html">{t('Privacy')}</a>
         <span aria-hidden="true">·</span>
-        <a href="/terms.html">Terms</a>
+        <a href="/terms.html">{t('Terms')}</a>
       </footer>
     </>
   );
@@ -1097,7 +1107,7 @@ export function Library(props: Props) {
         <div className="lib-shell">
       <TopBar
         tab={page === 'notes' ? 'notes' : page === 'tools' ? 'tools' : 'shelf'}
-        onTab={(t) => { if (current) onFolder(null); setQuery(''); setCreating(false); setTab(t); }}
+        onTab={(next) => { if (current) onFolder(null); setQuery(''); setCreating(false); setTab(next); }}
         search={(
           <div className={`search top-search${query ? ' active' : ''}`} role="search">
             <SearchIcon />
@@ -1105,8 +1115,8 @@ export function Library(props: Props) {
               ref={searchBox}
               type="search"
               value={query}
-              placeholder="Search"
-              aria-label="Search documents and folders"
+              placeholder={t('Search')}
+              aria-label={t('Search documents and folders')}
               autoComplete="off"
               spellCheck={false}
               onChange={(e) => {
@@ -1119,7 +1129,7 @@ export function Library(props: Props) {
               }}
             />
             {query ? (
-              <button className="search-clear" aria-label="Clear search" onClick={() => { setQuery(''); searchBox.current?.focus(); }}><CloseIcon /></button>
+              <button className="search-clear" aria-label={t('Clear search')} onClick={() => { setQuery(''); searchBox.current?.focus(); }}><CloseIcon /></button>
             ) : (
               <kbd className="search-key" aria-hidden="true">/</kbd>
             )}
@@ -1127,9 +1137,9 @@ export function Library(props: Props) {
         )}
         actions={(
           <>
-            <button className="tools-button note-button" onClick={() => { setNoteError(null); setNewNote(true); }} aria-label="New note" title="New note: an empty notebook to write on">
+            <button className="tools-button note-button" onClick={() => { setNoteError(null); setNewNote(true); }} aria-label={t('New note')} title={t('New note: an empty notebook to write on')}>
               <PencilIcon />
-              <span>New note</span>
+              <span>{t('New note')}</span>
             </button>
             {addButton}
           </>

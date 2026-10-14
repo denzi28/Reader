@@ -2,6 +2,8 @@
 // ("appDataFolder"), which only this app can see and which counts against the
 // user's own Drive storage.
 
+import { t as tl } from '../i18n';
+
 const API = 'https://www.googleapis.com/drive/v3';
 const UPLOAD = 'https://www.googleapis.com/upload/drive/v3';
 const FIELDS = 'id,name,modifiedTime,size';
@@ -72,7 +74,7 @@ async function request<T>(
       signal: ctl.signal,
       headers: { ...(init.headers as Record<string, string>), Authorization: `Bearer ${token}` },
     });
-    if (res.status === 401) throw new AuthError('Google access expired.');
+    if (res.status === 401) throw new AuthError(tl('Google access expired.'));
     if ((res.status === 429 || res.status >= 500 || res.status === 403) && attempt < 3) {
       const body = res.status === 403 ? await res.clone().text() : '';
       if (res.status !== 403 || /rate|quota/i.test(body)) {
@@ -85,7 +87,7 @@ async function request<T>(
   } catch (err) {
     if (ctl.signal.aborted) {
       throw timedOut
-        ? new TimeoutError('Google Drive is not responding. Sync will try again shortly.')
+        ? new TimeoutError(tl('Google Drive is not responding. Sync will try again shortly.'))
         : new CancelledError('Cancelled');
     }
     throw err;
@@ -98,12 +100,12 @@ async function request<T>(
 /** Google's own reason for a failed request, in words a person can act on. */
 async function explain(res: Response) {
   const text = await res.text().catch(() => '');
-  if (/storageQuotaExceeded/.test(text)) return 'Your Google Drive is full.';
+  if (/storageQuotaExceeded/.test(text)) return tl('Your Google Drive is full.');
   try {
     const message = (JSON.parse(text) as { error?: { message?: string } }).error?.message;
-    if (message) return `Google Drive: ${message}`;
+    if (message) return tl('Google Drive: {message}', { message });
   } catch { /* not JSON */ }
-  return `Google Drive error ${res.status}`;
+  return tl('Google Drive error {status}', { status: res.status });
 }
 
 const asJson = <T>(res: Response) => res.json() as Promise<T>;
@@ -194,7 +196,7 @@ async function createResumable(token: string, metadata: object, body: Blob): Pro
     },
     async (res) => res.headers.get('Location'),
   );
-  if (!session) throw new Error('Google Drive did not accept the upload.');
+  if (!session) throw new Error(tl('Google Drive did not accept the upload.'));
   return request(token, session, { method: 'PUT', body }, asJson<RemoteFile>);
 }
 

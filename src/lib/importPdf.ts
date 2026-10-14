@@ -1,10 +1,11 @@
 import { fileId } from './hash';
+import { t } from './i18n';
 import { assertRoom } from './plan';
 import { makeThumbnail, openPdfFile } from './pdf';
 import { getMeta, patchMeta, putDocFile, putMeta, requestPersistence, saveDoc } from './storage';
 import type { DocMeta } from './types';
 
-export const UNSUPPORTED = 'This kind of file cannot be added yet. PDFs, ePub books, Word, Excel, PowerPoint, OpenDocument, RTF, text, CSV and pictures work.';
+export const UNSUPPORTED = t('This kind of file cannot be added yet. PDFs, ePub books, Word, Excel, PowerPoint, OpenDocument, RTF, text, CSV and pictures work.');
 
 function looksLikePdf(buf: ArrayBuffer) {
   const head = new TextDecoder('latin1').decode(buf.slice(0, 1024));
@@ -46,7 +47,7 @@ export async function importPdf(original: File, folder?: string, options: { loca
     // Read from the file as needed rather than handing pdf.js another copy.
     pdf = await openPdfFile(file);
   } catch {
-    throw new Error('This PDF could not be read. It may be damaged or password-protected.');
+    throw new Error(t('This PDF could not be read. It may be damaged or password-protected.'));
   }
   try {
     const now = Date.now();
@@ -67,7 +68,7 @@ export async function importPdf(original: File, folder?: string, options: { loca
     return meta;
   } catch (err) {
     if (err instanceof DOMException && err.name === 'QuotaExceededError') {
-      throw new Error('Your device is out of storage space for this file.');
+      throw new Error(t('Your device is out of storage space for this file.'));
     }
     throw err;
   } finally {
@@ -104,7 +105,7 @@ async function importEpub(id: string, file: File, buf: ArrayBuffer, folder: stri
     return meta;
   } catch (err) {
     if (err instanceof DOMException && err.name === 'QuotaExceededError') {
-      throw new Error('Your device is out of storage space for this file.');
+      throw new Error(t('Your device is out of storage space for this file.'));
     }
     throw err;
   } finally {

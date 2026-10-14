@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointer } from 'react';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
+import { t } from '../lib/i18n';
 import { flattenOutline } from '../lib/book/fromPdf';
 import { STABLE_BASE } from '../lib/book/model';
 import { useBookSettings } from '../lib/book/settings';
@@ -522,7 +523,7 @@ export function PageBook({ docId, startPage, dark, onTheme, onClose, onPdf, scan
       return;
     }
     const id = `m${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
-    const mark: BookMark = { k: 'bm', a: [STABLE_BASE + first * 4096, 0], q: `Page ${first + 1}` };
+    const mark: BookMark = { k: 'bm', a: [STABLE_BASE + first * 4096, 0], q: t('Page {n}', { n: first + 1 }) };
     void recordBookMark(docId, id, mark);
     setMarks((m) => ({ ...m, [id]: mark }));
   };
@@ -538,7 +539,7 @@ export function PageBook({ docId, startPage, dark, onTheme, onClose, onPdf, scan
     ? (stripH > box.h ? clamp(scrollY / (stripH - box.h), 0, 1) : 0)
     : n > 1 ? first / Math.max(1, n - cols) : 0;
   const shown = scrub ?? frac;
-  const pageLabel = n === 0 ? '' : scrollMode ? `Page ${cur + 1} of ${n}` : cols === 2 ? `Pages ${first + 1}–${Math.min(n, first + 2)} of ${n}` : `Page ${first + 1} of ${n}`;
+  const pageLabel = n === 0 ? '' : scrollMode ? t('Page {a} of {b}', { a: cur + 1, b: n }) : cols === 2 ? t('Pages {a}–{b} of {c}', { a: first + 1, b: Math.min(n, first + 2), c: n }) : t('Page {a} of {b}', { a: first + 1, b: n });
   const window_ = useMemo(() => {
     const out: number[] = [];
     for (let i = first - cols; i < first + cols * 3; i++) if (i >= 0 && i < n) out.push(i);
@@ -556,11 +557,11 @@ export function PageBook({ docId, startPage, dark, onTheme, onClose, onPdf, scan
   const openAsk = () => { setPanel(null); setAsk(true); };
   const toolRow = (
     <div className="bk-tools">
-      <button className="bk-tool" onClick={() => setPanel((p) => (p === 'contents' ? null : 'contents'))} aria-label="Contents" aria-pressed={panel === 'contents'}><ListIcon /></button>
-      <button className="bk-tool" onClick={openAsk} aria-label="Highlight or take notes" title="Highlight or take notes"><PencilIcon /></button>
-      <button className={`bk-tool${marked ? ' on' : ''}`} onClick={toggleBookmark} aria-label={marked ? 'Remove bookmark' : 'Add bookmark'} aria-pressed={marked}><BookmarkIcon filled={marked} /></button>
-      <button className="bk-tool" onClick={() => setPanel((p) => (p === 'aa' ? null : 'aa'))} aria-label="Reading settings" aria-pressed={panel === 'aa'}><AaIcon /></button>
-      {onPdf && <button className="bk-tool on" onClick={onPdf} aria-label="Back to the original PDF" title="Back to the original PDF"><BookOpenIcon /></button>}
+      <button className="bk-tool" onClick={() => setPanel((p) => (p === 'contents' ? null : 'contents'))} aria-label={t('Contents')} aria-pressed={panel === 'contents'}><ListIcon /></button>
+      <button className="bk-tool" onClick={openAsk} aria-label={t('Highlight or take notes')} title={t('Highlight or take notes')}><PencilIcon /></button>
+      <button className={`bk-tool${marked ? ' on' : ''}`} onClick={toggleBookmark} aria-label={marked ? t('Remove bookmark') : t('Add bookmark')} aria-pressed={marked}><BookmarkIcon filled={marked} /></button>
+      <button className="bk-tool" onClick={() => setPanel((p) => (p === 'aa' ? null : 'aa'))} aria-label={t('Reading settings')} aria-pressed={panel === 'aa'}><AaIcon /></button>
+      {onPdf && <button className="bk-tool on" onClick={onPdf} aria-label={t('Back to the original PDF')} title={t('Back to the original PDF')}><BookOpenIcon /></button>}
     </div>
   );
 
@@ -568,44 +569,44 @@ export function PageBook({ docId, startPage, dark, onTheme, onClose, onPdf, scan
     <div className={`bk bk-pages bk-t-${themeNow} ${phone ? 'bk-phone' : 'bk-desk'}${showChrome ? '' : ' bk-quiet'}`} data-cols={cols}
       style={{ ['--bk-pad' as string]: `${pad}px` }}>
       <header className="bk-top">
-        <button className="bk-icon" onClick={onClose} aria-label="Back to the library"><BackIcon /></button>
+        <button className="bk-icon" onClick={onClose} aria-label={t('Back to the library')}><BackIcon /></button>
         <div className="bk-title">
-          <b>{meta?.name ?? 'Opening…'}</b>
-          <span>The original pages · view only</span>
+          <b>{meta?.name ?? t('Opening…')}</b>
+          <span>{t('The original pages · view only')}</span>
         </div>
         {phone ? (
           <div className="bk-menu-wrap">
-            <button className="bk-icon" onClick={() => setPanel((p) => (p === 'menu' ? null : 'menu'))} aria-label="More" aria-haspopup="menu" aria-expanded={panel === 'menu'}><MoreVIcon /></button>
+            <button className="bk-icon" onClick={() => setPanel((p) => (p === 'menu' ? null : 'menu'))} aria-label={t('More')} aria-haspopup="menu" aria-expanded={panel === 'menu'}><MoreVIcon /></button>
             {panel === 'menu' && (
               <>
                 <div className="bk-dim bk-clear" onClick={() => setPanel(null)} aria-hidden="true" />
                 <div className="bk-menu" role="menu">
-                  <button role="menuitem" onClick={() => { setPanel(null); onTheme(); change({ theme: 'auto' }); }}>{dark ? <SunIcon /> : <MoonIcon />}{dark ? 'Day paper' : 'Night paper'}</button>
-                  <button role="menuitem" onClick={() => { setPanel(null); setZoom(zoom * 1.5); }}><PlusIcon />Zoom in</button>
-                  <button role="menuitem" onClick={() => { setPanel(null); setZoom(zoom / 1.5); }}><MinusIcon />Zoom out</button>
-                  <button role="menuitem" onClick={() => { setPanel(null); setZoom(zoom > 1.02 ? 1 : fitWidthZoom); }}><AaIcon />{zoom > 1.02 ? 'Fit the whole page' : 'Fit the page width'}</button>
-                  <button role="menuitem" onClick={openAsk}><PencilIcon />Highlight or take notes</button>
-                  {onPdf && <button role="menuitem" onClick={onPdf}><BookOpenIcon />Original PDF</button>}
+                  <button role="menuitem" onClick={() => { setPanel(null); onTheme(); change({ theme: 'auto' }); }}>{dark ? <SunIcon /> : <MoonIcon />}{dark ? t('Day paper') : t('Night paper')}</button>
+                  <button role="menuitem" onClick={() => { setPanel(null); setZoom(zoom * 1.5); }}><PlusIcon />{t('Zoom in')}</button>
+                  <button role="menuitem" onClick={() => { setPanel(null); setZoom(zoom / 1.5); }}><MinusIcon />{t('Zoom out')}</button>
+                  <button role="menuitem" onClick={() => { setPanel(null); setZoom(zoom > 1.02 ? 1 : fitWidthZoom); }}><AaIcon />{zoom > 1.02 ? t('Fit the whole page') : t('Fit the page width')}</button>
+                  <button role="menuitem" onClick={openAsk}><PencilIcon />{t('Highlight or take notes')}</button>
+                  {onPdf && <button role="menuitem" onClick={onPdf}><BookOpenIcon />{t('Original PDF')}</button>}
                 </div>
               </>
             )}
           </div>
         ) : (
           <div className="bk-actions">
-            <button className="bk-icon" onClick={() => setZoom(zoom / 1.25)} aria-label="Zoom out" title="Zoom out (−)"><MinusIcon /></button>
-            <button className="bk-zoom" onClick={() => setZoom(1)} aria-label="Fit the whole page" title="Fit the whole page (0)">{Math.round(zoom * 100)}%</button>
-            <button className="bk-icon" onClick={() => setZoom(zoom * 1.25)} aria-label="Zoom in" title="Zoom in (+)"><PlusIcon /></button>
-            <button className="bk-icon" onClick={() => setPanel((p) => (p === 'contents' ? null : 'contents'))} aria-label="Contents" aria-pressed={panel === 'contents'}><ListIcon /></button>
-            <button className="bk-pill" onClick={openAsk} aria-label="Highlight or take notes" title="Read the pages into text to search, highlight and take notes"><PencilIcon />Read text</button>
-            <button className={`bk-icon${marked ? ' on' : ''}`} onClick={toggleBookmark} aria-label={marked ? 'Remove bookmark' : 'Add bookmark'} aria-pressed={marked}><BookmarkIcon filled={marked} /></button>
-            <button className="bk-icon" onClick={() => setPanel((p) => (p === 'aa' ? null : 'aa'))} aria-label="Reading settings" aria-pressed={panel === 'aa'}><AaIcon /></button>
-            <button className="bk-icon" onClick={() => { onTheme(); change({ theme: 'auto' }); }} aria-label={dark ? 'Day paper' : 'Night paper'}>{dark ? <SunIcon /> : <MoonIcon />}</button>
-            {onPdf && <button className="bk-icon on" onClick={onPdf} aria-label="Back to the original PDF" title="Back to the original PDF"><BookOpenIcon /></button>}
+            <button className="bk-icon" onClick={() => setZoom(zoom / 1.25)} aria-label={t('Zoom out')} title={t('Zoom out (−)')}><MinusIcon /></button>
+            <button className="bk-zoom" onClick={() => setZoom(1)} aria-label={t('Fit the whole page')} title={t('Fit the whole page (0)')}>{Math.round(zoom * 100)}%</button>
+            <button className="bk-icon" onClick={() => setZoom(zoom * 1.25)} aria-label={t('Zoom in')} title={t('Zoom in (+)')}><PlusIcon /></button>
+            <button className="bk-icon" onClick={() => setPanel((p) => (p === 'contents' ? null : 'contents'))} aria-label={t('Contents')} aria-pressed={panel === 'contents'}><ListIcon /></button>
+            <button className="bk-pill" onClick={openAsk} aria-label={t('Highlight or take notes')} title={t('Read the pages into text to search, highlight and take notes')}><PencilIcon />{t('Read text')}</button>
+            <button className={`bk-icon${marked ? ' on' : ''}`} onClick={toggleBookmark} aria-label={marked ? t('Remove bookmark') : t('Add bookmark')} aria-pressed={marked}><BookmarkIcon filled={marked} /></button>
+            <button className="bk-icon" onClick={() => setPanel((p) => (p === 'aa' ? null : 'aa'))} aria-label={t('Reading settings')} aria-pressed={panel === 'aa'}><AaIcon /></button>
+            <button className="bk-icon" onClick={() => { onTheme(); change({ theme: 'auto' }); }} aria-label={dark ? t('Day paper') : t('Night paper')}>{dark ? <SunIcon /> : <MoonIcon />}</button>
+            {onPdf && <button className="bk-icon on" onClick={onPdf} aria-label={t('Back to the original PDF')} title={t('Back to the original PDF')}><BookOpenIcon /></button>}
           </div>
         )}
       </header>
 
-      <div role="main" aria-label="Pages" className={`bk-view${zoomed ? ' zoomed' : ''}${scrollMode ? ' strip' : ''}`} ref={viewRef} onScroll={onScroll} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={(e) => { down.current = null; touches.current.delete(e.pointerId); pinch.current = null; }}>
+      <div role="main" aria-label={t('Pages')} className={`bk-view${zoomed ? ' zoomed' : ''}${scrollMode ? ' strip' : ''}`} ref={viewRef} onScroll={onScroll} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={(e) => { down.current = null; touches.current.delete(e.pointerId); pinch.current = null; }}>
         {pdf && box.w > 0 && !scrollMode && (
           <div className="bk-spread" ref={spreadRef}>
             {window_.map((i) => (
@@ -627,49 +628,49 @@ export function PageBook({ docId, startPage, dark, onTheme, onClose, onPdf, scan
       </div>
 
       {offer && !scan && !ask && pdf && showChrome && (
-        <div className="bk-offer" role="region" aria-label="Read the text">
-          <span className="bk-offer-text"><b>These pages are pictures.</b> Read them into text to search, highlight and take notes.</span>
+        <div className="bk-offer" role="region" aria-label={t('Read the text')}>
+          <span className="bk-offer-text"><b>{t('These pages are pictures.')}</b> {t('Read them into text to search, highlight and take notes.')}</span>
           <button className="button button-small" onClick={() => { closeOffer(); onScan({ from: first, count: n }); }}>
-            Read the text <small>{ocrEstimate(n)}</small>
+            {t('Read the text')} <small>{ocrEstimate(n)}</small>
           </button>
-          {n > 24 && <button className="chip-button" onClick={() => { closeOffer(); onScan({ from: first, count: 20 }); }}>Next 20 pages</button>}
-          <button className="bk-offer-x" onClick={closeOffer} aria-label="Not now" title="Not now"><CloseIcon /></button>
+          {n > 24 && <button className="chip-button" onClick={() => { closeOffer(); onScan({ from: first, count: 20 }); }}>{t('Next 20 pages')}</button>}
+          <button className="bk-offer-x" onClick={closeOffer} aria-label={t('Not now')} title={t('Not now')}><CloseIcon /></button>
         </div>
       )}
 
       {scan && !phone && (
-        <div className="bk-scan" role="status" aria-label={`Reading the pages, ${scan.done} of ${scan.total}. The text opens in a moment.`}><span>{scan.done}/{scan.total}</span></div>
+        <div className="bk-scan" role="status" aria-label={t('Reading the pages, {done} of {total}. The text opens in a moment.', { done: scan.done, total: scan.total })}><span>{scan.done}/{scan.total}</span></div>
       )}
 
       <footer className="bk-bottom">
         <div className="bk-progress">
-          {scrub !== null && <div className="bk-scrub" aria-hidden="true">Page {(scrollMode ? pageAt(scrub * Math.max(0, stripH - box.h) + box.h * 0.3) : Math.round(scrub * Math.max(0, n - cols))) + 1}</div>}
+          {scrub !== null && <div className="bk-scrub" aria-hidden="true">{t('Page {n}', { n: (scrollMode ? pageAt(scrub * Math.max(0, stripH - box.h) + box.h * 0.3) : Math.round(scrub * Math.max(0, n - cols))) + 1 })}</div>}
           <input
-            type="range" className="bk-slider" min={0} max={1000} value={Math.round(shown * 1000)} aria-label="Position in the book"
+            type="range" className="bk-slider" min={0} max={1000} value={Math.round(shown * 1000)} aria-label={t('Position in the book')}
             aria-valuetext={pageLabel}
             onChange={(e) => setScrub(Number(e.target.value) / 1000)}
             onPointerUp={commitScrub} onKeyUp={commitScrub} onBlur={() => setScrub(null)}
             style={{ ['--p' as string]: `${shown * 100}%` }}
           />
-          <div className="bk-labels"><span>{pageLabel}</span>{scan && phone && <span className="bk-scanchip" role="status" aria-label={`Reading the pages, ${scan.done} of ${scan.total}. The text opens in a moment.`}>{scan.done}/{scan.total}</span>}<span>{Math.round(shown * 100)}%</span></div>
+          <div className="bk-labels"><span>{pageLabel}</span>{scan && phone && <span className="bk-scanchip" role="status" aria-label={t('Reading the pages, {done} of {total}. The text opens in a moment.', { done: scan.done, total: scan.total })}>{scan.done}/{scan.total}</span>}<span>{Math.round(shown * 100)}%</span></div>
         </div>
         {phone && toolRow}
       </footer>
-      {phone && !showChrome && <div className="bk-status"><span>{meta?.name}</span>{scan && phone && <span className="bk-scanchip" role="status" aria-label={`Reading the pages, ${scan.done} of ${scan.total}. The text opens in a moment.`}>{scan.done}/{scan.total}</span>}<span>{Math.round(frac * 100)}%</span></div>}
+      {phone && !showChrome && <div className="bk-status"><span>{meta?.name}</span>{scan && phone && <span className="bk-scanchip" role="status" aria-label={t('Reading the pages, {done} of {total}. The text opens in a moment.', { done: scan.done, total: scan.total })}>{scan.done}/{scan.total}</span>}<span>{Math.round(frac * 100)}%</span></div>}
 
       {settings.comfort && <div className="bk-shield" style={{ opacity: settings.warmth / 100 }} aria-hidden="true" />}
 
       {panel === 'aa' && (
-        <BookSheet kind="pop" label="Reading settings" onClose={() => setPanel(null)}>
+        <BookSheet kind="pop" label={t('Reading settings')} onClose={() => setPanel(null)}>
           <ReadingPanel settings={settings} change={change} themeNow={themeNow} wide={!phone} onPdf={onPdf} imageOnly
             zoom={{ value: zoom, min: ZOOM_MIN, max: ZOOM_MAX, onChange: (v) => setZoom(v), onFitPage: () => setZoom(fitPageZoom), onFitWidth: () => setZoom(fitWidthZoom) }} />
         </BookSheet>
       )}
       {panel === 'contents' && (
-        <BookSheet kind={phone ? 'pop' : 'drawer'} label="Contents" onClose={() => setPanel(null)}>
+        <BookSheet kind={phone ? 'pop' : 'drawer'} label={t('Contents')} onClose={() => setPanel(null)}>
           <div className="bk-contents">
-            <h3 className="bk-panel-title">Contents</h3>
-            {outline.length === 0 ? <p className="bk-empty">This PDF has no contents list. Use the slider to move through it.</p> : (
+            <h3 className="bk-panel-title">{t('Contents')}</h3>
+            {outline.length === 0 ? <p className="bk-empty">{t('This PDF has no contents list. Use the slider to move through it.')}</p> : (
               <ul className="bk-toc">
                 {outline.map((o, i) => (
                   <li key={i} className={`lvl-${Math.min(o.level, 2)}`}>
@@ -684,23 +685,26 @@ export function PageBook({ docId, startPage, dark, onTheme, onClose, onPdf, scan
       {ask && (
         <>
           <div className="bk-dim bk-clear" onClick={() => setAsk(false)} aria-hidden="true" />
-          <div className="bk-ask" role="dialog" aria-label="Take notes on the text">
-            <b>Highlight or take notes?</b>
-            {scan ? <p>Reading the pages… {scan.done} of {scan.total}</p> : (
+          <div className="bk-ask" role="dialog" aria-label={t('Take notes on the text')}>
+            <b>{t('Highlight or take notes?')}</b>
+            {scan ? <p>{t('Reading the pages… {done} of {total}', { done: scan.done, total: scan.total })}</p> : (
               <>
-                <p>These pages are pictures. To highlight or write notes in book mode, the app reads them into text on your device. The PDF is not changed.</p>
+                <p>{t('These pages are pictures. To highlight or write notes in book mode, the app reads them into text on your device. The PDF is not changed.')}</p>
                 <div className="bk-ask-actions">
                   <button className="button button-small" onClick={() => { setAsk(false); onScan({ from: first, count: n }); }}>
-                    Read the whole book <small>{ocrEstimate(n)}</small>
+                    {t('Read the whole book')} <small>{ocrEstimate(n)}</small>
                   </button>
                   {n > 24 && (
                     <button className="chip-button" onClick={() => { setAsk(false); onScan({ from: first, count: 20 }); }}>
-                      Next 20 pages <small>{ocrEstimate(20)}</small>
+                      {t('Next 20 pages')} <small>{ocrEstimate(20)}</small>
                     </button>
                   )}
-                  <button className="chip-button" onClick={() => setAsk(false)}>Not now</button>
+                  <button className="chip-button" onClick={() => setAsk(false)}>{t('Not now')}</button>
                 </div>
-                {onPdf && <p className="bk-ask-alt">Or <button className="link" onClick={() => { setAsk(false); onPdf(); }}>open the PDF</button> to write with the pen.</p>}
+                {onPdf && (() => {
+                  const [pre, post] = t('Or {link} to write with the pen.', { link: '\u0001' }).split('\u0001');
+                  return <p className="bk-ask-alt">{pre}<button className="link" onClick={() => { setAsk(false); onPdf(); }}>{t('open the PDF')}</button>{post}</p>;
+                })()}
               </>
             )}
           </div>

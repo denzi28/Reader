@@ -48,7 +48,7 @@ export function InstallChip({ card }: { card?: boolean } = {}) {
             <small>{t('Works offline, opens like an app.')}</small>
           </span>
           <button className="install-go" onClick={() => (canPrompt ? void install() : setSteps(true))}>{t('Install')}</button>
-          <button className="install-x" onClick={dismiss} aria-label="Hide the install suggestion"><CloseIcon /></button>
+          <button className="install-x" onClick={dismiss} aria-label={t('Hide the install suggestion')}><CloseIcon /></button>
         </div>
       ) : (
       <span className="install-chip">
@@ -56,7 +56,7 @@ export function InstallChip({ card }: { card?: boolean } = {}) {
           <DownloadIcon />
           <span>{t('Install app')}</span>
         </button>
-        <button className="install-x" onClick={dismiss} aria-label="Hide the install suggestion"><CloseIcon /></button>
+        <button className="install-x" onClick={dismiss} aria-label={t('Hide the install suggestion')}><CloseIcon /></button>
       </span>
       )}
       {steps && createPortal(
@@ -68,7 +68,7 @@ export function InstallChip({ card }: { card?: boolean } = {}) {
                 <h2>{t('Add to Home Screen')}</h2>
                 <p>{t('It then opens like an app, and works with no connection.')}</p>
               </div>
-              <button className="icon-button" onClick={() => setSteps(false)} aria-label="Close"><CloseIcon /></button>
+              <button className="icon-button" onClick={() => setSteps(false)} aria-label={t('Close')}><CloseIcon /></button>
             </header>
             <ol className="install-steps">
               <li>{bold(t("Tap {b} in Safari's toolbar."), t('Share'))}</li>
