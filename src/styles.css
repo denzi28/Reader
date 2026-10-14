@@ -907,8 +907,8 @@ mark {
   font-size: 1.25rem;
 }
 .landing-brand.small { font-size: 1rem; }
-.logo { width: 30px; height: 30px; }
-.landing-brand.small .logo { width: 24px; height: 24px; }
+.logo { width: 38px; height: 38px; }
+.landing-brand.small .logo { width: 30px; height: 30px; }
 .logo-back { fill: var(--desk-edge); }
 .logo-page { fill: var(--page); stroke: var(--ink); stroke-width: 1.4; }
 .logo-line { stroke: var(--muted); stroke-width: 1.4; stroke-linecap: round; opacity: 0.6; }
@@ -3691,3 +3691,14 @@ button.me-row { cursor: pointer; }
 
 .boot-paper { min-height: 100dvh; background: var(--desk); }
 .feature-text h2, .hero h1 { text-wrap: balance; }
+
+/* The Leafpage mark: a leaf in the sage of the brand, with its vein in paper. */
+:root { --leaf: #5f8060; --leaf-vein: #fbf5e6; }
+:root[data-theme='dark'] { --leaf: #95bb96; --leaf-vein: #1b1712; }
+.leaf-mark, .logo { flex: none; }
+.leaf-body { fill: var(--leaf); }
+.leaf-vein { fill: none; stroke: var(--leaf-vein); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.brand .leaf-mark { width: 1.15em; height: 1.15em; margin-right: 0.12em; vertical-align: -0.2em; }
+.guest-back .leaf-mark { width: 28px; height: 28px; }
+.deskbar .brand { display: inline-flex; align-items: center; }
+.deskbar .brand .leaf-mark { width: 1.5em; height: 1.5em; margin-right: 0.1em; vertical-align: 0; }

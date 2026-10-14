@@ -11,7 +11,7 @@ export async function makeNotebook(spec: NotebookSpec): Promise<File> {
   const pages = Math.max(1, Math.min(MAX_NOTEBOOK_PAGES, Math.round(spec.pages)));
   const doc = await PDFDocument.create();
   doc.setTitle(spec.name);
-  doc.setProducer('The Reader');
+  doc.setProducer('Leafpage');
   doc.setSubject(`note-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`);
   doc.setCreationDate(new Date());
   const rule = rgb(0.72, 0.78, 0.88);

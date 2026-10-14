@@ -15,7 +15,7 @@ const PERKS = [
 const LEAD: Record<PaywallReason, { title: string; text: string }> = {
   docs: { title: t('Your free library is full'), text: t('The free plan keeps {n} documents. Everything you have stays; to add more, remove one or go Premium.', { n: FREE_DOCS }) },
   sync: { title: t('Sync runs on another device'), text: t('The free plan syncs on one device, by hand. Premium syncs every device by itself.') },
-  me: { title: t('The Reader Premium'), text: t('Reading, pen, highlights, book mode, PDF tools and reading scanned pages stay free.') },
+  me: { title: t('Leafpage Premium'), text: t('Reading, pen, highlights, book mode, PDF tools and reading scanned pages stay free.') },
 };
 
 /** The sheet that explains Premium. It is bought in the app, through Google Play or the App Store, never here. */

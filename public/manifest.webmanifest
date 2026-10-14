@@ -1,6 +1,6 @@
 {
   "id": "/",
-  "name": "The Reader",
+  "name": "Leafpage",
   "short_name": "Reader",
   "description": "A PDF reader that feels like paper: write on your pages, make notes, and keep everything in your own Google Drive.",
   "start_url": "/",

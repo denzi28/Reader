@@ -52,8 +52,8 @@ export async function makeCtx(title: string): Promise<Ctx> {
   // Fixed details, so converting the same file twice gives the very same PDF.
   const epoch = new Date(0);
   doc.setTitle(title);
-  doc.setProducer('The Reader');
-  doc.setCreator('The Reader');
+  doc.setProducer('Leafpage');
+  doc.setCreator('Leafpage');
   doc.setCreationDate(epoch);
   doc.setModificationDate(epoch);
   const fonts = new FontBook(doc);

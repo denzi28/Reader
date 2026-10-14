@@ -396,3 +396,13 @@ export const ToolsIcon = () => (
     <path d="M20 4 8.12 15.88M14.47 14.48 20 20M8.12 8.12 12 12" />
   </Icon>
 );
+
+/** The leaf of the Leafpage mark: a leaf with its vein, in the green of the brand (`--leaf`). */
+export function LeafMark({ className = 'leaf-mark' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+      <path className="leaf-body" d="M6 26C4 14 14 4 27 5c1 13-9 23-21 21z" />
+      <path className="leaf-vein" d="M5 27 22 10M9.5 22.5l.3-3.6m-.3 3.6 3.6-.3M13.5 18.5l.4-4.2m-.4 4.2 4.2-.4M17.5 14.5l.3-3.4m-.3 3.4 3.4-.3" />
+    </svg>
+  );
+}

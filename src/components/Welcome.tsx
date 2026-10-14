@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { t } from '../lib/i18n';
-import { MoonIcon, SunIcon } from './icons';
+import { LeafMark, MoonIcon, SunIcon } from './icons';
 import { InkArt, PhoneMirror, PrivacyArt, SyncArt } from './landing/Art';
 import { delay, PenScene } from './landing/PenScene';
 import { ToolChips } from './landing/ToolChips';
@@ -37,14 +37,7 @@ function useReveal() {
 }
 
 function Logo() {
-  return (
-    <svg className="logo" viewBox="0 0 32 32" aria-hidden="true">
-      <rect x="6" y="4" width="18" height="24" rx="2.5" className="logo-back" transform="rotate(-8 15 16)" />
-      <rect x="8" y="4" width="18" height="24" rx="2.5" className="logo-page" />
-      <path className="logo-line" d="M12 11h10M12 15h10M12 19h6" />
-      <path className="logo-ink" d="M11.5 23.5c2-1.6 3.4 1.6 5.4 0s3.4 1.4 5.2-.2" />
-    </svg>
-  );
+  return <LeafMark className="logo" />;
 }
 
 function SignIn({ label, onError }: { label: string; onError: (m: string) => void }) {
@@ -80,7 +73,7 @@ export function Welcome({ onTools, dark, onTheme }: Props) {
       <div className="landing-glow" aria-hidden="true" />
 
       <header className="landing-nav">
-        <span className="landing-brand"><Logo /> The Reader</span>
+        <span className="landing-brand"><Logo /> Leafpage</span>
         <ToolChips onTry={onTools} />
         <div className="landing-nav-actions">
           <button className="link nav-link" onClick={() => onTools()}>{t('Try the PDF tools')}</button>
@@ -146,7 +139,7 @@ export function Welcome({ onTools, dark, onTheme }: Props) {
         <Section eyebrow={t('Yours alone')} title={t('Your files stay in your Drive.')} art={<PrivacyArt />}>
           <ul className="checks">
             <li>{t('Everything is kept in a private folder in your own Google Drive.')}</li>
-            <li>{t('The Reader can see that folder and nothing else in your Drive.')}</li>
+            <li>{t('Leafpage can see that folder and nothing else in your Drive.')}</li>
             <li>{t('No servers of ours hold your documents, no one reads them, and there are no ads.')}</li>
           </ul>
         </Section>
@@ -175,7 +168,7 @@ export function Welcome({ onTools, dark, onTheme }: Props) {
       </main>
 
       <footer className="landing-foot">
-        <span className="landing-brand small"><Logo /> The Reader</span>
+        <span className="landing-brand small"><Logo /> Leafpage</span>
         <nav>
           <a href="/privacy.html">{t('Privacy')}</a>
           <a href="/terms.html">{t('Terms')}</a>

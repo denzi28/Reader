@@ -1,4 +1,4 @@
-// The Reader's service worker: the app opens with no connection. The built files
+// Leafpage's service worker: the app opens with no connection. The built files
 // are kept when it is installed; pdf.js data files are kept as they are used.
 // Sign-in (/api) and Google are never touched. The build fills in the lists below.
 const VERSION = '__VERSION__';

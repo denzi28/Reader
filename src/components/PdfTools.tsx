@@ -308,7 +308,7 @@ function Ready({ tool, finished, signedIn, guest, onClose, onChanged, onOpen }: 
 function Promo({ guest }: { guest?: boolean }) {
   const [copied, setCopied] = useState(false);
   const share = async () => {
-    const data = { title: 'The Reader', text: t('A PDF reader that feels like paper: write on your pages, keep everything in your own Google Drive.'), url: location.origin };
+    const data = { title: 'Leafpage', text: t('A PDF reader that feels like paper: write on your pages, keep everything in your own Google Drive.'), url: location.origin };
     try {
       if (navigator.share) await navigator.share(data);
       else {
@@ -321,7 +321,7 @@ function Promo({ guest }: { guest?: boolean }) {
     <aside className="promo">
       <span className="promo-mark"><ToolsIcon /></span>
       <div className="promo-text">
-        <strong>{guest ? t('Like it? There is more in The Reader.') : t('Like The Reader? Tell a friend.')}</strong>
+        <strong>{guest ? t('Like it? There is more in Leafpage.') : t('Like Leafpage? Tell a friend.')}</strong>
         <p>
           {guest
             ? t('Write on your PDFs with a pen and highlighter, and find them on every device, kept in your own Google Drive.')

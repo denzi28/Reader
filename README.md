@@ -1,4 +1,4 @@
-# Reader
+# Leafpage
 
 A fast, paper-feeling document reader that runs in the browser. Open a PDF,
 read it, and mark it up with a pen, highlighter or eraser. Everything stays on

@@ -44,7 +44,7 @@ export function InstallChip({ card }: { card?: boolean } = {}) {
         <div className="install-card">
           <span className="install-card-icon"><DownloadIcon /></span>
           <span className="install-card-text">
-            <b>{t('Install The Reader')}</b>
+            <b>{t('Install Leafpage')}</b>
             <small>{t('Works offline, opens like an app.')}</small>
           </span>
           <button className="install-go" onClick={() => (canPrompt ? void install() : setSteps(true))}>{t('Install')}</button>
@@ -52,7 +52,7 @@ export function InstallChip({ card }: { card?: boolean } = {}) {
         </div>
       ) : (
       <span className="install-chip">
-        <button onClick={() => (canPrompt ? void install() : setSteps(true))} title={t('Add The Reader to your home screen; it then works with no connection')}>
+        <button onClick={() => (canPrompt ? void install() : setSteps(true))} title={t('Add Leafpage to your home screen; it then works with no connection')}>
           <DownloadIcon />
           <span>{t('Install app')}</span>
         </button>

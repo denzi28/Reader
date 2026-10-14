@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { t } from '../lib/i18n';
-import { BackIcon, MoonIcon, SunIcon } from './icons';
+import { BackIcon, LeafMark, MoonIcon, SunIcon } from './icons';
 import { TOOLS, type ToolId } from './toolList';
 import { GoogleButton, LangButton } from './SyncControl';
 
@@ -43,7 +43,7 @@ export function GuestTools({ dark, onTheme, onBack }: Props) {
       <header className="guest-bar">
         <button className="guest-back" onClick={onBack} aria-label={t('Back to the welcome page')}>
           <BackIcon />
-          <span>The Reader</span>
+          <LeafMark /><span>Leafpage</span>
         </button>
         <div className="guest-bar-actions">
           <LangButton />
