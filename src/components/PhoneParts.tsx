@@ -254,6 +254,7 @@ export function MePage({ dark, onTheme, docCount }: { dark: boolean; onTheme: ()
   return (
     <section className="phone-page" aria-label="Me">
       <AccountCard />
+      <InstallChip card />
       <PlanCard docCount={docCount} />
       <div className="me-card me-list">
         <button className="me-row" onClick={onTheme} role="switch" aria-checked={dark}>
@@ -264,7 +265,6 @@ export function MePage({ dark, onTheme, docCount }: { dark: boolean; onTheme: ()
           </span>
           <span className={`switch${dark ? ' on' : ''}`} aria-hidden="true" />
         </button>
-        <div className="me-row me-install"><InstallChip /></div>
         <a className="me-row" href="/privacy.html"><span className="me-row-icon"><ShieldIcon /></span><span className="me-row-text"><span className="me-row-title">Privacy</span></span><span className="sheet-row-go"><ChevronIcon /></span></a>
         <a className="me-row" href="/terms.html"><span className="me-row-icon"><ShieldIcon /></span><span className="me-row-text"><span className="me-row-title">Terms</span></span><span className="sheet-row-go"><ChevronIcon /></span></a>
       </div>

@@ -4,7 +4,7 @@
 import { useLayoutEffect, type RefObject } from 'react';
 
 /** Controls that get the light and the press (the bars of tabs have their own). */
-const CONTROLS = '.icon-button, .tool, .bk-icon, .bk-tool, .nav-tool, .pn-item, .pn-plus, .top-tabs button, .account-btn, .tool-btn';
+const CONTROLS = '.icon-button, .tool, .bk-icon, .bk-tool, .nav-tool, .pn-item, .pn-plus, .top-tabs button, .account-btn, .tool-btn, .install-go, .install-x, .wb-item';
 
 const reduced = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 

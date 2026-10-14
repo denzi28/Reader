@@ -22,7 +22,7 @@ export function UpdateToast() {
 }
 
 /** Offers to put the app on the home screen: one tap where the browser allows it, the steps on an iPhone. */
-export function InstallChip() {
+export function InstallChip({ card }: { card?: boolean } = {}) {
   const { canPrompt, iosSteps, install } = useInstall();
   const [hidden, setHidden] = useState(wasDismissed);
   const [steps, setSteps] = useState(false);
@@ -33,6 +33,17 @@ export function InstallChip() {
   };
   return (
     <>
+      {card ? (
+        <div className="install-card">
+          <span className="install-card-icon"><DownloadIcon /></span>
+          <span className="install-card-text">
+            <b>Install The Reader</b>
+            <small>Works offline, opens like an app.</small>
+          </span>
+          <button className="install-go" onClick={() => (canPrompt ? void install() : setSteps(true))}>Install</button>
+          <button className="install-x" onClick={dismiss} aria-label="Hide the install suggestion"><CloseIcon /></button>
+        </div>
+      ) : (
       <span className="install-chip">
         <button onClick={() => (canPrompt ? void install() : setSteps(true))} title="Add The Reader to your home screen; it then works with no connection">
           <DownloadIcon />
@@ -40,6 +51,7 @@ export function InstallChip() {
         </button>
         <button className="install-x" onClick={dismiss} aria-label="Hide the install suggestion"><CloseIcon /></button>
       </span>
+      )}
       {steps && createPortal(
         <div className="tool-menu" role="dialog" aria-modal="true" aria-label="Add to Home Screen">
           <div className="tool-menu-backdrop" onClick={() => setSteps(false)} />
