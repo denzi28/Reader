@@ -3855,3 +3855,35 @@ button.me-row { cursor: pointer; }
   .page-jump-sub input { width: 2.8rem; height: 32px; font-size: 0.9rem; border-radius: 8px; }
   .bk-phone .bk-top .bk-icon { width: 44px; height: 44px; }
 }
+
+/* ---------- the first-time tour ---------- */
+.intro-wrap { position: fixed; inset: 0; z-index: 90; display: grid; place-items: end center; padding: 0 12px calc(12px + env(safe-area-inset-bottom)); }
+.intro-scrim { position: absolute; inset: 0; background: rgba(28, 18, 6, 0.5); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); animation: intro-fade 0.3s ease both; }
+.intro-card { position: relative; width: min(440px, 100%); padding: 22px 22px 18px; border-radius: 28px; background: var(--page); border: 1px solid var(--line); box-shadow: 0 30px 70px -20px rgba(28, 18, 6, 0.7); text-align: center; animation: intro-rise 0.45s var(--spring, cubic-bezier(0.3, 1.3, 0.5, 1)) both; }
+@media (min-width: 720px) { .intro-wrap { place-items: center; } }
+.intro-x { position: absolute; right: 8px; top: 8px; color: var(--muted); }
+.intro-pic { display: grid; place-items: center; height: 150px; margin: 6px 0 10px; border-radius: 20px; background: color-mix(in srgb, var(--fc) 10%, var(--card)); animation: intro-swap 0.4s var(--ease) both; }
+.intro-art { width: min(260px, 80%); height: auto; }
+.intro-card h2 { margin: 0 0 8px; font-family: var(--serif); font-size: 1.45rem; letter-spacing: -0.022em; animation: intro-swap 0.4s var(--ease) both; }
+.intro-card p { margin: 0 auto; max-width: 34ch; color: var(--muted); line-height: 1.5; font-size: 0.97rem; min-height: 4.6em; animation: intro-swap 0.4s var(--ease) 0.05s both; }
+.intro-dots { display: flex; justify-content: center; gap: 4px; margin: 14px 0 6px; }
+.intro-dots button { width: 28px; height: 28px; padding: 0; border: 0; background: none; display: grid; place-items: center; }
+.intro-dots button::before { content: ''; width: 8px; height: 8px; border-radius: 4px; background: var(--line); transition: width 0.3s var(--spring, ease), background 0.2s; }
+.intro-dots button.on::before { width: 22px; background: var(--fc); }
+.intro-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 6px; }
+.intro-skip { min-height: 44px; padding: 0 14px; border: 0; background: none; color: var(--muted); font: 600 0.95rem var(--sans); }
+.intro-next { min-width: 140px; min-height: 48px; background: var(--fc); color: #fff; }
+:root[data-theme='dark'] .intro-next { color: #1d140a; }
+.intro-dot { fill: var(--fc); } .intro-plus { stroke: #fff; stroke-width: 3; stroke-linecap: round; }
+.intro-hl { fill: #f3d36a; opacity: 0.75; } .intro-ink { fill: none; stroke: #25489b; stroke-width: 2.4; stroke-linecap: round; }
+:root[data-theme='dark'] .intro-ink { stroke: #7aa2ff; }
+.intro-title { fill: var(--ink); } .intro-check { fill: var(--fc); } .art-box { fill: none; stroke: var(--muted); stroke-width: 1.4; }
+.art-line-fill { fill: color-mix(in srgb, var(--ink) 10%, transparent); }
+.intro-cloud { fill: color-mix(in srgb, var(--fc) 22%, var(--card)); stroke: var(--fc); stroke-width: 1.6; }
+.intro-tick { fill: none; stroke: var(--fc); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+@keyframes intro-fade { from { opacity: 0; } }
+@keyframes intro-rise { from { opacity: 0; transform: translateY(30px) scale(0.96); } }
+@keyframes intro-swap { from { opacity: 0; transform: translateY(8px); } }
+@media (prefers-reduced-motion: reduce) { .intro-scrim, .intro-card, .intro-pic, .intro-card h2, .intro-card p { animation: none; } }
+
+.intro-card:focus { outline: none; }

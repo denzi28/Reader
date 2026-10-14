@@ -6,7 +6,7 @@ import { createPortal } from 'react-dom';
 import type { DocMeta } from '../lib/types';
 import {
   BooksIcon, CheckIcon, ChevronIcon, DownloadIcon, FolderMoveIcon, FolderPlusIcon, MarkIcon, MoonIcon, PlusIcon, ShieldIcon,
-  ToolsIcon, VibrateIcon, StarIcon, SunIcon, TrashIcon, UploadIcon, UserIcon, PencilIcon,
+  ToolsIcon, VibrateIcon, SparkIcon, StarIcon, SunIcon, TrashIcon, UploadIcon, UserIcon, PencilIcon,
 } from './icons';
 import { useSyncStatus } from '../lib/sync/useSync';
 import { InstallChip } from './PwaBits';
@@ -252,7 +252,7 @@ function PhoneTools({ docs, onPick }: { docs: DocMeta[]; onPick: (id: ToolId, st
 }
 
 /** Account, night paper, installing the app, and the small print. */
-export function MePage({ dark, onTheme, docCount }: { dark: boolean; onTheme: () => void; docCount: number }) {
+export function MePage({ dark, onTheme, docCount, onTour }: { dark: boolean; onTheme: () => void; docCount: number; onTour?: () => void }) {
   const [touch, setTouch] = useState(hapticsOn);
   return (
     <section className="phone-page" aria-label={t('Me')}>
@@ -276,6 +276,13 @@ export function MePage({ dark, onTheme, docCount }: { dark: boolean; onTheme: ()
               <span className="me-row-sub">{t('A light vibration when you tap')}</span>
             </span>
             <span className={`switch${touch ? ' on' : ''}`} aria-hidden="true" />
+          </button>
+        )}
+        {onTour && (
+          <button className="me-row" onClick={onTour}>
+            <span className="me-row-icon"><SparkIcon /></span>
+            <span className="me-row-text"><span className="me-row-title">{t('How it works')}</span><span className="me-row-sub">{t('A short tour')}</span></span>
+            <span className="sheet-row-go" aria-hidden="true"><ChevronIcon /></span>
           </button>
         )}
         <a className="me-row" href="/privacy.html"><span className="me-row-icon"><ShieldIcon /></span><span className="me-row-text"><span className="me-row-title">{t('Privacy')}</span></span><span className="sheet-row-go"><ChevronIcon /></span></a>

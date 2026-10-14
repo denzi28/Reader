@@ -18,6 +18,7 @@ import {
 } from './icons';
 import { AddSheet, BookSheet, MePage, PhoneNav, type PhoneTab, ToolsPage } from './PhoneParts';
 import { TopBar } from './TopBar';
+import { Intro, introSeen, markIntroSeen } from './Intro';
 import { Wordmark } from './Wordmark';
 import { AccountMenu } from './SyncControl';
 import { usePhone } from '../lib/usePhone';
@@ -288,6 +289,7 @@ export function Library(props: Props) {
   const [dropOn, setDropOn] = useState<string | null>(null);
   const [query, setQuery] = useState(lastQuery);
   const [newNote, setNewNote] = useState(false);
+  const [intro, setIntro] = useState(false);
   const [downloading, setDownloading] = useState<DocMeta | null>(null);
   const [makingNote, setMakingNote] = useState(false);
   const [noteError, setNoteError] = useState<string | null>(null);
@@ -370,6 +372,15 @@ export function Library(props: Props) {
       setMakingNote(false);
     }
   };
+
+  // Someone new, with an empty library, is shown a short tour once; anyone who already has documents never is.
+  useEffect(() => {
+    if (!docs) return;
+    if (docs.length > 0) { if (!introSeen()) markIntroSeen(); return; }
+    if (introSeen()) return;
+    const id = window.setTimeout(() => setIntro(true), 900);
+    return () => window.clearTimeout(id);
+  }, [docs]);
 
   // A document with a note made for one of its pages is listed in Notes too, whether or not it has marks of its own.
   const notesDocs = (() => {
@@ -871,7 +882,7 @@ export function Library(props: Props) {
 
       {!phone && (onTools || onNotes) && <h2 className="page-title">{onTools ? t('PDF tools') : t('Notes')}</h2>}
       {onTools && <ToolsPage phone={phone} docs={docs ?? []} onPick={pickFromTools} />}
-      {onMe && <MePage dark={dark} onTheme={onTheme} docCount={(docs ?? []).filter((d) => !d.attached).length} />}
+      {onMe && <MePage dark={dark} onTheme={onTheme} onTour={() => setIntro(true)} docCount={(docs ?? []).filter((d) => !d.attached).length} />}
 
       {resume && (
         <button
@@ -1021,6 +1032,7 @@ export function Library(props: Props) {
       )}
 
       {downloading && <DownloadDialog doc={downloading} onClose={() => setDownloading(null)} />}
+      {intro && <Intro onClose={() => setIntro(false)} />}
       {newNote && <NewNote busy={makingNote} error={noteError} onCreate={(spec, kind) => void createNote(spec, kind)} onClose={() => setNewNote(false)} />}
       {tool && (
         <Suspense fallback={<div className="workspace"><div className="tool-backdrop" /><div className="tool-sheet"><div className="note-loading" /></div></div>}>
@@ -1149,7 +1161,7 @@ export function Library(props: Props) {
             {addButton}
           </>
         )}
-        account={<AccountMenu dark={dark} onTheme={onTheme} docCount={docs?.length ?? 0} />}
+        account={<AccountMenu dark={dark} onTheme={onTheme} docCount={docs?.length ?? 0} onTour={() => setIntro(true)} />}
       />
           <div className="lib-main">{content}</div>
         </div>

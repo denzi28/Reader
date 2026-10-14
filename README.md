@@ -35,6 +35,13 @@ your device.
   place. Sync resends the longer PDF (`pdfDirty` on this device's sync record) and
   other devices replace their copy when Drive's `pdf-<id>.pdf` changes, so an open
   note on another device grows live.
+- **Touch.** On a touch screen every control is at least 44 x 44 px to hit (small round
+  ones grow an invisible rim). On Android a very light vibration marks the bar of places,
+  the plus, switches and page turns (`src/lib/haptics.ts`; off in *Me*; an iPhone's Safari
+  cannot vibrate, so nothing happens there).
+- **First-time tour.** Someone new with an empty library gets four short steps once
+  (`Intro.tsx`); anyone who already has documents never does. *How it works* in *Me* and in
+  the account menu shows it again.
 - **Docs (typed notes).** *New note* asks whether to make a **Notebook** (the pen,
   above) or a **Doc**: a page to type on, like Notion or Word. Headings, bold and
   italic, bulleted, numbered and to-do lists, quotes, code, dividers and pictures.

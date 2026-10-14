@@ -5,7 +5,7 @@ import { authMode, preloadGoogle } from '../lib/sync/google';
 import { useSyncStatus } from '../lib/sync/useSync';
 import { InstallChip } from './PwaBits';
 import { PlanCard } from './Paywall';
-import { AlertIcon, CloudIcon, MoonIcon, SunIcon, SyncIcon, UserIcon } from './icons';
+import { AlertIcon, CloudIcon, MoonIcon, SparkIcon, SunIcon, SyncIcon, UserIcon } from './icons';
 
 const LABEL: Record<SyncStatus['state'], string> = {
   off: t('Sign in with Google'),
@@ -136,7 +136,7 @@ function useOnline() {
  * The account button at the end of the desktop top bar: the picture (or a person while signed out), and a menu
  * with who is signed in, syncing, the paper colour, the plan and the legal links.
  */
-export function AccountMenu({ dark, onTheme, docCount }: { dark: boolean; onTheme: () => void; docCount: number }) {
+export function AccountMenu({ dark, onTheme, docCount, onTour }: { dark: boolean; onTheme: () => void; docCount: number; onTour?: () => void }) {
   const status = useSyncStatus();
   const online = useOnline();
   const [open, setOpen] = useState(false);
@@ -203,6 +203,11 @@ export function AccountMenu({ dark, onTheme, docCount }: { dark: boolean; onThem
             <span className="account-sync">{dark ? <SunIcon /> : <MoonIcon />}{dark ? t('Day paper') : t('Night paper')}</span>
             <i className={`account-switch${dark ? ' on' : ''}`} aria-hidden="true" />
           </button>
+          {onTour && (
+            <button role="menuitem" className="account-row" onClick={() => { setOpen(false); onTour(); }}>
+              <span className="account-sync"><SparkIcon />{t('How it works')}</span>
+            </button>
+          )}
           <button role="menuitem" className="account-row" onClick={() => setLang(otherLang())}>
             <span className="account-sync"><GlobeIcon />{t('Language')}</span>
             <em>{langName(lang)}</em>
