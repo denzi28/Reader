@@ -1,4 +1,5 @@
-import type { ReactNode } from 'react';
+import { useRef, type ReactNode } from 'react';
+import { useLiquidBar } from '../lib/liquid';
 import { BooksIcon, MarkIcon, ToolsIcon } from './icons';
 
 export type DeskTab = 'shelf' | 'notes' | 'tools';
@@ -11,6 +12,8 @@ export function TopBar({ tab, onTab, search, actions, account }: {
   actions: ReactNode;
   account: ReactNode;
 }) {
+  const tabs = useRef<HTMLElement>(null);
+  useLiquidBar(tabs, 'button', tab);
   const item = (id: DeskTab, icon: ReactNode, label: string) => (
     <button className={tab === id ? 'on' : ''} onClick={() => onTab(id)} aria-current={tab === id ? 'page' : undefined}>
       {icon}
@@ -20,7 +23,7 @@ export function TopBar({ tab, onTab, search, actions, account }: {
   return (
     <header className="deskbar">
       <h1 className="brand">The Reader</h1>
-      <nav className="top-tabs" aria-label="Sections">
+      <nav className="top-tabs" aria-label="Sections" ref={tabs}>
         {item('shelf', <BooksIcon />, 'Library')}
         {item('notes', <MarkIcon />, 'Notes')}
         {item('tools', <ToolsIcon />, 'PDF tools')}

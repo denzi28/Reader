@@ -1,4 +1,5 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
+import { useLiquidBar } from '../lib/liquid';
 import { createPortal } from 'react-dom';
 import type { DocMeta } from '../lib/types';
 import {
@@ -16,6 +17,8 @@ export type PhoneTab = 'shelf' | 'notes' | 'tools' | 'me';
 /** The bar at the bottom of the phone's library: four places and the plus in the middle. */
 export function PhoneNav({ tab, onTab, onAdd }: { tab: PhoneTab; onTab: (t: PhoneTab) => void; onAdd: () => void }) {
   const sync = useSyncStatus();
+  const bar = useRef<HTMLElement>(null);
+  useLiquidBar(bar, '.pn-item', tab);
   // Me is where the account lives: a dot says when syncing needs attention.
   const attention = sync.connected && (sync.state === 'reauth' || sync.state === 'error');
   const item = (id: PhoneTab, label: string, icon: React.ReactNode) => (
@@ -26,7 +29,7 @@ export function PhoneNav({ tab, onTab, onAdd }: { tab: PhoneTab; onTab: (t: Phon
   );
   // In the body, not inside the page: the page's entrance animation would otherwise be what "fixed" means to it.
   return createPortal(
-    <nav className="phone-nav" aria-label="Main">
+    <nav className="phone-nav" aria-label="Main" ref={bar}>
       {item('shelf', 'Library', <BooksIcon />)}
       {item('notes', 'Notes', <MarkIcon />)}
       <button className="pn-plus" onClick={onAdd} aria-label="Add" aria-haspopup="dialog"><PlusIcon /></button>

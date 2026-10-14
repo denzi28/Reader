@@ -3481,3 +3481,86 @@ h1, h2, h3, .brand, .shelf-title, .page-title, .resume-title, .notes-title, .fol
 .deskbar .note-button svg, .deskbar .add-button svg { width: 18px; height: 18px; }
 .deskbar .top-search { height: 40px; min-height: 0; border-radius: 12px; padding: 0 12px; }
 .deskbar .top-search input { height: 100%; font-size: 0.92rem; }
+
+/* ---------- liquid glass: light under the pointer, springy presses, a glass bead on tab bars ---------- */
+:root {
+  --lq-light: rgba(255, 255, 255, 0.6);
+  --lq-glass-a: rgba(255, 252, 244, 0.74);
+  --lq-glass-b: rgba(255, 252, 244, 0.44);
+  --lq-hi: rgba(255, 255, 255, 0.85);
+  --lq-spring: cubic-bezier(0.3, 1.9, 0.5, 1);
+}
+:root[data-theme='dark'] {
+  --lq-light: rgba(255, 240, 215, 0.16);
+  --lq-glass-a: rgba(58, 48, 36, 0.88);
+  --lq-glass-b: rgba(38, 31, 22, 0.72);
+  --lq-hi: rgba(255, 240, 215, 0.24);
+}
+.icon-button, .tool, .bk-icon, .bk-tool, .nav-tool, .pn-item, .pn-plus, .top-tabs button, .account-btn {
+  transition: transform 0.5s var(--lq-spring), background-color 0.2s, color 0.2s, box-shadow 0.2s, opacity 0.2s;
+}
+@media (hover: hover) {
+  :is(.icon-button, .tool, .bk-icon, .bk-tool, .nav-tool, .account-btn):hover:not(:disabled),
+  .top-tabs button:hover:not(.on) {
+    background-image: radial-gradient(64px circle at var(--mx, 50%) var(--my, 50%), var(--lq-light), transparent 72%);
+  }
+  :is(.icon-button, .tool, .bk-icon, .bk-tool, .nav-tool, .account-btn):hover:not(:disabled) { transform: scale(1.07); }
+}
+:is(.icon-button, .tool, .bk-icon, .bk-tool, .nav-tool, .pn-plus, .account-btn):active:not(:disabled) { transform: scale(0.86); }
+.top-tabs button:active svg, .pn-item:active svg, .lq-press svg { transform: scale(0.8); }
+.top-tabs button svg, .pn-item svg { transition: transform 0.55s var(--lq-spring); }
+.lq-hot svg { transform: scale(1.18) rotate(-4deg); }
+.lq-hot { color: var(--accent); }
+
+/* the glass bead under the current tab */
+.top-tabs { position: relative; touch-action: none; -webkit-user-select: none; user-select: none; }
+.top-tabs button, .pn-item { position: relative; z-index: 1; }
+.top-tabs button.on { background: none; box-shadow: none; }
+.pn-item.on .pn-pill { background: none; }
+.lq-pill {
+  position: absolute; z-index: 0; top: 4px; bottom: 4px; border-radius: 12px; pointer-events: none; opacity: 0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.55));
+  box-shadow: inset 0 1px 0 #fff, inset 0 -2px 4px rgba(138, 75, 42, 0.12), 0 6px 14px -6px rgba(138, 75, 42, 0.5), 0 1px 3px rgba(70, 45, 10, 0.2);
+  will-change: left, right, transform;
+}
+:root[data-theme='dark'] .lq-pill {
+  background: linear-gradient(180deg, rgba(255, 240, 215, 0.24), rgba(255, 240, 215, 0.1));
+  box-shadow: inset 0 1px 0 rgba(255, 240, 215, 0.35), 0 6px 14px -6px rgba(0, 0, 0, 0.7), 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+.lq-pill::after { content: ''; position: absolute; left: 12%; right: 12%; top: 3px; height: 42%; border-radius: 10px; background: linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0)); opacity: 0.8; }
+:root[data-theme='dark'] .lq-pill::after { opacity: 0.18; }
+.lq-pill.lq-squash { transform: scale(0.95, 0.9); }
+.lq-pill.lq-drag { transform: scale(1.1, 1.12); box-shadow: inset 0 1px 0 #fff, 0 14px 24px -8px rgba(138, 75, 42, 0.55), 0 2px 4px rgba(70, 45, 10, 0.2); }
+
+/* the phone's bar floats as a pane of glass, the plus inside it */
+.phone-nav {
+  left: 12px; right: 12px; bottom: calc(10px + env(safe-area-inset-bottom)); height: 68px; padding: 6px; align-items: center; justify-content: space-around;
+  border: 0; border-radius: 34px; touch-action: none;
+  background: linear-gradient(135deg, var(--lq-glass-a), var(--lq-glass-b));
+  -webkit-backdrop-filter: blur(26px) saturate(1.8); backdrop-filter: blur(26px) saturate(1.8);
+  box-shadow: inset 0 1px 0 var(--lq-hi), inset 0 0 0 1px rgba(255, 255, 255, 0.28), 0 14px 30px -12px rgba(70, 45, 10, 0.5), 0 2px 6px rgba(70, 45, 10, 0.12);
+}
+.phone-nav .lq-pill { top: 6px; bottom: 6px; border-radius: 26px; }
+.pn-item { height: 56px; justify-content: center; }
+.pn-plus {
+  width: 54px; height: 54px; margin-top: 0; flex: none;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 86%, #fff), var(--accent));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 10px 20px -8px rgba(138, 75, 42, 0.8);
+}
+.pn-plus svg { width: 26px; height: 26px; }
+.pn-dot { border-color: transparent; }
+
+/* where a finger lands */
+.lq-tap {
+  position: fixed; z-index: 9999; width: 56px; height: 56px; margin: -28px 0 0 -28px; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0.18) 60%, rgba(255, 255, 255, 0));
+  animation: lq-tap 0.6s ease-out forwards;
+}
+:root[data-theme='dark'] .lq-tap { background: radial-gradient(circle, rgba(255, 240, 215, 0.4), rgba(255, 240, 215, 0.08) 60%, rgba(255, 240, 215, 0)); }
+@keyframes lq-tap { from { transform: scale(0.4); opacity: 1; } to { transform: scale(2); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .lq-pill { transition: none !important; }
+  .lq-tap { display: none; }
+  .icon-button, .tool, .bk-icon, .bk-tool, .nav-tool, .pn-item, .pn-plus, .top-tabs button, .account-btn { transition: background-color 0.2s, color 0.2s; }
+}
+.deskbar .top-search { margin: 0; }
