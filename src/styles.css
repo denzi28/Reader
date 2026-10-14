@@ -2312,8 +2312,8 @@ mark {
 .pick-device { margin-top: 0.9rem; }
 .pick-top { margin: 0 0 0.9rem; width: 100%; justify-content: center; min-height: 52px; border-style: dashed; }
 .pick-top + .tool-hint { margin: -0.3rem 0 1rem; }
-.flip svg { transform: rotate(-90deg); }
-.down svg { transform: rotate(90deg); }
+span.flip svg { transform: rotate(-90deg); }
+span.down svg { transform: rotate(90deg); }
 .turn { display: grid; }
 
 .segmented { display: flex; gap: 4px; padding: 4px; margin-bottom: 1.1rem; border: 1px solid var(--line); border-radius: 999px; background: var(--card); }
@@ -3690,3 +3690,4 @@ button.me-row { cursor: pointer; }
 .lang-button svg { width: 18px; height: 18px; }
 
 .boot-paper { min-height: 100dvh; background: var(--desk); }
+.feature-text h2, .hero h1 { text-wrap: balance; }
