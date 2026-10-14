@@ -395,12 +395,12 @@ function Reader({ data, docId, startPage, dark, onTheme, onClose, onPdf, scan, o
     const half = two ? dims.sheetW / 2 : dims.sheetW;
     const right: Box = { left: two ? half : 0, top: 0, width: half, height: dims.sheetH };
     const left: Box = { left: 0, top: 0, width: half, height: dims.sheetH };
-    /** One side of the sheet as it looks on a screen: its paper, and the text of that screen cut to fit. */
-    const copy = (screenIdx: number, side: 'left' | 'right') => {
+    /** One side of the sheet as it looks on a screen: its paper and the text of that screen; the strip of it that is asked for. */
+    const copy = (screenIdx: number, side: 'left' | 'right') => (k = 0, count = 1) => {
       const d = document.createElement('div');
       d.className = 'bk-copy';
       const clip = document.createElement('div');
-      clip.style.cssText = `position:absolute;overflow:hidden;left:${dims.clipLeft - (side === 'right' ? right.left : 0)}px;top:${dims.clipTop}px;width:${dims.clipW}px;height:${dims.clipH}px;pointer-events:none;`;
+      clip.style.cssText = `position:absolute;overflow:hidden;left:${dims.clipLeft - (side === 'right' ? right.left : 0) - k * (half / count)}px;top:${dims.clipTop}px;width:${dims.clipW}px;height:${dims.clipH}px;pointer-events:none;`;
       const f = flow.cloneNode(true) as HTMLElement;
       f.removeAttribute('data-flow');
       f.style.left = `${-screenIdx * dims.stride}px`;
@@ -410,15 +410,18 @@ function Reader({ data, docId, startPage, dark, onTheme, onClose, onPdf, scan, o
     };
     const forward = to > from;
     const blank = () => { const d = document.createElement('div'); d.className = 'bk-copy'; return d; };
+    // A leaf cut into more strips bends better but costs more to draw; a long chapter gets a stiffer leaf.
+    const slices = flow.childElementCount <= 200 ? 8 : flow.childElementCount <= 500 ? 4 : 1;
+    const common = { host: sheet, leaf: right, area: { left: 0, top: 0, width: dims.sheetW, height: dims.sheetH }, forward, slices };
     const spec = two
       ? (forward
-        ? { leaf: right, front: copy(from, 'right'), back: copy(to, 'left'), cover: { box: left, node: copy(from, 'left') } }
-        : { leaf: right, front: copy(to, 'right'), back: copy(from, 'left'), cover: { box: right, node: copy(from, 'right') } })
+        ? { ...common, front: copy(from, 'right'), back: copy(to, 'left'), cover: { box: left, node: copy(from, 'left')() } }
+        : { ...common, front: copy(to, 'right'), back: copy(from, 'left'), cover: { box: right, node: copy(from, 'right')() } })
       : (forward
-        ? { leaf: right, front: copy(from, 'right'), back: blank() }
-        : { leaf: right, front: copy(to, 'right'), back: blank(), cover: { box: right, node: copy(from, 'right') } });
+        ? { ...common, front: copy(from, 'right'), back: blank }
+        : { ...common, front: copy(to, 'right'), back: blank, cover: { box: right, node: copy(from, 'right')() } });
     flipping.current = true;
-    void flipLeaf({ host: sheet, forward, duration: phone ? 480 : 620, ...spec }).finally(() => { flipping.current = false; });
+    void flipLeaf({ ...spec, duration: phone ? 620 : 780 }).finally(() => { flipping.current = false; });
     return true;
   }, [dims, reduced, phone]);
 

@@ -358,19 +358,34 @@ export function PageBook({ docId, startPage, dark, onTheme, onClose, onPdf, scan
       c.getContext('2d')?.drawImage(src, 0, 0);
       return c;
     };
+    /** One strip of a page, for the leaf to be bent from. */
+    const stripOf = (i: number) => (k: number, count: number): HTMLElement => {
+      const src = i >= 0 && i < n ? sp.querySelector<HTMLCanvasElement>(`canvas[data-i="${i}"]`) : null;
+      if (!src) return blank();
+      const w = src.width / count;
+      const scale = Math.min(1, 1500 / src.width);
+      const c = document.createElement('canvas');
+      c.width = Math.max(1, Math.ceil(w * scale));
+      c.height = Math.max(1, Math.round(src.height * scale));
+      c.className = 'bk-pg';
+      c.getContext('2d')?.drawImage(src, k * w, 0, w, src.height, 0, 0, c.width, c.height);
+      return c;
+    };
+    const area = cols === 2 ? { left: slotL.left, top: slotL.top, width: slotR.left + slotR.width - slotL.left, height: slotL.height } : slotL;
+    const common = { host: sp, leaf: slotR, area, forward, slices: 9 };
     let spec: Parameters<typeof flipLeaf>[0];
     if (cols === 2) {
       spec = forward
-        ? { host: sp, leaf: slotR, front: copyOf(first + 1), back: copyOf(nextFirst), forward, cover: { box: slotL, node: copyOf(first) } }
-        : { host: sp, leaf: slotR, front: copyOf(nextFirst + 1), back: copyOf(first), forward, cover: { box: slotR, node: copyOf(first + 1) } };
+        ? { ...common, front: stripOf(first + 1), back: stripOf(nextFirst), cover: { box: slotL, node: copyOf(first) } }
+        : { ...common, front: stripOf(nextFirst + 1), back: stripOf(first), cover: { box: slotR, node: copyOf(first + 1) } };
     } else {
       spec = forward
-        ? { host: sp, leaf: slotL, front: copyOf(first), back: blank(), forward }
-        : { host: sp, leaf: slotL, front: copyOf(nextFirst), back: blank(), forward, cover: { box: slotL, node: copyOf(first) } };
+        ? { ...common, leaf: slotL, front: stripOf(first), back: stripOf(-1) }
+        : { ...common, leaf: slotL, front: stripOf(nextFirst), back: stripOf(-1), cover: { box: slotL, node: copyOf(first) } };
     }
     flipping.current = true;
     view.style.overflow = 'hidden';
-    void flipLeaf({ ...spec, duration: phone ? 480 : 620 }).finally(() => { flipping.current = false; view.style.overflow = ''; });
+    void flipLeaf({ ...spec, duration: phone ? 620 : 780 }).finally(() => { flipping.current = false; view.style.overflow = ''; });
   };
 
   const go = useCallback((page: number) => {
