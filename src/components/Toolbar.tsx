@@ -184,7 +184,7 @@ export function Toolbar(p: Props) {
   const shown = phone ? TOOLS.filter((t) => PRIMARY.includes(t.id)) : TOOLS;
   const moreActive = p.tool === 'select' || p.tool === 'text';
   return (
-    <div className={`toolbar-wrap${phone ? ' phone-tray' : ' dock'}`}>
+    <div className={`toolbar-wrap${phone ? ' phone-tray' : ' dock'}`} role="region" aria-label="Drawing tools">
       <div className={`options${open ? ' open' : ''}`} aria-hidden={!open} role="group" aria-label={`${TOOLS.find((t) => t.id === p.tool)?.label} options`}>
         {open && <Panel {...p} />}
       </div>

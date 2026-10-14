@@ -605,7 +605,7 @@ export function PageBook({ docId, startPage, dark, onTheme, onClose, onPdf, scan
         )}
       </header>
 
-      <div className={`bk-view${zoomed ? ' zoomed' : ''}${scrollMode ? ' strip' : ''}`} ref={viewRef} onScroll={onScroll} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={(e) => { down.current = null; touches.current.delete(e.pointerId); pinch.current = null; }}>
+      <div role="main" aria-label="Pages" className={`bk-view${zoomed ? ' zoomed' : ''}${scrollMode ? ' strip' : ''}`} ref={viewRef} onScroll={onScroll} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={(e) => { down.current = null; touches.current.delete(e.pointerId); pinch.current = null; }}>
         {pdf && box.w > 0 && !scrollMode && (
           <div className="bk-spread" ref={spreadRef}>
             {window_.map((i) => (

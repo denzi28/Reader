@@ -1221,7 +1221,7 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose, onOpen, onBoo
         </>
       )}
 
-      <div className="scroller" ref={scroller}>
+      <div className="scroller" ref={scroller} role="main" aria-label="Document pages" tabIndex={0}>
         {!pdf || !sizes ? (
           <div className="loading" role="status" />
         ) : (

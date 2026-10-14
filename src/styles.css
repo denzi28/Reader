@@ -13,7 +13,7 @@
   --page: #fffaf0;
   --card: #fbf5e6;
   --ink: #2b241a;
-  --muted: #7a6c55;
+  --muted: #655840;
   --accent: #8a4b2a;
   --accent-ink: #fffaf0;
   --line: rgba(70, 50, 20, 0.16);
@@ -3643,3 +3643,7 @@ h1, h2, h3, .brand, .shelf-title, .page-title, .resume-title, .notes-title, .fol
 .sheet-tool { border: 0; background: none; box-shadow: none; padding: 10px 4px; }
 @media (max-width: 960px) { .wb-grid { grid-template-columns: 1fr; } .wb-list { grid-template-columns: 1fr 1fr; } .wb-head .tool-art { display: none; } .wb-steps { grid-template-columns: 1fr; } }
 @media (prefers-reduced-motion: reduce) { .wb-panel, .tp-card { animation: none; } }
+
+/* The page scroller can be reached with the keyboard; the ring shows only for keys. */
+.scroller:focus { outline: none; }
+.scroller:focus-visible { outline: 2px solid var(--accent); outline-offset: -3px; }
