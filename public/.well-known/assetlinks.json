@@ -1,1 +1,12 @@
-[]
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "app.leafpage.reader",
+      "sha256_cert_fingerprints": [
+        "3D:1D:E8:BD:D7:2F:03:1C:88:72:46:AC:92:41:3A:D4:0E:75:AE:D2:0B:D0:C8:60:BA:C5:B4:3E:6E:89:3B:65"
+      ]
+    }
+  }
+]
