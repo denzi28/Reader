@@ -923,16 +923,29 @@ export function Library(props: Props) {
           {docs?.length === 0 && (
             // An empty library gets a big, friendly place to start.
             <div className={`dropzone${dragging ? ' over' : ''}${busy ? ' busy' : ''}`}>
-              <span className="drop-icon"><UploadIcon /></span>
-              <p className="drop-title">{busy ? 'Adding to your library…' : 'Drop PDFs, ePub books, Office files, text or pictures here'}</p>
+              <svg className="drop-art" viewBox="0 0 160 100" aria-hidden="true" focusable="false">
+                <rect className="da-back" x="30" y="22" width="46" height="62" rx="5" transform="rotate(-9 53 53)" />
+                <rect className="da-back" x="84" y="22" width="46" height="62" rx="5" transform="rotate(8 107 53)" />
+                <rect className="da-front" x="58" y="12" width="46" height="70" rx="5" />
+                <path className="da-line" d="M67 28h28M67 36h28M67 44h28M67 52h18" />
+                <path className="da-accent" d="M80 66v-9m-4 4 4-4 4 4" />
+              </svg>
+              <p className="drop-title">{busy ? 'Adding to your library…' : phone ? 'Add your first document' : 'Drop files here to start your library'}</p>
+              {!busy && <p className="drop-sub">PDFs, ePub books, Office files, text or pictures</p>}
               <button className="button" disabled={busy} onClick={() => input.current?.click()}>
                 Choose files
               </button>
               <button className="chip-button" disabled={busy} aria-label="New note" onClick={() => { setNoteError(null); setNewNote(true); }}>
                 <PencilIcon /> Or start a blank note
               </button>
-              <p className="drop-note">You can pick several at once. ePub books open as books. Word, Excel, PowerPoint, OpenDocument, RTF, text, CSV and pictures are turned into PDFs on your device.</p>
+              <p className="drop-note">Pick several at once. ePub books open as books; Word, Excel, PowerPoint, text and pictures are turned into PDFs on your device.</p>
             </div>
+          )}
+
+          {docs === null && (
+            <ul className="shelf view-grid shelf-skeleton" aria-hidden="true">
+              {[0, 1, 2, 3, 4, 5].map((i) => <li key={i} className="sk-book" style={{ ['--i' as string]: i }} />)}
+            </ul>
           )}
 
           {!current && starred.length > 0 && (

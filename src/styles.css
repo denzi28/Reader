@@ -3662,3 +3662,20 @@ h1, h2, h3, .brand, .shelf-title, .page-title, .resume-title, .notes-title, .fol
 .install-go { flex: none; min-height: 40px; padding: 0 16px; border: 0; border-radius: 999px; background: var(--accent); color: var(--accent-ink); font: inherit; font-weight: 650; box-shadow: 0 6px 14px -8px var(--accent); }
 .install-card .install-x { flex: none; display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--muted); }
 .install-card .install-x svg { width: 14px; height: 14px; }
+
+/* An empty library, and a library that is still being read from the device. */
+.drop-art { width: 150px; height: auto; margin-bottom: 0.2rem; overflow: visible; }
+.drop-art rect { stroke: color-mix(in srgb, var(--ink) 22%, transparent); stroke-width: 1.2; }
+.drop-art .da-back { fill: color-mix(in srgb, var(--accent) 10%, var(--page)); }
+.drop-art .da-front { fill: var(--page); filter: drop-shadow(0 6px 8px rgba(70, 45, 10, 0.18)); }
+.drop-art .da-line { fill: none; stroke: color-mix(in srgb, var(--ink) 20%, transparent); stroke-width: 2.2; stroke-linecap: round; }
+.drop-art .da-accent { fill: none; stroke: var(--accent); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.drop-sub { margin: -0.5rem 0 0; color: var(--muted); font-size: 0.95rem; }
+.shelf-skeleton { pointer-events: none; }
+.sk-book { aspect-ratio: 3 / 4; border-radius: 6px; list-style: none;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--ink) 7%, transparent), transparent) 0 0 / 200% 100%, color-mix(in srgb, var(--ink) 5%, transparent);
+  animation: shimmer 1.4s linear infinite; animation-delay: calc(var(--i, 0) * 90ms); }
+@media (prefers-reduced-motion: reduce) { .sk-book { animation: none; } }
+/* Shown only when reading the library takes noticeable time, so a quick load does not flash it. */
+.shelf-skeleton { opacity: 0; animation: sk-in 0.25s ease 0.3s forwards; }
+@keyframes sk-in { to { opacity: 1; } }
