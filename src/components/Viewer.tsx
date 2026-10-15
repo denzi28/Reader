@@ -28,7 +28,7 @@ import type { DocInk, DocMeta, Stroke, Tool } from '../lib/types';
 import { BackIcon, BookOpenIcon, DownloadIcon, FitIcon, MinusIcon, MoonIcon, MoreVIcon, NotePlusIcon, PanelIcon, PlusIcon, RailIcon, SearchIcon, SunIcon } from './icons';
 import { DocPanel, PageRail } from './ReaderSide';
 import { SyncBadge, SyncRow } from './SyncControl';
-import { usePhone } from '../lib/usePhone';
+import { useCompact, usePhone } from '../lib/usePhone';
 import { PageView } from './PageView';
 import type { SelectionApi } from './SelectionLayer';
 import { Toolbar } from './Toolbar';
@@ -863,6 +863,9 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose, onOpen, onBoo
   const findOpenRef = useRef(false);
   findOpenRef.current = findOpen;
   const phone = usePhone();
+  // Held sideways, a phone gets the slim bars too: the desktop's top bar would crowd out the page.
+  const compact = useCompact();
+  const slim = phone || compact;
   // The page strip (left) and the panel of marks (right) of the desktop reading screen; remembered between visits.
   const remembered = (key: string, fallback: boolean) => {
     try { const v = localStorage.getItem(key); return v === null ? fallback : v === '1'; } catch { return fallback; }
@@ -1073,8 +1076,8 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose, onOpen, onBoo
   const color = tool === 'highlighter' ? prefs.hlColor : prefs.penColor;
 
   return (
-    <div ref={root} className={`viewer tool-${tool}${cover === 'on' ? ' opening' : ''}${!phone && rail ? ' rail-on' : ''}${!phone && side ? ' side-on' : ''}`}>
-      {phone ? (
+    <div ref={root} className={`viewer tool-${tool}${cover === 'on' ? ' opening' : ''}${!slim && rail ? ' rail-on' : ''}${!slim && side ? ' side-on' : ''}`}>
+      {slim ? (
         <header className="topbar phone-topbar">
           <button className="icon-button" onClick={onClose} aria-label={t('Back to library')} title={t('Back')}>
             <BackIcon />
@@ -1196,7 +1199,7 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose, onOpen, onBoo
       </header>
       )}
 
-      {phone && menuOpen && (
+      {slim && menuOpen && (
         <>
           <div className="vmenu-scrim" onClick={() => setMenuOpen(false)} />
           <div className="vmenu" role="menu" aria-label={t('More')}>
@@ -1293,8 +1296,8 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose, onOpen, onBoo
         </div>
       )}
 
-      {!phone && rail && pdf && sizes && cover === 'off' && <PageRail pdf={pdf} sizes={sizes} current={current} dark={dark} onGo={goToPage} />}
-      {!phone && side && (
+      {!slim && rail && pdf && sizes && cover === 'off' && <PageRail pdf={pdf} sizes={sizes} current={current} dark={dark} onGo={goToPage} />}
+      {!slim && side && (
         <DocPanel
           pdf={pdf}
           docId={docId}

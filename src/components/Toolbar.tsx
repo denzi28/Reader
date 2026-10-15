@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { usePhone } from '../lib/usePhone';
+import { useCompact, usePhone } from '../lib/usePhone';
 import { t } from '../lib/i18n';
 import {
   BRUSH_RANGE, BRUSH_SIZES, displayColor, HIGHLIGHT_COLORS, PEN_COLORS, TEXT_RANGE, TEXT_SIZES,
@@ -179,13 +179,14 @@ const PRIMARY: Tool[] = ['hand', 'pen', 'highlighter', 'eraser'];
 
 export function Toolbar(p: Props) {
   const phone = usePhone();
+  const compact = useCompact();
   const [more, setMore] = useState(false);
   const open = p.panel && p.tool !== 'hand';
   const dots: Partial<Record<Tool, string>> = { pen: p.prefs.penColor, highlighter: p.prefs.hlColor, text: p.prefs.penColor };
   const shown = phone ? TOOLS.filter((x) => PRIMARY.includes(x.id)) : TOOLS;
   const moreActive = p.tool === 'select' || p.tool === 'text';
   return (
-    <div className={`toolbar-wrap${phone ? ' phone-tray' : ' dock'}`} role="region" aria-label={t('Drawing tools')}>
+    <div className={`toolbar-wrap${phone ? ' phone-tray' : ' dock'}${compact && !phone ? ' compact' : ''}`} role="region" aria-label={t('Drawing tools')}>
       <div className={`options${open ? ' open' : ''}`} aria-hidden={!open} role="group" aria-label={t('{tool} options', { tool: TOOLS.find((x) => x.id === p.tool)?.label ?? '' })}>
         {open && <Panel {...p} />}
       </div>
