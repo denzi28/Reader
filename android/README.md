@@ -14,7 +14,9 @@ Package name: `app.leafpage.reader` (permanent once published). The app opens `h
    base64 -w0 upload.keystore        # macOS: base64 -i upload.keystore
    ```
 2. In the GitHub repository: **Settings > Secrets and variables > Actions**, add
-   `ANDROID_KEYSTORE_B64` (the base64 text), `ANDROID_KEYSTORE_PASSWORD` and `ANDROID_KEY_PASSWORD`.
+   `ANDROID_KEYSTORE_B64` (the base64 text), `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_PASSWORD` and, when the key's alias
+   is not `upload`, `ANDROID_KEY_ALIAS`. If the app was first uploaded with the key PWABuilder made, use that key (its
+   `signing.keystore` and `signing-key-info.txt`); an update must be signed with the same upload key.
 3. **Actions > Android app > Run workflow.** The `leafpage-android` artifact holds `app-release-bundle.aab`.
 4. In **Play Console**: create the app (package `app.leafpage.reader`), keep *Play App Signing* on, and upload the `.aab`
    to *Internal testing*.

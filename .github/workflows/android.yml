@@ -2,7 +2,8 @@
 # Run it by hand: Actions > Android app > Run workflow.
 #   variant "dev":     a test app (package app.leafpage.reader.dev, called "Leafpage Dev") signed with a throwaway key made here,
 #                      to install on a phone and try. It needs no secrets and never touches the Google Play app.
-#   variant "release": the signed bundle for Google Play. It needs three repository secrets (see android/README.md).
+#   variant "release": the signed bundle for Google Play. It needs the repository secrets ANDROID_KEYSTORE_B64, ANDROID_KEYSTORE_PASSWORD,
+#                      ANDROID_KEY_PASSWORD and, if the key's alias is not "upload", ANDROID_KEY_ALIAS (see android/README.md).
 name: Android app
 
 on:
@@ -63,10 +64,14 @@ jobs:
       # ---- what is built ---------------------------------------------------------------------------
       - name: Version, and the test app's own name and key
         working-directory: android
+        env:
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
         run: |
           node -e "
             const f='twa-manifest.json', m=JSON.parse(require('fs').readFileSync(f,'utf8'));
             m.appVersionName='${{ inputs.version_name }}'; m.appVersion=String(process.env.GITHUB_RUN_NUMBER); m.appVersionCode=Number(process.env.GITHUB_RUN_NUMBER);
+            // The upload key made by PWABuilder has its own alias (often my-key-alias): ANDROID_KEY_ALIAS says which.
+            if ('${{ inputs.variant }}'==='release' && process.env.KEY_ALIAS) m.signingKey.alias=process.env.KEY_ALIAS;
             if ('${{ inputs.variant }}'==='dev') {
               m.packageId='app.leafpage.reader.dev'; m.name='Leafpage Dev'; m.launcherName='Leafpage Dev';
               m.signingKey={ path: './dev.keystore', alias: 'dev' };
