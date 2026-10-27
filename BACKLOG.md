@@ -4,15 +4,16 @@ Not yet done. Nothing here is being worked on until asked.
 
 ## Bugs
 
-### Typed notes (Docs) exported as PDF look wrong
-Reported 27 Oct 2026. When a typed note (the "Doc" kind, written with the keyboard) is
-downloaded as PDF, the text comes out blurry and spaces are missing or collapse.
-There may be more problems in the PDF export; go through it end to end when this is picked up:
-headings, lists, to-dos, quotes, pictures, long lines, page breaks, Turkish letters.
-Where to look: `src/components/DownloadDialog.tsx` (the md / pdf choice) and the typed-note code
-in `src/lib/typedNote.ts`. Check whether the PDF is built from a screenshot of the page (which
-would explain the blur) instead of real text.
-Status: waiting, do not start yet.
+### Typed notes (Docs) exported as PDF look wrong: fixed, not pushed yet
+Reported 27 Oct 2026. Fixed in `src/lib/office/text.ts`, `src/components/DownloadDialog.tsx` and
+`src/components/NoteEditor.tsx`:
+- empty paragraphs and the space after lists are kept (they were dropped);
+- a line break inside a paragraph (Shift+Enter) stays a line break (it was joined to the line before);
+- to-dos show as a box (□, and ▪ with struck-through words when done) instead of "•  ?";
+- pictures in the note are in the PDF, at the width they have in the note (they were left out);
+- the note's name is not repeated when the note starts with that same heading;
+- adding a second picture no longer replaces the first one (it did when one picture was still selected).
+Still open: a block quote has no bar at its left in the PDF; tables are not exported.
 
 ## Android / release
 

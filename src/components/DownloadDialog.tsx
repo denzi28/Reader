@@ -58,7 +58,7 @@ export function DownloadDialog({ doc, onClose }: { doc: DocMeta; onClose: () => 
     }
   };
 
-  /** A typed note goes out as Markdown text, or as a PDF of its words (pictures are left out of the PDF). */
+  /** A typed note goes out as Markdown text, or as a PDF of its words and pictures. */
   const runNote = async (as: 'md' | 'pdf') => {
     setError(null);
     try {
@@ -73,9 +73,12 @@ export function DownloadDialog({ doc, onClose }: { doc: DocMeta; onClose: () => 
         save(new Blob([await file.text()], { type: 'text/markdown' }), fileName(doc.name, '', 'md'));
       } else {
         setBusy(t('Making the PDF…'));
-        const text = (await file.text()).replace(/!\[[^\]]*\]\([^)]*\)/g, '').replace(/^(\s*[-*+]\s+)\[ \]/gm, '$1☐').replace(/^(\s*[-*+]\s+)\[[xX]\]/gm, '$1☑');
+        const text = await file.text();
+        // The note's name heads the PDF, unless the note already starts with that same heading.
+        const first = /^\s*#\s+(.*?)\s*#*\s*$/m.exec(text.split('\n').find((l) => l.trim()) ?? '');
+        const titled = first && first[1].trim().toLowerCase() === doc.name.trim().toLowerCase() ? text : `# ${doc.name}\n\n${text}`;
         const { convertOffice } = await import('../lib/office');
-        const pdf = await convertOffice(new File([`# ${doc.name}\n\n${text}`], `${doc.name}.md`, { type: 'text/markdown' }));
+        const pdf = await convertOffice(new File([titled], `${doc.name}.md`, { type: 'text/markdown' }));
         save(pdf, fileName(doc.name));
       }
       onClose();
@@ -118,7 +121,7 @@ export function DownloadDialog({ doc, onClose }: { doc: DocMeta; onClose: () => 
               <span className="download-icon plain"><DownloadIcon /></span>
               <span>
                 <strong>{t('PDF')}</strong>
-                <small>{t('The words, headings and lists on pages. Pictures are left out.')}</small>
+                <small>{t('The words, headings, lists and pictures on pages.')}</small>
               </span>
             </button>
           </div>

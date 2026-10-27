@@ -122,7 +122,10 @@ export function NoteEditor({ docId, dark, onTheme, onClose, onOpen, phone }: { d
         const pic = await pictureForNote(file);
         const width = Math.min(pic.width, 640);
         const content = { type: 'image', attrs: { src: pic.src, alt: file.name.replace(/\.[^.]+$/, ''), width } };
-        if (at !== undefined) e.chain().focus().insertContentAt(at, content).run();
+        // A picture stays selected once it is in; the next one goes after it, not over it.
+        const sel = e.state.selection as { node?: unknown; to: number };
+        const pos = at ?? (sel.node ? sel.to : undefined);
+        if (pos !== undefined) e.chain().focus().insertContentAt(pos, content).run();
         else e.chain().focus().insertContent(content).run();
       } catch {
         setProblem(t('That picture could not be added.'));

@@ -2,6 +2,7 @@
 import type { RGB } from './color';
 import type { Ctx } from './ctx';
 import { type Grid, type GridCell, renderGrids } from './sheets';
+import type { PDFImage } from 'pdf-lib';
 import { type Block, defaultPara, Pager, type Run } from './render';
 
 /** Text from a file: UTF-8, or Windows Turkish/Western when it is not valid UTF-8. */
@@ -51,14 +52,49 @@ function inline(text: string, base: Partial<Run> = {}): Run[] {
   return runs;
 }
 
-/** Markdown: headings, lists, quotes, code blocks, rules and emphasis. */
+/** A picture kept inside a note (a data address) as something the PDF can hold; null when it cannot be read. */
+async function embedPicture(ctx: Ctx, src: string): Promise<PDFImage | null> {
+  const m = /^data:(image\/[a-z0-9.+-]+);base64,(.*)$/is.exec(src);
+  if (!m) return null;
+  try {
+    const bin = atob(m[2]);
+    const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
+    const mime = m[1].toLowerCase();
+    if (mime === 'image/jpeg' || mime === 'image/jpg') return await ctx.doc.embedJpg(bytes);
+    if (mime === 'image/png') return await ctx.doc.embedPng(bytes);
+    // GIF, WebP and the like are redrawn as PNG.
+    const bmp = await createImageBitmap(new Blob([bytes], { type: mime }));
+    const canvas = document.createElement('canvas');
+    canvas.width = bmp.width;
+    canvas.height = bmp.height;
+    canvas.getContext('2d')!.drawImage(bmp, 0, 0);
+    bmp.close();
+    const png = await new Promise<Blob | null>((res) => canvas.toBlob(res, 'image/png'));
+    return png ? await ctx.doc.embedPng(new Uint8Array(await png.arrayBuffer())) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The width of the writing column of a typed note on screen, in pixels: a picture's saved width is measured against it. */
+const NOTE_COLUMN_PX = 660;
+
+/** Markdown: headings, lists, quotes, code blocks, rules, pictures and emphasis. */
 export async function markdownToPdf(text: string, ctx: Ctx): Promise<void> {
   const blocks: Block[] = [];
   const lines = text.replace(/\r\n?/g, '\n').split('\n');
   const SIZES = [24, 20, 16, 14, 12, 11];
+  const listItems = new WeakSet<Block>();
   let code: string[] | null = null;
+  // A note's empty paragraphs are saved as blank lines in pairs; one blank line only separates two paragraphs.
+  let blank = 0;
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
+    if (!code && !line.trim()) { blank++; continue; }
+    if (!code && blank > 2 && blocks.length) {
+      for (let k = Math.floor((blank - 1) / 2); k > 0; k--) blocks.push(defaultPara({ after: 7, runs: [] }));
+    }
+    if (!code) blank = 0;
     if (/^\s*```/.test(line)) {
       if (code) {
         code.forEach((c) => blocks.push(defaultPara({ size: 9.5, family: 'mono', left: 10, runs: c ? [{ text: c }] : [], lineMult: 1.05, color: [0.15, 0.15, 0.2] as RGB })));
@@ -69,29 +105,60 @@ export async function markdownToPdf(text: string, ctx: Ctx): Promise<void> {
     }
     if (code) { code.push(line.replace(/\t/g, '    ')); continue; }
     let m: RegExpExecArray | null;
-    if ((m = /^(#{1,6})\s+(.*?)\s*#*$/.exec(line))) {
+    if ((m = /^\s*!\[[^\]]*\]\((\S+?)(?:\s+"([^"]*)")?\)\s*$/.exec(line))) {
+      const image = await embedPicture(ctx, m[1]);
+      if (image) {
+        const saved = /^leafpage:w=(\d+)$/.exec(m[2] ?? '');
+        const px = Math.min(saved ? Number(saved[1]) : image.width, NOTE_COLUMN_PX);
+        const column = A4[0] - MARGINS.left - MARGINS.right;
+        let w = (px / NOTE_COLUMN_PX) * column;
+        let h = w * (image.height / image.width);
+        const room = A4[1] - MARGINS.top - MARGINS.bottom - 8;
+        if (h > room) { w *= room / h; h = room; }
+        blocks.push({ kind: 'img', image, w, h, align: 'l', before: 4, after: 8 });
+      }
+    } else if ((m = /^(#{1,6})\s+(.*?)\s*#*$/.exec(line))) {
       const level = m[1].length;
       blocks.push(defaultPara({ size: SIZES[level - 1], before: level === 1 ? 6 : 10, after: 4, keepNext: true, runs: inline(m[2], { bold: true }) as Run[] }));
     } else if (/^\s*([-*_])(\s*\1){2,}\s*$/.test(line)) {
       blocks.push(defaultPara({ size: 6, after: 6, runs: [{ text: '' }] }));
     } else if ((m = /^(\s*)([-*+])\s+(.*)$/.exec(line))) {
       const depth = Math.floor(m[1].replace(/\t/g, '  ').length / 2);
-      blocks.push(defaultPara({ left: 18 + depth * 16, first: -12, bullet: depth ? '◦' : '•', after: 2, runs: inline(m[3]) }));
+      const todo = /^\[( |x|X)\]\s+(.*)$/.exec(m[3]);
+      // The fonts have no ☐ or ☑, so an open box is □ and a done one is ▪ with its words struck through.
+      if (todo) {
+        const done = todo[1] !== ' ';
+        const b = defaultPara({ left: 22 + depth * 16, first: -18, bullet: done ? '▪' : '□', after: 2, runs: inline(todo[2], done ? { strike: true, color: [0.45, 0.45, 0.5] as RGB } : {}) });
+        listItems.add(b);
+        blocks.push(b);
+      } else {
+        const b = defaultPara({ left: 18 + depth * 16, first: -12, bullet: depth ? '◦' : '•', after: 2, runs: inline(m[3]) });
+        listItems.add(b);
+        blocks.push(b);
+      }
     } else if ((m = /^(\s*)(\d+)[.)]\s+(.*)$/.exec(line))) {
       const depth = Math.floor(m[1].replace(/\t/g, '  ').length / 2);
-      blocks.push(defaultPara({ left: 22 + depth * 16, first: -18, bullet: `${m[2]}.`, after: 2, runs: inline(m[3]) }));
+      const b = defaultPara({ left: 22 + depth * 16, first: -18, bullet: `${m[2]}.`, after: 2, runs: inline(m[3]) });
+      listItems.add(b);
+      blocks.push(b);
     } else if ((m = /^\s*>\s?(.*)$/.exec(line))) {
       blocks.push(defaultPara({ left: 14, after: 3, color: [0.35, 0.35, 0.4] as RGB, runs: inline(m[1], { italic: true }) }));
-    } else if (!line.trim()) {
-      // blank lines only separate paragraphs
     } else {
-      // consecutive lines of a paragraph are joined
-      let para = line.trim();
-      while (i + 1 < lines.length && lines[i + 1].trim() && !/^(\s*([-*+]|\d+[.)])\s|#{1,6}\s|\s*>|\s*```)/.test(lines[i + 1])) para += ` ${lines[++i].trim()}`;
+      // consecutive lines of a paragraph are joined, except where a line ends in two spaces or a backslash: that is a line break
+      const hard = (l: string) => / {2,}$|\\$/.test(l);
+      let para = line.trim().replace(/\\$/, '');
+      let br = hard(line);
+      while (i + 1 < lines.length && lines[i + 1].trim() && !/^(\s*([-*+]|\d+[.)])\s|#{1,6}\s|\s*>|\s*```)/.test(lines[i + 1])) {
+        const next = lines[++i];
+        para += (br ? '\n' : ' ') + next.trim().replace(/\\$/, '');
+        br = hard(next);
+      }
       blocks.push(defaultPara({ after: 7, runs: inline(para) }));
     }
   }
   if (code) code.forEach((c) => blocks.push(defaultPara({ size: 9.5, family: 'mono', left: 10, runs: c ? [{ text: c }] : [] })));
+  // Whatever follows a list starts a little below its last item.
+  blocks.forEach((b, k) => { if (listItems.has(b) && blocks[k + 1] && !listItems.has(blocks[k + 1])) (b as { after: number }).after = 8; });
   await lay(ctx, blocks);
 }
 
