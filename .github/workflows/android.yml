@@ -38,7 +38,7 @@ jobs:
           mkdir -p "$SDK" ~/.bubblewrap
           cp -r "$SRC"/cmdline-tools/latest/. "$SDK"/
           yes | "$SDK/bin/sdkmanager" --licenses --sdk_root="$SDK" > /dev/null || true
-          "$SDK/bin/sdkmanager" --install "build-tools;36.1.0" "platform-tools" --sdk_root="$SDK"
+          "$SDK/bin/sdkmanager" --install "build-tools;36.1.0" "platform-tools" "platforms;android-36" --sdk_root="$SDK"
           cat > ~/.bubblewrap/config.json <<JSON
           { "jdkPath": "$JAVA_HOME", "androidSdkPath": "$SDK" }
           JSON
