@@ -19,6 +19,16 @@
     { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
     { "src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ],
+  "share_target": {
+    "action": "/share-target",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": { "files": [{ "name": "files", "accept": ["application/pdf", "application/epub+zip", ".pdf", ".epub"] }] }
+  },
+  "file_handlers": [
+    { "action": "/", "accept": { "application/pdf": [".pdf"], "application/epub+zip": [".epub"] } }
+  ],
+  "launch_handler": { "client_mode": ["navigate-existing", "auto"] },
   "shortcuts": [
     { "name": "New note", "short_name": "New note", "description": "Start a notebook or a doc", "url": "/?new=note", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }] },
     { "name": "PDF tools", "short_name": "PDF tools", "description": "Merge, split, crop and edit PDFs", "url": "/?tab=tools", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }] }

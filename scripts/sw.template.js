@@ -58,8 +58,31 @@ async function staleWhileRevalidate(request) {
   return hit || (await fresh) || Response.error();
 }
 
+// Files sent to Leafpage (Android's Share sheet) arrive as a POST. They are kept in an inbox and the app,
+// once it opens, asks the reader whether to put them in the library.
+async function receiveShare(request) {
+  try {
+    const form = await request.formData();
+    const files = form.getAll('files').filter((f) => typeof f !== 'string');
+    const cache = await caches.open('reader-share-inbox');
+    const now = Date.now();
+    await Promise.all(files.map((f, i) => cache.put(
+      `/__share/${now}-${i}`,
+      new Response(f, { headers: { 'Content-Type': f.type || 'application/octet-stream', 'Content-Length': String(f.size), 'X-Name': encodeURIComponent(f.name) } }),
+    )));
+    return Response.redirect(`/?shared=${files.length}`, 303);
+  } catch {
+    return Response.redirect('/', 303);
+  }
+}
+
 self.addEventListener('fetch', (event) => {
   const request = event.request;
+  const target = new URL(request.url);
+  if (request.method === 'POST' && target.origin === self.location.origin && target.pathname === '/share-target') {
+    event.respondWith(receiveShare(request));
+    return;
+  }
   if (request.method !== 'GET') return;
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return; // Google, fonts: left alone

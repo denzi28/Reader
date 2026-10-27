@@ -4,7 +4,7 @@ Not yet done. Nothing here is being worked on until asked.
 
 ## Bugs
 
-### Typed notes (Docs) exported as PDF look wrong: fixed, not pushed yet
+### Typed notes (Docs) exported as PDF look wrong: fixed and pushed (27 Oct)
 Reported 27 Oct 2026. Fixed in `src/lib/office/text.ts`, `src/components/DownloadDialog.tsx` and
 `src/components/NoteEditor.tsx`:
 - empty paragraphs and the space after lists are kept (they were dropped);
@@ -24,6 +24,15 @@ Still open: a block quote has no bar at its left in the PDF; tables are not expo
   bar is used or the app is fully closed and reopened (service worker waits by design).
   Option: apply it silently when the app comes back from the background and nothing is being typed.
 - Landscape phone, book mode: the top bar and the progress bar leave only a few lines of text.
+
+## Open PDFs with Leafpage (Android)
+
+Done on the web side (27 Oct): `share_target` and `file_handlers` in the manifest, the inbox in the service worker,
+the "Save this file to your library?" question. Needs a new `.aab` with the share target to show in Android's Share sheet,
+and has not been tried on a phone.
+Not done: "Open with Leafpage / Always" for PDFs opened from a file manager or another app (Android `ACTION_VIEW`).
+It needs an intent filter plus code in the generated Android project that hands the file to the page; neither
+Bubblewrap nor PWABuilder does it. Needs a build that can be run and tried on a device first.
 
 ## Later
 

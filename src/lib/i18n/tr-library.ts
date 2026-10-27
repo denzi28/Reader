@@ -419,4 +419,9 @@ export const trLibrary: Record<string, string> = {
   'Your free tries are used.': 'Ücretsiz denemelerin bitti.',
   'Keep going, free': 'Ücretsiz devam et',
   'Sign in with Google to use the PDF tools as much as you like, and keep a library of your own.': 'PDF araçlarını istediğin kadar kullanmak ve kendi kütüphaneni tutmak için Google ile giriş yap.',
+  'Save this file to your library?': 'Bu dosya kütüphanene kaydedilsin mi?',
+  'Save these {n} files to your library?': 'Bu {n} dosya kütüphanene kaydedilsin mi?',
+  'Save to your library?': 'Kütüphanene kaydedilsin mi?',
+  'Save to my library': 'Kütüphaneme kaydet',
+  'and {n} more': 've {n} tane daha',
 };

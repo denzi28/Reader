@@ -32,6 +32,19 @@ Package name: `app.leafpage.reader` (permanent once published). The app opens `h
                "sha256_cert_fingerprints": ["AA:BB:...:FF"] } }]
 ```
 
+## Files sent to Leafpage
+
+A PDF or ePub shared to Leafpage (Android's **Share** sheet) is put in an inbox by the service worker (`/share-target`),
+and once the app is open it asks "Save this file to your library?" (`src/components/IncomingFiles.tsx`). The web part
+is tested; on a computer the installed app also takes part through `file_handlers` ("Open with").
+
+For the Share sheet to list Leafpage, the app has to be built again with the share target: `shareTarget` in
+`twa-manifest.json` (the web manifest has the same `share_target`). **This has not been built or tried on a phone yet.**
+
+"Open with Leafpage" and "Always" for a PDF tapped in a file manager (Android `ACTION_VIEW`) is a different thing: it
+needs an intent filter and a little code in the generated project, which the Bubblewrap and PWABuilder tools do not add.
+It is not done.
+
 ## Play Billing (later)
 
 Premium is bought only in Google Play. In a TWA this uses the Digital Goods API from the page, and the manifest needs

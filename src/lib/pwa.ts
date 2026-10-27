@@ -1,6 +1,7 @@
 // Making the app installable and usable with no connection: the service worker's
 // registration, "a new version is ready", and the browser's install prompt.
 import { useEffect, useState } from 'react';
+import { addIncoming } from './shareInbox';
 
 type Listener = () => void;
 
@@ -97,4 +98,16 @@ export function useInstall() {
       installListeners.forEach((fn) => fn());
     },
   };
+}
+
+// ---- files opened with Leafpage ---------------------------------------------
+interface LaunchParams { files: { getFile: () => Promise<File> }[] }
+
+/** On a computer, a PDF opened "with Leafpage" arrives through the browser's launch queue: it joins the inbox like a shared file. */
+export function listenForLaunchFiles() {
+  const q = (window as unknown as { launchQueue?: { setConsumer: (fn: (p: LaunchParams) => void) => void } }).launchQueue;
+  if (!q) return;
+  q.setConsumer((params) => {
+    void Promise.all(params.files.map((h) => h.getFile())).then(addIncoming).catch(() => undefined);
+  });
 }
