@@ -27,12 +27,12 @@ Still open: a block quote has no bar at its left in the PDF; tables are not expo
 
 ## Open PDFs with Leafpage (Android)
 
-Done on the web side (27 Oct): `share_target` and `file_handlers` in the manifest, the inbox in the service worker,
-the "Save this file to your library?" question. Needs a new `.aab` with the share target to show in Android's Share sheet,
-and has not been tried on a phone.
-Not done: "Open with Leafpage / Always" for PDFs opened from a file manager or another app (Android `ACTION_VIEW`).
-It needs an intent filter plus code in the generated Android project that hands the file to the page; neither
-Bubblewrap nor PWABuilder does it. Needs a build that can be run and tried on a device first.
+Written, not tried on a phone (27 Oct). Web side: `share_target` and `file_handlers` in the manifest, the inbox, the
+"Save this file to your library?" question (tested in a browser). Android side: `shareTarget` in `android/twa-manifest.json`
+and `android/add-file-intents.mjs` (adds the `ACTION_VIEW` filter; the workflow runs it). See `android/README.md` for how to
+try it. It needs a build from the GitHub workflow (PWABuilder cannot add the filter), which also has never been run: it needs
+the upload key (`ANDROID_KEYSTORE_B64` and the two passwords) as repository secrets.
+Open question: whether the phone's Chrome version hands opened files to a Trusted Web Activity.
 
 ## Later
 

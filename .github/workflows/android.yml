@@ -49,6 +49,8 @@ jobs:
           BUBBLEWRAP_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           npx --yes @bubblewrap/cli@1.27.0 update --manifest=./twa-manifest.json --skipVersionUpgrade
+          # "Open with Leafpage" for PDF and ePub files: Bubblewrap does not add that filter itself.
+          node add-file-intents.mjs
           npx --yes @bubblewrap/cli@1.27.0 build --manifest=./twa-manifest.json --skipPwaValidation
 
       - uses: actions/upload-artifact@v4

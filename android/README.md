@@ -34,16 +34,23 @@ Package name: `app.leafpage.reader` (permanent once published). The app opens `h
 
 ## Files sent to Leafpage
 
-A PDF or ePub shared to Leafpage (Android's **Share** sheet) is put in an inbox by the service worker (`/share-target`),
-and once the app is open it asks "Save this file to your library?" (`src/components/IncomingFiles.tsx`). The web part
-is tested; on a computer the installed app also takes part through `file_handlers` ("Open with").
+A PDF or ePub sent to Leafpage is kept in an inbox by the page (the service worker for **Share**, `launchQueue` for
+**Open with**), and once the library is open it asks "Save this file to your library?" (`src/components/IncomingFiles.tsx`).
+The web part is tested in a browser, and on a computer an installed Leafpage takes part through `file_handlers`.
 
-For the Share sheet to list Leafpage, the app has to be built again with the share target: `shareTarget` in
-`twa-manifest.json` (the web manifest has the same `share_target`). **This has not been built or tried on a phone yet.**
+On Android there are two ways in, both needing a build made with this folder (not PWABuilder):
 
-"Open with Leafpage" and "Always" for a PDF tapped in a file manager (Android `ACTION_VIEW`) is a different thing: it
-needs an intent filter and a little code in the generated project, which the Bubblewrap and PWABuilder tools do not add.
-It is not done.
+- **Share sheet:** `shareTarget` in `twa-manifest.json` (and `share_target` in the web manifest).
+- **Open with:** `add-file-intents.mjs` adds the `ACTION_VIEW` filter for PDF and ePub to the generated
+  `AndroidManifest.xml` (the workflow runs it between `bubblewrap update` and `bubblewrap build`). The Trusted Web Activity
+  library (androidbrowserhelper 2.7.4) passes the opened file to Chrome, which gives it to the page through `launchQueue`
+  because the web manifest has `file_handlers`. After the first "Open with", Android itself asks "Just once" or "Always".
+
+**None of this has been built or tried on a phone.** To try it: run the workflow (needs the upload key secrets), put the
+`.aab` in a Play test track, install it, open a PDF from a file manager and from Chrome's downloads, and share one.
+If "Open with" does not list Leafpage, or the file does not reach the page, the cause is most likely the Chrome version
+on the phone (file handling in a Trusted Web Activity is recent) or the filter, so start with the `adb logcat` lines tagged
+`LauncherActivity`.
 
 ## Play Billing (later)
 
