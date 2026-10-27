@@ -43,6 +43,9 @@ jobs:
           { "jdkPath": "$JAVA_HOME", "androidSdkPath": "$SDK" }
           JSON
           cat ~/.bubblewrap/config.json
+          # Gradle refuses to build when ANDROID_HOME and ANDROID_SDK_ROOT name different folders.
+          echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
 
       # ---- the key ------------------------------------------------------------------------------
       - name: Upload key (release)
