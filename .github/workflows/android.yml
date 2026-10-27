@@ -38,7 +38,9 @@ jobs:
           mkdir -p "$SDK" ~/.bubblewrap
           cp -r "$SRC"/cmdline-tools/latest/. "$SDK"/
           yes | "$SDK/bin/sdkmanager" --licenses --sdk_root="$SDK" > /dev/null || true
-          "$SDK/bin/sdkmanager" --install "build-tools;36.1.0" "platform-tools" "platforms;android-36" --sdk_root="$SDK"
+          # "yes" answers any licence question, which would otherwise be refused without anyone to ask.
+          yes | "$SDK/bin/sdkmanager" --sdk_root="$SDK" "build-tools;36.1.0" "platform-tools" "platforms;android-36"
+          ls "$SDK/platforms" "$SDK/build-tools"
           cat > ~/.bubblewrap/config.json <<JSON
           { "jdkPath": "$JAVA_HOME", "androidSdkPath": "$SDK" }
           JSON
@@ -103,6 +105,13 @@ jobs:
             grep -n "applicationId:\|    name:\|launcherName:" app/build.gradle
           fi
           npx --yes @bubblewrap/cli@1.27.0 build --manifest=./twa-manifest.json --skipPwaValidation
+
+      - name: What the Android SDK holds (shown when the build failed)
+        if: failure()
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME  ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+          ls "$HOME/android-sdk" "$HOME/android-sdk/platforms" "$HOME/android-sdk/build-tools" 2>&1 | head -40
+          "$HOME/android-sdk/bin/sdkmanager" --list_installed --sdk_root="$HOME/android-sdk" 2>&1 | head -30
 
       - name: The key's fingerprint (for assetlinks.json)
         if: inputs.variant == 'dev'
