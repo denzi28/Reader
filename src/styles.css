@@ -3912,11 +3912,23 @@ button.me-row { cursor: pointer; }
 .toolbar-wrap.dock.compact {
   left: max(10px, env(safe-area-inset-left)); top: calc(max(8px, env(safe-area-inset-top)) + 62px); translate: 0 0;
 }
-.dock.compact .toolbar { display: grid; grid-template-columns: repeat(2, 40px); gap: 4px; padding: 6px; border-radius: 24px; justify-items: center; }
+/* The tools and their options take the same slim, see-through look as the top bar. */
+.dock.compact .toolbar {
+  display: grid; grid-template-columns: repeat(2, 34px); gap: 2px; padding: 4px; border-radius: 20px; justify-items: center;
+  background: color-mix(in srgb, var(--card) 62%, transparent); backdrop-filter: blur(12px); border-color: color-mix(in srgb, var(--line) 60%, transparent);
+  box-shadow: 0 6px 16px -8px rgba(40, 25, 8, 0.35);
+}
 .dock.compact .group { display: contents; }
 .dock.compact .sep, .dock.compact .zoom, .dock.compact .zoom-sep { display: none; }
-.dock.compact .tool { width: 40px; height: 40px; }
-.dock.compact .options { top: 0; left: calc(100% + 10px); max-height: calc(100vh - 100px); overflow-y: auto; }
+.dock.compact .tool { width: 34px; height: 34px; }
+.dock.compact .tool svg { width: 20px; height: 20px; }
+.dock.compact .options {
+  top: 0; left: calc(100% + 8px); width: 236px; gap: 8px; padding: 8px 10px; border-radius: 18px; max-height: calc(100vh - 80px); overflow-y: auto;
+  background: color-mix(in srgb, var(--card) 70%, transparent); backdrop-filter: blur(12px); border-color: color-mix(in srgb, var(--line) 60%, transparent);
+  box-shadow: 0 6px 16px -8px rgba(40, 25, 8, 0.35);
+}
+.dock.compact .options .swatch { width: 22px; height: 22px; }
+.dock.compact .options .thickness .size { width: 24px; height: 24px; }
 @media (pointer: coarse) and (min-width: 641px) and (max-height: 500px) {
   /* One slim, see-through row: the title and the page number side by side, so the page keeps the room. */
   .viewer .topbar.phone-topbar {
@@ -3930,6 +3942,6 @@ button.me-row { cursor: pointer; }
   .viewer .topbar.phone-topbar .doc-title { flex: 0 1 auto; font-size: 0.92rem; }
   .viewer .topbar.phone-topbar .page-jump-sub { flex: none; }
   .viewer .topbar.phone-topbar .doc-link { flex: none; font-size: 0.72rem; }
-  .toolbar-wrap.dock.compact { top: calc(max(4px, env(safe-area-inset-top)) + 46px); }
+  .toolbar-wrap.dock.compact { top: calc(max(4px, env(safe-area-inset-top)) + 52px); }
   .vmenu { top: calc(max(4px, env(safe-area-inset-top)) + 42px); max-height: calc(100vh - 60px); overflow-y: auto; }
 }
