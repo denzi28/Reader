@@ -110,8 +110,7 @@ jobs:
         if: failure()
         run: |
           echo "ANDROID_HOME=$ANDROID_HOME  ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
-          ls "$HOME/android-sdk" "$HOME/android-sdk/platforms" "$HOME/android-sdk/build-tools" 2>&1 | head -40
-          "$HOME/android-sdk/bin/sdkmanager" --list_installed --sdk_root="$HOME/android-sdk" 2>&1 | head -30
+          for d in "$HOME"/android-sdk/platforms/*; do echo "== $d"; ls "$d" | head -12; grep -E "AndroidVersion|Pkg.Desc|Pkg.Revision" "$d/source.properties" 2>&1; done
 
       - name: The key's fingerprint (for assetlinks.json)
         if: inputs.variant == 'dev'
