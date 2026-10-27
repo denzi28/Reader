@@ -29,11 +29,18 @@ jobs:
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: 17 }
 
-      - name: Bubblewrap needs to know where Java and the Android SDK are
+      # Bubblewrap wants the Android command line tools at the root of the SDK folder (bin/sdkmanager there) and puts the
+      # build tools next to them, which is not how the runner's own SDK is laid out. So it gets a copy in that shape.
+      - name: Android SDK in the shape Bubblewrap expects
         run: |
-          mkdir -p ~/.bubblewrap
+          SRC="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
+          SDK="$HOME/android-sdk"
+          mkdir -p "$SDK" ~/.bubblewrap
+          cp -r "$SRC"/cmdline-tools/latest/. "$SDK"/
+          yes | "$SDK/bin/sdkmanager" --licenses --sdk_root="$SDK" > /dev/null || true
+          "$SDK/bin/sdkmanager" --install "build-tools;36.1.0" "platform-tools" --sdk_root="$SDK"
           cat > ~/.bubblewrap/config.json <<JSON
-          { "jdkPath": "$JAVA_HOME", "androidSdkPath": "${ANDROID_SDK_ROOT:-$ANDROID_HOME}" }
+          { "jdkPath": "$JAVA_HOME", "androidSdkPath": "$SDK" }
           JSON
           cat ~/.bubblewrap/config.json
 
