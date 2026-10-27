@@ -98,6 +98,12 @@ jobs:
           npx --yes @bubblewrap/cli@1.27.0 update --manifest=./twa-manifest.json --skipVersionUpgrade
           # "Open with Leafpage" for PDF and ePub files: Bubblewrap does not add that filter itself.
           node add-file-intents.mjs
+          # The Android Gradle plugin Bubblewrap pins (8.9.1) does not recognise the current Android 16 platform ("Failed to find
+          # target with hash string 'android-36'"), so the generated project gets a newer plugin and the Gradle it needs.
+          sed -i "s#com.android.tools.build:gradle:8.9.1#com.android.tools.build:gradle:8.13.0#" build.gradle
+          sed -i "s#gradle-8.11.1-bin.zip#gradle-8.13-bin.zip#" gradle/wrapper/gradle-wrapper.properties
+          grep -n "com.android.tools.build:gradle" build.gradle
+          grep -n "distributionUrl" gradle/wrapper/gradle-wrapper.properties
           # `update` takes the app's name from the web manifest again; the test app keeps its own name so the two can be told apart.
           if [ "${{ inputs.variant }}" = "dev" ]; then
             sed -i "s/^    name: .*/    name: 'Leafpage Dev',/; s/^    launcherName: .*/    launcherName: 'Leafpage Dev',/" app/build.gradle
