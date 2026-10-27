@@ -111,6 +111,12 @@ jobs:
           fi
           npx --yes @bubblewrap/cli@1.27.0 build --manifest=./twa-manifest.json --skipPwaValidation
 
+      - name: What went wrong, in short (shown when the build failed)
+        if: failure()
+        working-directory: android
+        run: |
+          ./gradlew assembleRelease --console=plain 2>&1 | grep -E "What went wrong|^> |^Caused by|Manifest merger|error:|FAILED" | head -25 || true
+
       - name: What the Android SDK holds (shown when the build failed)
         if: failure()
         run: |
