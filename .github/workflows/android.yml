@@ -29,18 +29,17 @@ jobs:
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: 17 }
 
-      # Bubblewrap wants the Android command line tools at the root of the SDK folder (bin/sdkmanager there) and puts the
-      # build tools next to them, which is not how the runner's own SDK is laid out. So it gets a copy in that shape.
-      - name: Android SDK in the shape Bubblewrap expects
+      # The Android SDK the way Bubblewrap makes it itself: with the same (old) command line tools it downloads, because the
+      # newest tools write platform files that this Android Gradle plugin does not recognise ("Failed to find target ... android-36").
+      - name: Android SDK, set up the way Bubblewrap does it
         run: |
-          SRC="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
           SDK="$HOME/android-sdk"
           mkdir -p "$SDK" ~/.bubblewrap
-          cp -r "$SRC"/cmdline-tools/latest/. "$SDK"/
-          yes | "$SDK/bin/sdkmanager" --licenses --sdk_root="$SDK" > /dev/null || true
-          # "yes" answers any licence question, which would otherwise be refused without anyone to ask.
-          yes | "$SDK/bin/sdkmanager" --sdk_root="$SDK" "build-tools;36.1.0" "platform-tools" "platforms;android-36"
-          ls "$SDK/platforms" "$SDK/build-tools"
+          curl -fsSL -o "$RUNNER_TEMP/clt.zip" https://dl.google.com/android/repository/commandlinetools-linux-6609375_latest.zip
+          unzip -q "$RUNNER_TEMP/clt.zip" -d "$SDK"
+          yes | "$SDK/tools/bin/sdkmanager" --licenses --sdk_root="$SDK" > /dev/null || true
+          yes | "$SDK/tools/bin/sdkmanager" --sdk_root="$SDK" "build-tools;36.1.0"
+          ls "$SDK" "$SDK/build-tools"
           cat > ~/.bubblewrap/config.json <<JSON
           { "jdkPath": "$JAVA_HOME", "androidSdkPath": "$SDK" }
           JSON
@@ -110,7 +109,8 @@ jobs:
         if: failure()
         run: |
           echo "ANDROID_HOME=$ANDROID_HOME  ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
-          for d in "$HOME"/android-sdk/platforms/*; do echo "== $d"; ls "$d" | head -12; grep -E "AndroidVersion|Pkg.Desc|Pkg.Revision" "$d/source.properties" 2>&1; done
+          ls "$HOME/android-sdk" "$HOME/android-sdk/platforms" "$HOME/android-sdk/build-tools" 2>&1 | head -30
+          for d in "$HOME"/android-sdk/platforms/*; do echo "== $d"; grep -E "AndroidVersion|Pkg.Desc|Pkg.Revision" "$d/source.properties" 2>&1; done
 
       - name: The key's fingerprint (for assetlinks.json)
         if: inputs.variant == 'dev'
