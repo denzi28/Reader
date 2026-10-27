@@ -1,10 +1,18 @@
-# Builds the Android app (a Trusted Web Activity around https://leafpage.app) as a signed bundle for Google Play.
-# Run it by hand: Actions > Android app > Run workflow. It needs four repository secrets (see android/README.md).
+# Builds the Android app (a Trusted Web Activity around https://www.leafpage.app).
+# Run it by hand: Actions > Android app > Run workflow.
+#   variant "dev":     a test app (package app.leafpage.reader.dev, called "Leafpage Dev") signed with a throwaway key made here,
+#                      to install on a phone and try. It needs no secrets and never touches the Google Play app.
+#   variant "release": the signed bundle for Google Play. It needs three repository secrets (see android/README.md).
 name: Android app
 
 on:
   workflow_dispatch:
     inputs:
+      variant:
+        description: 'dev = a test app to install on a phone; release = the bundle for Google Play'
+        type: choice
+        options: [dev, release]
+        default: dev
       version_name:
         description: 'Version name shown to people (for example 1.0.0)'
         default: '1.0.0'
@@ -12,7 +20,7 @@ on:
 jobs:
   bundle:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -28,35 +36,71 @@ jobs:
           JSON
           cat ~/.bubblewrap/config.json
 
-      - name: Upload key
+      # ---- the key ------------------------------------------------------------------------------
+      - name: Upload key (release)
+        if: inputs.variant == 'release'
         working-directory: android
         env:
           KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
         run: echo "$KEYSTORE_B64" | base64 -d > upload.keystore
 
-      - name: Version
+      # The test app's key is made once and kept, so its fingerprint (put in assetlinks.json) stays the same run after run.
+      - name: Test key (dev), kept between runs
+        if: inputs.variant == 'dev'
+        id: devkey
+        uses: actions/cache@v4
+        with:
+          path: android/dev.keystore
+          key: leafpage-dev-keystore-v1
+
+      - name: Test key (dev), made when there is none yet
+        if: inputs.variant == 'dev' && steps.devkey.outputs.cache-hit != 'true'
+        working-directory: android
+        run: |
+          keytool -genkeypair -noprompt -keystore dev.keystore -alias dev -keyalg RSA -keysize 2048 -validity 10000 \
+            -storepass leafpage-dev -keypass leafpage-dev -dname "CN=Leafpage Dev, O=Leafpage"
+
+      # ---- what is built ---------------------------------------------------------------------------
+      - name: Version, and the test app's own name and key
         working-directory: android
         run: |
           node -e "
             const f='twa-manifest.json', m=JSON.parse(require('fs').readFileSync(f,'utf8'));
             m.appVersionName='${{ inputs.version_name }}'; m.appVersion=String(process.env.GITHUB_RUN_NUMBER); m.appVersionCode=Number(process.env.GITHUB_RUN_NUMBER);
+            if ('${{ inputs.variant }}'==='dev') {
+              m.packageId='app.leafpage.reader.dev'; m.name='Leafpage Dev'; m.launcherName='Leafpage Dev';
+              m.signingKey={ path: './dev.keystore', alias: 'dev' };
+            }
             require('fs').writeFileSync(f, JSON.stringify(m,null,2));"
 
       - name: Build
         working-directory: android
         env:
-          BUBBLEWRAP_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          BUBBLEWRAP_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          BUBBLEWRAP_KEYSTORE_PASSWORD: ${{ inputs.variant == 'dev' && 'leafpage-dev' || secrets.ANDROID_KEYSTORE_PASSWORD }}
+          BUBBLEWRAP_KEY_PASSWORD: ${{ inputs.variant == 'dev' && 'leafpage-dev' || secrets.ANDROID_KEY_PASSWORD }}
         run: |
           npx --yes @bubblewrap/cli@1.27.0 update --manifest=./twa-manifest.json --skipVersionUpgrade
           # "Open with Leafpage" for PDF and ePub files: Bubblewrap does not add that filter itself.
           node add-file-intents.mjs
+          # `update` takes the app's name from the web manifest again; the test app keeps its own name so the two can be told apart.
+          if [ "${{ inputs.variant }}" = "dev" ]; then
+            sed -i "s/^    name: .*/    name: 'Leafpage Dev',/; s/^    launcherName: .*/    launcherName: 'Leafpage Dev',/" app/build.gradle
+            grep -n "applicationId:\|    name:\|launcherName:" app/build.gradle
+          fi
           npx --yes @bubblewrap/cli@1.27.0 build --manifest=./twa-manifest.json --skipPwaValidation
+
+      - name: The key's fingerprint (for assetlinks.json)
+        if: inputs.variant == 'dev'
+        working-directory: android
+        run: |
+          keytool -list -v -keystore dev.keystore -alias dev -storepass leafpage-dev | grep -E "SHA256:" | tee fingerprint.txt
+          { echo "### Test app key"; echo; echo "Package: app.leafpage.reader.dev"; echo; echo '```'; cat fingerprint.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: leafpage-android
+          name: leafpage-android-${{ inputs.variant }}
           path: |
             android/app-release-bundle.aab
             android/app-release-signed.apk
             android/assetlinks.json
+            android/fingerprint.txt

@@ -28,7 +28,7 @@
   "file_handlers": [
     { "action": "/", "accept": { "application/pdf": [".pdf"], "application/epub+zip": [".epub"] } }
   ],
-  "launch_handler": { "client_mode": ["navigate-existing", "auto"] },
+  "launch_handler": { "client_mode": "navigate-existing" },
   "shortcuts": [
     { "name": "New note", "short_name": "New note", "description": "Start a notebook or a doc", "url": "/?new=note", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }] },
     { "name": "PDF tools", "short_name": "PDF tools", "description": "Merge, split, crop and edit PDFs", "url": "/?tab=tools", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }] }
