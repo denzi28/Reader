@@ -187,4 +187,6 @@ export const trViewer: Record<string, string> = {
   // Corner cards
   '{label}, {sub}: open it': '{label}, {sub}: aç',
   'Hide {label}': '{label} gizle',
+  'Show the drawing tools': 'Çizim araçlarını göster',
+  'Hide the drawing tools': 'Çizim araçlarını gizle',
 };

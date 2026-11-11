@@ -26,7 +26,7 @@ import {
 import { downloadPdf, onRemoteInk, onRemotePdf, syncDoc } from '../lib/sync/engine';
 import { useDownloadProgress } from '../lib/sync/useSync';
 import type { DocInk, DocMeta, Stroke, Tool } from '../lib/types';
-import { BackIcon, BookOpenIcon, DownloadIcon, FitIcon, MinusIcon, MoonIcon, MoreVIcon, NotePlusIcon, PanelIcon, PlusIcon, RailIcon, SearchIcon, SunIcon } from './icons';
+import { BackIcon, BookOpenIcon, DownloadIcon, FitIcon, MinusIcon, MoonIcon, MoreVIcon, NotePlusIcon, PanelIcon, PenIcon, PlusIcon, RailIcon, SearchIcon, SunIcon } from './icons';
 import { DocPanel, PageRail } from './ReaderSide';
 import { SyncBadge, SyncRow } from './SyncControl';
 import { useCompact, usePhone } from '../lib/usePhone';
@@ -866,6 +866,9 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose, onOpen, onBoo
   const phone = usePhone();
   // Held sideways, a phone gets the slim bars too: the desktop's top bar would crowd out the page.
   const compact = useCompact();
+  // Sideways on a phone the block of tools can be put away, to leave the whole page for reading.
+  const [toolsOff, setToolsOff] = useState(() => { try { return localStorage.getItem('reader.toolsOff') === '1'; } catch { return false; } });
+  const toggleTools = () => setToolsOff((v) => { try { localStorage.setItem('reader.toolsOff', v ? '0' : '1'); } catch { /* ignore */ } return !v; });
   const slim = phone || compact;
   // The page strip (left) and the panel of marks (right) of the desktop reading screen; remembered between visits.
   const remembered = (key: string, fallback: boolean) => {
@@ -1077,7 +1080,7 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose, onOpen, onBoo
   const color = tool === 'highlighter' ? prefs.hlColor : prefs.penColor;
 
   return (
-    <div ref={root} className={`viewer tool-${tool}${cover === 'on' ? ' opening' : ''}${!slim && rail ? ' rail-on' : ''}${!slim && side ? ' side-on' : ''}`}>
+    <div ref={root} className={`viewer tool-${tool}${cover === 'on' ? ' opening' : ''}${!slim && rail ? ' rail-on' : ''}${!slim && side ? ' side-on' : ''}${compact && !phone && toolsOff ? ' tools-off' : ''}`}>
       {slim ? (
         <header className="topbar phone-topbar">
           <button className="icon-button" onClick={onClose} aria-label={t('Back to library')} title={t('Back')}>
@@ -1111,6 +1114,12 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose, onOpen, onBoo
               </label>
             )}
           </div>
+          {compact && !phone && (
+            <button className={`icon-button${toolsOff ? '' : ' on'}`} onClick={toggleTools} aria-pressed={!toolsOff}
+              aria-label={toolsOff ? t('Show the drawing tools') : t('Hide the drawing tools')} title={toolsOff ? t('Show the drawing tools') : t('Hide the drawing tools')}>
+              <PenIcon />
+            </button>
+          )}
           {onBook && pdf && !meta?.notebook && <BookButton onBook={onBook} />}
           {finder && !meta?.notebook && (
             <button className="icon-button" onClick={() => { setMenuOpen(false); setFindOpen((v) => !v); }} aria-pressed={findOpen}

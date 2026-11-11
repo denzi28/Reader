@@ -3980,3 +3980,7 @@ button.me-row { cursor: pointer; }
 .update-toast { left: 0; right: 0; margin-inline: auto; width: max-content; max-width: calc(100% - 24px); transform: none; }
 .update-toast.fast-tip { border-radius: 22px; padding: 0.6rem 0.5rem 0.6rem 0.9rem; width: min(520px, calc(100% - 24px)); }
 @media (max-width: 640px) { .update-toast.fast-tip { bottom: calc(max(16px, env(safe-area-inset-bottom)) + 84px); } }
+
+/* Sideways on a phone: the pen button in the top bar puts the block of tools away and brings it back. */
+.viewer.tools-off .toolbar-wrap.dock.compact { display: none; }
+.viewer .topbar.phone-topbar .icon-button.on { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
