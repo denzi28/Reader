@@ -18,6 +18,7 @@ import {
 } from './icons';
 import { AddSheet, BookSheet, MePage, PhoneNav, type PhoneTab, ToolsPage } from './PhoneParts';
 import { TopBar } from './TopBar';
+import { FastTip } from './FastTip';
 import { IncomingFiles } from './IncomingFiles';
 import { Intro, introSeen, markIntroSeen } from './Intro';
 import { Wordmark } from './Wordmark';
@@ -1046,6 +1047,7 @@ export function Library(props: Props) {
       {downloading && <DownloadDialog doc={downloading} onClose={() => setDownloading(null)} />}
       {intro && <Intro onClose={() => setIntro(false)} />}
       {!intro && <IncomingFiles onImport={onImport} />}
+      {!intro && introSeen() && <FastTip onShow={() => { if (phone) setTab('me'); else window.dispatchEvent(new Event('leafpage:account')); }} />}
       {newNote && <NewNote busy={makingNote} error={noteError} onCreate={(spec, kind) => void createNote(spec, kind)} onClose={() => setNewNote(false)} />}
       {tool && (
         <Suspense fallback={<div className="workspace"><div className="tool-backdrop" /><div className="tool-sheet"><div className="note-loading" /></div></div>}>

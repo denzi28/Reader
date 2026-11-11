@@ -1,12 +1,12 @@
 // Fast mode, for old tablets and phones: no animation, no blur behind the bars, lighter shadows, and pages drawn
-// with fewer pixels. It is on by itself where the device says it has little memory or few cores, and anyone can
-// switch it in the menu.
+// with fewer pixels. It is never on by itself: a note tells people once that it exists (and recommends it where
+// the device says it has little memory or few cores), and they switch it in the menu.
 import { useSyncExternalStore } from 'react';
 
 const KEY = 'reader.fast';
 
 /** A device that will struggle: 2 GB of memory or less, or one or two processor cores. */
-function weakDevice(): boolean {
+export function weakDevice(): boolean {
   if (typeof navigator === 'undefined') return false;
   const n = navigator as Navigator & { deviceMemory?: number };
   return (n.deviceMemory ?? 8) <= 2 || (n.hardwareConcurrency ?? 8) <= 2;
@@ -19,7 +19,7 @@ export function fastOn(): boolean {
   if (on === null) {
     let saved: string | null = null;
     try { saved = localStorage.getItem(KEY); } catch { /* ignore */ }
-    on = saved === '1' ? true : saved === '0' ? false : weakDevice();
+    on = saved === '1';
   }
   return on;
 }
@@ -46,3 +46,12 @@ export const calm = () => fastOn() || (typeof matchMedia !== 'undefined' && matc
 
 /** How many canvas pixels to draw per screen pixel: the screen's own density up to `cap`, and at most 1.5 in fast mode. */
 export const pixelRatio = (cap: number) => Math.min(window.devicePixelRatio || 1, fastOn() ? Math.min(cap, 1.5) : cap);
+
+// ---- the one-time note that fast mode exists -------------------------------------
+const TIP = 'reader.fastTip';
+export function fastTipSeen(): boolean {
+  try { return localStorage.getItem(TIP) === '1'; } catch { return true; }
+}
+export function markFastTipSeen() {
+  try { localStorage.setItem(TIP, '1'); } catch { /* ignore */ }
+}

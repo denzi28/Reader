@@ -154,6 +154,12 @@ export function AccountMenu({ dark, onTheme, docCount, onTour }: { dark: boolean
   }, [open]);
 
   const fast = useFast();
+  // The note about fast mode opens this menu, where its switch is.
+  useEffect(() => {
+    const show = () => setOpen(true);
+    window.addEventListener('leafpage:account', show);
+    return () => window.removeEventListener('leafpage:account', show);
+  }, []);
   const signedIn = status.available && status.ready && status.connected;
   const dot = !online ? 'off' : status.state === 'reauth' || status.state === 'error' ? 'warn' : 'on';
   const dotLabel = { on: t('Online'), off: t('Offline'), warn: t('Needs attention') }[dot];

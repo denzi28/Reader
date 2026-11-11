@@ -381,6 +381,7 @@ will let the same PDF match its notes on another device later.
 
 For old tablets and phones (`src/lib/fastMode.ts`): no animations or transitions, no blur behind the bars (they turn solid),
 lighter shadows, pages drawn at no more than 1.5 canvas pixels per screen pixel, and fewer pages kept drawn around the
-screen. It turns itself on where the browser reports 2 GB of memory or less, or one or two cores; the switch is in the
+screen. It is never on by itself. A note in the library says once that it exists ("Show me" opens the menu with its switch;
+it says "recommended" where the browser reports 2 GB of memory or less, or one or two cores). The switch is in the
 account menu (and on the phone's Me page) and the choice is kept in `reader.fast`.
 
