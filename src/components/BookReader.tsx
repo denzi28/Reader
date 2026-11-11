@@ -1,3 +1,4 @@
+import { calm } from '../lib/fastMode';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointer } from 'react';
 import { posFromPoint, posNear, pickedSelection, rectOfPos, type Picked } from '../lib/book/dom';
 import { loadBook, NoTextError, type Loaded } from '../lib/book/load';
@@ -181,7 +182,7 @@ function Reader({ data, docId, startPage, dark, onTheme, onClose, onPdf, scan, o
   const phone = usePhone();
   const [settings, change] = useBookSettings();
   const themeNow = settings.theme === 'auto' ? (dark ? 'night' : 'paper') : settings.theme;
-  const reduced = useMemo(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches, []);
+  const reduced = calm();
 
   // The browser's own bars (the status bar, Safari's toolbar) take the colour of the paper.
   useEffect(() => {

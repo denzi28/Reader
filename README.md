@@ -376,3 +376,11 @@ will let the same PDF match its notes on another device later.
 - `scripts/copy-pdfjs-assets.mjs` copies pdf.js fonts, cmaps and decoders into
   `public/pdfjs/` (git-ignored); `dev` and `build` run it automatically.
 - Ink is saved on the device only. Clearing site data removes it.
+
+## Fast mode
+
+For old tablets and phones (`src/lib/fastMode.ts`): no animations or transitions, no blur behind the bars (they turn solid),
+lighter shadows, pages drawn at no more than 1.5 canvas pixels per screen pixel, and fewer pages kept drawn around the
+screen. It turns itself on where the browser reports 2 GB of memory or less, or one or two cores; the switch is in the
+account menu (and on the phone's Me page) and the choice is kept in `reader.fast`.
+

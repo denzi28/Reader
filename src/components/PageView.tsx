@@ -1,3 +1,4 @@
+import { pixelRatio } from '../lib/fastMode';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { t } from '../lib/i18n';
@@ -99,7 +100,7 @@ function PageViewImpl(props: Props) {
   eraserRef.current = eraser;
 
   const aspect = height / width;
-  const dpr = Math.min(window.devicePixelRatio || 1, 3);
+  const dpr = pixelRatio(3);
   const inkScale = Math.min(dpr, Math.sqrt(MAX_INK_PIXELS / (renderWidth * renderWidth * aspect)));
   const inkW = Math.max(1, Math.round(renderWidth * inkScale));
   const inkH = Math.max(1, Math.round(renderWidth * aspect * inkScale));

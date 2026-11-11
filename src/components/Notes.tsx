@@ -1,3 +1,4 @@
+import { pixelRatio } from '../lib/fastMode';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -134,7 +135,7 @@ function Peek({ stops, at, onMove, onOpen, onClose }: {
       const [pdf, ink] = await Promise.all([docFor(doc.id), loadInk(doc.id)]);
       if (gone || !pdf) return;
       const box = c.parentElement!.getBoundingClientRect();
-      const width = Math.round(Math.min(box.width, 900) * Math.min(window.devicePixelRatio || 1, 2));
+      const width = Math.round(Math.min(box.width, 900) * pixelRatio(2));
       const off = document.createElement('canvas');
       await renderPagePreview(pdf, page, off, width);
       if (gone) return;

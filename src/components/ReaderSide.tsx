@@ -1,3 +1,4 @@
+import { pixelRatio } from '../lib/fastMode';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { useEffect, useRef, useState } from 'react';
 import { count, t } from '../lib/i18n';
@@ -37,7 +38,7 @@ function Thumb({ pdf, index, aspect, active, dark, onGo }: {
     let dead = false;
     void queue(async () => {
       if (dead) return;
-      await renderPagePreview(pdf, index, c, Math.round(110 * Math.min(window.devicePixelRatio || 1, 2)));
+      await renderPagePreview(pdf, index, c, Math.round(110 * pixelRatio(2)));
     }).catch(() => undefined);
     return () => { dead = true; };
   }, [near, pdf, index]);

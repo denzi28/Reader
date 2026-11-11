@@ -2,12 +2,13 @@
 // a glass bead that stretches toward the tab it moves to (and follows a finger or a mouse dragged along
 // the bar), and a small glow where a finger lands. Works the same for a mouse, a finger and a pen.
 import { useLayoutEffect, type RefObject } from 'react';
+import { calm, fastOn } from './fastMode';
 import { feel } from './haptics';
 
 /** Controls that get the light and the press (the bars of tabs have their own). */
 const CONTROLS = '.icon-button, .tool, .bk-icon, .bk-tool, .nav-tool, .pn-item, .pn-plus, .top-tabs button, .account-btn, .tool-btn, .install-go, .install-x, .wb-item';
 
-const reduced = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const reduced = calm;
 
 let started = false;
 
@@ -19,7 +20,7 @@ export function startLiquid() {
   let last: PointerEvent | null = null;
   // The light follows a mouse over a control (a finger has no hover).
   window.addEventListener('pointermove', (e) => {
-    if (e.pointerType !== 'mouse') return;
+    if (e.pointerType !== 'mouse' || fastOn()) return;
     last = e;
     if (frame) return;
     frame = requestAnimationFrame(() => {

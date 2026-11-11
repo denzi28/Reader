@@ -1,3 +1,4 @@
+import { fastOn, pixelRatio } from '../lib/fastMode';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { flushSync } from 'react-dom';
 import {
@@ -417,7 +418,7 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose, onOpen, onBoo
     if (!canvas) return;
     hub.overlay = canvas;
     const size = () => {
-      const dpr = Math.min(window.devicePixelRatio || 1, 3);
+      const dpr = pixelRatio(3);
       canvas.width = Math.round(canvas.clientWidth * dpr);
       canvas.height = Math.round(canvas.clientHeight * dpr);
     };
@@ -644,7 +645,7 @@ export function Viewer({ docId, startPage, dark, onTheme, onClose, onOpen, onBoo
         setVisible(new Set(visibleSet.current));
         recheckCurrent.current();
       },
-      { root, rootMargin: '120% 0px' },
+      { root, rootMargin: fastOn() ? '60% 0px' : '120% 0px' },
     );
     observer.current = io;
     pageEls.current.forEach((el) => io.observe(el));

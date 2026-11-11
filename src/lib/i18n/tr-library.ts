@@ -394,6 +394,8 @@ export const trLibrary: Record<string, string> = {
   'The words, headings, lists and pictures on pages.': 'Yazılar, başlıklar, listeler ve resimler sayfalarda.',
   'Docs': 'Belgeler',
   'A note that goes with one page. Choose how you want to write.': 'Bir sayfaya özel not. Nasıl yazmak istediğini seç.',
+  'Fast mode': 'Hızlı mod',
+  'No animations or blur, for older devices': 'Animasyon ve bulanıklık yok, eski cihazlar için',
   'Touch feedback': 'Dokunma titreşimi',
   'A light vibration when you tap': 'Dokunurken hafif titreşim',
   'A short tour': 'Kısa tanıtım',

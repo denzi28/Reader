@@ -1,3 +1,4 @@
+import { calm } from './lib/fastMode';
 import { useCallback, useEffect, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { Library } from './components/Library';
@@ -43,8 +44,7 @@ function takeAuthResult(): string | null {
 /** Crossfades between screens where the browser supports it. */
 function transition(update: () => void) {
   const doc = document as Document & { startViewTransition?: (cb: () => void) => unknown };
-  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if (doc.startViewTransition && !reduced) doc.startViewTransition(() => flushSync(update));
+  if (doc.startViewTransition && !calm()) doc.startViewTransition(() => flushSync(update));
   else update();
 }
 

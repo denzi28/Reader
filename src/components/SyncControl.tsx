@@ -5,7 +5,8 @@ import { authMode, preloadGoogle } from '../lib/sync/google';
 import { useSyncStatus } from '../lib/sync/useSync';
 import { InstallChip } from './PwaBits';
 import { PlanCard } from './Paywall';
-import { AlertIcon, CloudIcon, MoonIcon, SparkIcon, SunIcon, SyncIcon, UserIcon } from './icons';
+import { setFast, useFast } from '../lib/fastMode';
+import { AlertIcon, BoltIcon, CloudIcon, MoonIcon, SparkIcon, SunIcon, SyncIcon, UserIcon } from './icons';
 
 const LABEL: Record<SyncStatus['state'], string> = {
   off: t('Sign in with Google'),
@@ -152,6 +153,7 @@ export function AccountMenu({ dark, onTheme, docCount, onTour }: { dark: boolean
     return () => { document.removeEventListener('pointerdown', close); document.removeEventListener('keydown', key); };
   }, [open]);
 
+  const fast = useFast();
   const signedIn = status.available && status.ready && status.connected;
   const dot = !online ? 'off' : status.state === 'reauth' || status.state === 'error' ? 'warn' : 'on';
   const dotLabel = { on: t('Online'), off: t('Offline'), warn: t('Needs attention') }[dot];
@@ -202,6 +204,10 @@ export function AccountMenu({ dark, onTheme, docCount, onTour }: { dark: boolean
           <button role="menuitem" className="account-row" onClick={onTheme}>
             <span className="account-sync">{dark ? <SunIcon /> : <MoonIcon />}{dark ? t('Day paper') : t('Night paper')}</span>
             <i className={`account-switch${dark ? ' on' : ''}`} aria-hidden="true" />
+          </button>
+          <button role="menuitem" className="account-row" onClick={() => setFast(!fast)} title={t('No animations or blur, for older devices')}>
+            <span className="account-sync"><BoltIcon />{t('Fast mode')}</span>
+            <i className={`account-switch${fast ? ' on' : ''}`} aria-hidden="true" />
           </button>
           {onTour && (
             <button role="menuitem" className="account-row" onClick={() => { setOpen(false); onTour(); }}>

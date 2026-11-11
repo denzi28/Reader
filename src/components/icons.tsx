@@ -222,6 +222,11 @@ export const EditPagesIcon = () => (
     <path d="M11 18.5H6.5M9 16l-2.5 2.5L9 21" />
   </Icon>
 );
+export const BoltIcon = () => (
+  <Icon>
+    <path d="M13 3 5 13.5h6L10 21l8-10.5h-6L13 3Z" />
+  </Icon>
+);
 export const SparkIcon = () => (
   <Icon>
     <path d="M11 3l1.8 4.7L17.5 9.5l-4.7 1.8L11 16l-1.8-4.7L4.5 9.5l4.7-1.8z" />

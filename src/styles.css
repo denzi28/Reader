@@ -3945,3 +3945,27 @@ button.me-row { cursor: pointer; }
   .toolbar-wrap.dock.compact { top: calc(max(4px, env(safe-area-inset-top)) + 52px); }
   .vmenu { top: calc(max(4px, env(safe-area-inset-top)) + 42px); max-height: calc(100vh - 60px); overflow-y: auto; }
 }
+
+/* ---------- fast mode (older tablets and phones): nothing moves, nothing blurs ---------- */
+:root[data-fast] *, :root[data-fast] *::before, :root[data-fast] *::after {
+  animation-duration: 0.01ms !important; animation-delay: 0s !important; animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important; transition-delay: 0s !important;
+  -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
+  scroll-behavior: auto !important;
+}
+/* What says "working on it" keeps turning. */
+:root[data-fast] .spin, :root[data-fast] .tool-busy-spin, :root[data-fast] .google-btn .btn-spinner, :root[data-fast] .peek-loading, :root[data-fast] .peek-loading::after,
+:root[data-fast] .bk-scan span::before, :root[data-fast] .bk-scanchip::before {
+  animation-duration: 0.9s !important; animation-iteration-count: infinite !important;
+}
+:root[data-fast] .bookload-leaf { animation-duration: 2.6s !important; animation-delay: calc(var(--n) * 0.32s) !important; animation-iteration-count: infinite !important; }
+/* Lighter shadows: one soft edge where there were two wide ones. */
+:root[data-fast] { --shadow-page: 0 1px 3px rgba(70, 45, 10, 0.3); --shadow-float: 0 2px 6px rgba(70, 45, 10, 0.3); }
+:root[data-fast][data-theme='dark'] { --shadow-page: 0 1px 3px rgba(0, 0, 0, 0.6); --shadow-float: 0 2px 6px rgba(0, 0, 0, 0.6); }
+/* With no blur behind them, the bars are solid so the words under them do not show through. */
+:root[data-fast] .phone-topbar, :root[data-fast] .phone-tray .toolbar, :root[data-fast] .viewer .topbar,
+:root[data-fast] .dock.compact .toolbar, :root[data-fast] .dock.compact .options,
+:root[data-fast] .nt-top, :root[data-fast] .nt-bar, :root[data-fast] .tool-busy { background: var(--card) !important; }
+:root[data-fast] .deskbar { background: var(--desk) !important; }
+:root[data-fast] .bk-top { background: var(--bk-card) !important; }
+:root[data-fast] .phone-nav { background: var(--card) !important; }

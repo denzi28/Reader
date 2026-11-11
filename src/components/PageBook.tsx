@@ -1,3 +1,4 @@
+import { calm, pixelRatio } from '../lib/fastMode';
 import { feel } from '../lib/haptics';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointer } from 'react';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
@@ -62,7 +63,7 @@ function PageCanvas({ pdf, index, width, drawn, ratio, shown }: { pdf: PDFDocume
     const canvas = ref.current;
     if (!canvas) return;
     // Sharp for the screen, but never bigger than a canvas can reasonably be.
-    const px = Math.min(3600, Math.round(drawn * Math.min(window.devicePixelRatio || 1, 2.5)));
+    const px = Math.min(3600, Math.round(drawn * pixelRatio(2.5)));
     void renderPagePreview(pdf, index, canvas, px).catch(() => undefined);
   }, [pdf, index, drawn]);
   return (
@@ -335,7 +336,7 @@ export function PageBook({ docId, startPage, dark, onTheme, onClose, onPdf, scan
   const spreadRef = useRef<HTMLDivElement>(null);
   const flipping = useRef(false);
   const flipRef = useRef<(target: number) => void>(undefined);
-  const reduced = useMemo(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches, []);
+  const reduced = calm();
   flipRef.current = (target) => {
     const sp = spreadRef.current;
     const view = viewRef.current;
